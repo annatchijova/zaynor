@@ -1,0 +1,9 @@
+{
+  "admin-session-investigation": [
+    "collected/auth.jsonl",
+    "collected/process.jsonl",
+    "collected/network.jsonl",
+    "collected/filesystem.jsonl",
+    "collected/operator_note.txt"
+  ]
+}

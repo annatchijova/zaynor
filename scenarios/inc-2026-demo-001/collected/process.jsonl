@@ -1,0 +1,2 @@
+{"ref": "proc:E003", "event": "process_start", "pid": "P-442", "session": "S-884", "host": "srv-files-01", "parent": "sshd", "command": "archive collection.zip", "logical_time": 180}
+{"ref": "proc:E004", "event": "file_timestamp_change", "pid": "P-442", "path": "collection.zip", "host": "srv-files-01", "new_mtime_logical": -900, "logical_time": 300}
