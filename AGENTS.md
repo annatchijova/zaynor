@@ -13,6 +13,9 @@ abduction/refutation reasoning loop, the Definition of Done checklist). Per
 `CLAUDE.md`'s own stated scope, the two are not to be conflated: read
 `CLAUDE.md` for how to work in this repo in general, read this file for what
 ZAYNOR specifically is and how its architecture constrains a change.
+`SYSTEM_PROMPT--ZAYNOR.md` is the single runtime prompt assembled from this
+contract and VIGÍA's Peircean reasoning protocol; it cannot override the
+repository contracts.
 
 ## Hackathon context
 
