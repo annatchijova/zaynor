@@ -52,18 +52,33 @@ jurado puede observar en la demo.
 
 ## Flujo de autoridad
 
-```text
-INCIDENTE DECLARADO + EVIDENCIA RECOLECTADA
-        (fixture simulado o datos públicos autorizados)
-    -> freeze del caso: manifest, hashes, case_id inmutable
-    -> motor matemático determinista
-    -> veredicto autoritativo sellado
-    -> contexto exhaustivo de MITRE ATT&CK / NIST
-    -> IA local propone qué investigar después
-    -> operación tipada, read-only y acotada
-    -> nueva evidencia -> reanálisis determinista -> nuevo sellado
-    -> chat local, vista técnica e informe para humanos
+```mermaid
+flowchart TD
+    A["Incidente declarado<br/>+ evidencia recolectada<br/>(fixture simulado o dato público autorizado)"] --> B["Freeze del caso<br/>manifest · hashes · case_id inmutable"]
+    B --> C["Motor matemático determinista<br/>(VIGÍA)"]
+    C --> D["Veredicto autoritativo sellado<br/>MALICE · SUSPICION · ABSTAIN · BENIGN"]
+    D --> E["Contexto MITRE ATT&CK / NIST<br/>anota, nunca cambia el veredicto"]
+    E --> F(("IA local"))
+    F -->|propone próxima pregunta| G["Operación read-only<br/>tipada y acotada"]
+    G --> H["Nueva evidencia"]
+    H -.->|reanálisis, nunca decide sola| C
+    F --> I["Chat perito junior"]
+    F --> J["Vista técnica senior"]
+    F --> K["Informe ejecutivo"]
+
+    X["Artefacto con instrucción embebida<br/>(ticket, log, nota de operador)"] -. queda como dato,<br/>nunca autoridad .-> C
+
+    classDef authoritative fill:#2d5016,stroke:#1a3009,color:#fff
+    classDef ai fill:#1a3a5c,stroke:#0d1f30,color:#fff
+    classDef adversarial fill:#5c1a1a,stroke:#300d0d,color:#fff,stroke-dasharray: 5 5
+    class B,C,D,E authoritative
+    class F,G,H,I,J,K ai
+    class X adversarial
 ```
+
+La IA (celeste) nunca escribe en el camino autoritativo (verde); el artefacto
+adversarial (rojo, línea punteada) entra como evidencia leída, nunca como
+instrucción que cruce hacia el motor determinista.
 
 La IA nunca puede:
 

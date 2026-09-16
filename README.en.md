@@ -52,18 +52,33 @@ observe in the demo.
 
 ## Authority flow
 
-```text
-DECLARED INCIDENT + COLLECTED EVIDENCE
-        (simulated fixture or authorized public data)
-    -> case freeze: manifest, hashes, immutable case_id
-    -> deterministic mathematical engine
-    -> sealed authoritative verdict
-    -> comprehensive MITRE ATT&CK / NIST context
-    -> local AI proposes what to investigate next
-    -> typed, bounded, read-only operation
-    -> new evidence -> deterministic re-analysis -> re-sealing
-    -> local chat, technical view, and human-facing report
+```mermaid
+flowchart TD
+    A["Declared incident<br/>+ collected evidence<br/>(simulated fixture or authorized public data)"] --> B["Case freeze<br/>manifest · hashes · immutable case_id"]
+    B --> C["Deterministic mathematical engine<br/>(VIGÍA)"]
+    C --> D["Sealed authoritative verdict<br/>MALICE · SUSPICION · ABSTAIN · BENIGN"]
+    D --> E["MITRE ATT&CK / NIST context<br/>annotates, never changes the verdict"]
+    E --> F(("Local AI"))
+    F -->|proposes next question| G["Typed, bounded<br/>read-only operation"]
+    G --> H["New evidence"]
+    H -.->|re-analysis, never decides alone| C
+    F --> I["Junior examiner chat"]
+    F --> J["Senior technical view"]
+    F --> K["Executive report"]
+
+    X["Artifact with an embedded instruction<br/>(ticket, log, operator note)"] -. stays as data,<br/>never authority .-> C
+
+    classDef authoritative fill:#2d5016,stroke:#1a3009,color:#fff
+    classDef ai fill:#1a3a5c,stroke:#0d1f30,color:#fff
+    classDef adversarial fill:#5c1a1a,stroke:#300d0d,color:#fff,stroke-dasharray: 5 5
+    class B,C,D,E authoritative
+    class F,G,H,I,J,K ai
+    class X adversarial
 ```
+
+The AI (blue) never writes into the authoritative path (green); the
+adversarial artifact (red, dashed) enters as evidence to be read, never as
+an instruction crossing into the deterministic engine.
 
 The AI can never:
 
