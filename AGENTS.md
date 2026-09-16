@@ -28,7 +28,7 @@ demonstrates resistance to manipulation attempts. Only simulated or public
 data is allowed; no testing against real systems. Deliverable is source code
 + README, demoed as a 3-minute pitch + functional demo, then 1 minute of
 jury questions — that time budget is why the architecture below is
-deliberately small (§ "Scope: the hybrid pipeline").
+deliberately small (§ "Scope: the postmortem pipeline").
 
 Source material, in `docs/hackathon/`:
 
@@ -51,32 +51,38 @@ Source material, in `docs/hackathon/`:
   competing incident fixtures), that is an open decision, not an
   inconsistency to silently pick a side on.
 
-ZAYNOR is a hybrid DFIR system built around VIGÍA, an existing deterministic
-forensic engine — it does not reimplement VIGÍA's mechanisms from scratch. A
-small deterministic front end may detect and correlate signals over a
-deterministic replay of synthetic telemetry until an incident is declared;
-the resulting case is frozen and handed through an explicit adapter to
-VIGÍA, which performs the authoritative deterministic forensic analysis.
-ZAYNOR then maps supported findings into applicable frameworks (MITRE
-ATT&CK, NIST) and seals an authoritative result. A local LLM consumes that
-sealed state to explain, summarize, and generate reports and postmortems for
-different analyst audiences; it may optionally suggest further read-only
-investigative queries, but any resulting evidence has no effect on the
-authoritative result until it has crossed back through the deterministic
-authority boundary. Keep both boundaries in mind — the ZAYNOR↔VIGÍA
-integration boundary and the deterministic↔LLM authority boundary — they
-shape almost every rule below. See "Scope: the hybrid pipeline" for the full
-picture and §2 for the boundary rules.
+ZAYNOR is a postmortem DFIR system built around VIGÍA, an existing
+deterministic forensic engine — it does not reimplement VIGÍA's mechanisms
+from scratch, and it does not detect, correlate, or replay telemetry
+itself. ZAYNOR starts from an incident that is already declared and
+evidence that is already collected — both out of scope for this repo (see
+"Scope: the postmortem pipeline"). The case is frozen and handed through an
+explicit adapter to VIGÍA, which performs the authoritative deterministic
+forensic analysis. ZAYNOR then maps supported findings into applicable
+frameworks (MITRE ATT&CK, NIST) and seals an authoritative result. A local
+LLM consumes that sealed state to explain, summarize, and generate reports
+and postmortems for different analyst audiences; it may optionally suggest
+further read-only investigative queries, but any resulting evidence has no
+effect on the authoritative result until it has crossed back through the
+deterministic authority boundary. Keep both boundaries in mind — the
+ZAYNOR↔VIGÍA integration boundary and the deterministic↔LLM authority
+boundary — they shape almost every rule below. See "Scope: the postmortem
+pipeline" for the full picture and §2 for the boundary rules.
 
-## Scope: the hybrid pipeline
+## Scope: the postmortem pipeline
 
-ZAYNOR is a hybrid across the full incident lifecycle, not just the
-post-incident half — don't read the deterministic/LLM split in §2 as "we
-don't do live telemetry":
+ZAYNOR is postmortem, full stop. It does not ingest live or synthetic
+telemetry, does not run a detection rule, and does not correlate alerts
+into an incident — an incident arriving already declared, with its
+evidence already collected, is the input, not something ZAYNOR produces.
+Whatever system or process declared the incident and collected the
+evidence is out of scope here. ZAYNOR's own pipeline starts at the case
+freeze:
 
 ```
-synthetic telemetry replay  ->  detection  ->  correlation/triage
-   ->  INCIDENT DECLARED — case freeze (manifest + SHA-256, immutable case_id)
+incident declared (external — a ticket, an alert, an analyst referral;
+   out of scope for ZAYNOR) + evidence already collected (out of scope)
+   ->  case freeze (manifest + SHA-256, immutable case_id)
    ->  VIGÍA adapter  ->  deterministic forensic analysis (VIGÍA)
    ->  authoritative ZAYNOR result  ->  MITRE ATT&CK / NIST contextualization
    ->  seal  ->  local LLM narration  ->  incident report / postmortem
@@ -91,45 +97,23 @@ authoritative ZAYNOR result
    ->  updated authoritative ZAYNOR result
 ```
 
-Call stage 1 "synthetic telemetry replay", never "live telemetry" — it's a
-generated/replayed event stream, not a real collector, and saying otherwise
-is exactly the kind of imprecision that doesn't survive a technical question
-in the demo Q&A.
+- **The case-freeze boundary:** the dedicated step (the case freezer) that
+  selects an already-declared incident's already-collected evidence records,
+  hashes every artifact, writes a manifest, and closes the bundle to writes
+  before handing it to VIGÍA. This is not a metaphor — it's a real, small
+  piece of code, and it's what "the evidence is frozen" actually means in
+  this repo. It is ZAYNOR's first stage, not the tail end of a detection
+  pipeline.
+- **Everything after the freeze (VIGÍA adapter → … → postmortem):** the DFIR
+  and reporting core. Authoritative forensic analysis is deterministic and
+  lives in VIGÍA; ZAYNOR owns the adapter, the MITRE/NIST
+  contextualization, the seal, and the local LLM's narration and optional
+  investigation-assistant role. §2's authority boundaries apply in full
+  here — which, for ZAYNOR, is everything past the freeze.
 
-Three separate identifiers exist across stages 1-4 — don't collapse them
-into one "fingerprint hash":
-
-```
-event_id          = SHA256(canonical_json(event_without_event_id))
-alert_fingerprint = SHA256(rule_id + host + principal + src_ip)
-incident_key      = SHA256(host + principal + temporal_bucket)
-```
-
-The two halves run on deliberately different-weight engines, split at
-`INCIDENT DECLARED`:
-
-- **Stages 1-3 (telemetry replay → detection → correlation/triage):** small,
-  deterministic, synthetic. A generated/replayed event stream, a threshold or
-  pattern rule, and a declarative correlation rule group it into one
-  incident. No eBPF, no per-node agents, no Postgres/Redis stack — that's
-  production AIOps infrastructure and explicitly out of scope. This is a
-  demo-scale front end, not a monitoring platform.
-- **The case-freeze boundary:** when correlation declares an incident, a
-  dedicated step (the case freezer) selects the relevant records, hashes
-  every artifact, writes a manifest, and closes the bundle to writes before
-  handing it to the investigator. This is not a metaphor — it's a real,
-  small piece of code between stage 3 and stage 5, and it's what "the
-  evidence is frozen" actually means in this repo.
-- **Stages 5-10 (VIGÍA adapter → … → postmortem):** the DFIR and reporting
-  core. Authoritative forensic analysis is deterministic and lives in
-  VIGÍA; ZAYNOR owns the adapter, the MITRE/NIST contextualization, the
-  seal, and the local LLM's narration and optional investigation-assistant
-  role. §2's authority boundaries apply in full here.
-
-If a task touches stages 1-3, it still needs to be genuinely deterministic
-and genuinely small — resist the temptation to make the "live" side richer
-than the demo needs just because reference platforms (Keep, Coroot, K8sGPT)
-do a lot more there. If a task touches 5-10, §2 is binding.
+A task that proposes telemetry replay, a detection rule, or a correlation
+step is out of scope by construction, no matter how small — that is a
+different system's job, upstream of ZAYNOR's input.
 
 ## 0. Language and scope
 
@@ -190,7 +174,7 @@ Before writing a fix or a "the bug is X" comment on a PR:
 ## 2. Authority boundaries: ZAYNOR ↔ VIGÍA ↔ LLM
 
 Two boundaries every contributor needs to internalize before touching
-anything past detection/correlation:
+anything past the case freeze:
 
 ```
            integration boundary
