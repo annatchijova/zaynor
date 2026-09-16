@@ -25,7 +25,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from zaynor.schemas import EvidenceRef
+from zaynor.schemas import EvidenceRef, ZaynorAuthoritativeResult
 
 # NIST incident-response lifecycle categories (SP 800-61) — this module
 # structures *when in the response cycle* an action belongs, it does not
@@ -89,13 +89,38 @@ def propose_response_action(
     evidence_refs: tuple[EvidenceRef, ...],
     risk: str,
     reversibility: str,
+    authorized_result: ZaynorAuthoritativeResult,
 ) -> ResponseAction:
     """The only way to create a `ResponseAction` — a thin, named
     constructor kept separate from the dataclass itself so a future
     execution-tracking system (if one is ever built) cannot be added by
     quietly extending this function; it would need its own, explicitly
     human-gated module.
+
+    `authorized_result` is required and every `evidence_refs` entry is
+    checked against it (red-team round 7, RT-02): before this fix, the
+    only validation was "at least one evidence_ref exists" — a caller
+    could cite `EvidenceRef("fabricated", "not-bound-to-any-result")` and
+    the action would construct successfully. This module already requires
+    human approval before any action executes, but a human reviewing a
+    proposal has no reason to doubt that its cited evidence is real; a
+    fabricated reference reaching them as a "recommendation" is exactly
+    the authority-boundary failure AGENTS.md exists to prevent, even
+    though nothing in the current codebase yet wires an LLM's output into
+    this constructor.
     """
+    authorized_refs = {
+        (ref.artifact, ref.lineage_id)
+        for finding in authorized_result.findings
+        for ref in finding.evidence_refs
+    }
+    for ref in evidence_refs:
+        if (ref.artifact, ref.lineage_id) not in authorized_refs:
+            raise ResponseActionError(
+                f"evidence_ref {ref.artifact!r}/{ref.lineage_id!r} is not "
+                "present in the sealed authoritative result — a response "
+                "action cannot cite evidence VIGÍA never produced"
+            )
     return ResponseAction(
         action_id=action_id,
         category=category,

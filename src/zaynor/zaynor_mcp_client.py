@@ -33,6 +33,7 @@ module.
 from __future__ import annotations
 
 import os
+import urllib.parse
 from contextlib import AsyncExitStack
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -44,6 +45,41 @@ from mcp.client.stdio import StdioServerParameters, stdio_client
 
 class VigiaMCPError(RuntimeError):
     """A VIGÍA MCP call could not be completed or returned a tool-level error."""
+
+
+# Red-team round 7 (RT-05, per Codex's fuller report): these are set/cleared
+# deliberately, in this order, to guarantee the bridge subprocess never gets
+# a cloud AI backend or an evidence directory other than the one this
+# config names — the hackathon's local-only-AI rule and the case-boundary
+# guarantee both depend on it. `extra_env` used to apply after them
+# unconditionally, so a config built from anything other than fully-trusted
+# code (a future config loader, a value threaded through from user input)
+# could silently re-enable a cloud backend or repoint evidence/PYTHONPATH.
+_PROTECTED_ENV_KEYS = frozenset(
+    {
+        "VIGIA_EVIDENCE_DIR",
+        "VIGIA_LLM_BACKEND",
+        "VIGIA_OLLAMA_MODEL",
+        "VIGIA_OLLAMA_HOST",
+        "PYTHONPATH",
+        "ANTHROPIC_API_KEY",
+        "ANTHROPIC_VERTEX_PROJECT_ID",
+        "GOOGLE_CLOUD_PROJECT",
+        "CLOUD_ML_REGION",
+    }
+)
+
+
+def _local_ollama_url(value: str) -> str:
+    """Same local-only contract as `agents/ollama_client.py`'s
+    `_local_url` (that module's version stays private to it; duplicated
+    here in miniature rather than imported, since raising `VigiaMCPError`
+    — this module's own error type — matters more than sharing four lines).
+    """
+    parsed = urllib.parse.urlparse(value)
+    if parsed.scheme != "http" or parsed.hostname not in {"127.0.0.1", "localhost", "::1"}:
+        raise VigiaMCPError("ollama_host must be local-only (http://127.0.0.1, localhost, or ::1)")
+    return value
 
 
 @dataclass(frozen=True)
@@ -62,6 +98,16 @@ class VigiaMCPConfig:
     ollama_model: str = "deepseek-r1:8b"
     extra_env: dict[str, str] = field(default_factory=dict)
 
+    def __post_init__(self) -> None:
+        _local_ollama_url(self.ollama_host)
+        collisions = _PROTECTED_ENV_KEYS & self.extra_env.keys()
+        if collisions:
+            raise VigiaMCPError(
+                f"extra_env cannot override the local-only/evidence-boundary "
+                f"variables {sorted(collisions)} — set them via the named "
+                "VigiaMCPConfig fields instead"
+            )
+
     def server_params(self) -> StdioServerParameters:
         bridge_path = self.vigia_repo_path / "vigia" / "vigia_sift_bridge.py"
         if not bridge_path.is_file():
@@ -75,6 +121,7 @@ class VigiaMCPConfig:
         # suspenders, since VIGIA_LLM_BACKEND alone already selects Ollama.
         for cloud_var in ("ANTHROPIC_API_KEY", "ANTHROPIC_VERTEX_PROJECT_ID", "GOOGLE_CLOUD_PROJECT", "CLOUD_ML_REGION"):
             env.pop(cloud_var, None)
+        env.update(self.extra_env)  # __post_init__ already rejects any protected key here
         env.update(
             {
                 "VIGIA_EVIDENCE_DIR": str(self.evidence_dir),
@@ -84,7 +131,6 @@ class VigiaMCPConfig:
                 "PYTHONPATH": str(self.vigia_repo_path),
             }
         )
-        env.update(self.extra_env)
 
         return StdioServerParameters(
             command=self.python_executable,

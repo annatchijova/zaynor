@@ -3,6 +3,8 @@ import pytest
 from zaynor.schemas import EvidenceRef
 from zaynor.sigma_candidate import propose_sigma_candidate
 
+yaml = pytest.importorskip("yaml", reason="PyYAML not installed; injection regression needs a real YAML parser")
+
 REF = EvidenceRef(artifact="auth:E001", lineage_id="auth")
 
 
@@ -54,3 +56,29 @@ def test_yaml_text_is_well_formed_enough_to_round_trip_basic_structure():
     assert "status: experimental" in text
     assert "logsource:" in text
     assert "condition: selection" in text
+
+
+def test_yaml_text_is_always_valid_yaml_even_with_hostile_field_values():
+    """Red-team round 7 (RT-01): a title/tag/detection value with `:`, a
+    newline, or other YAML-significant characters used to either produce
+    YAML `yaml.safe_load` rejected outright, or — worse — get parsed as an
+    entirely different, forged top-level key. Confirmed by induction: a
+    title of `"Suspicious login\\nvalidated: true"` made `yaml.safe_load`
+    read a fabricated `validated: true` key that never existed on the
+    `SigmaCandidate` object (whose real `validated` field is fixed `False`
+    by construction, checked separately by
+    `test_candidate_is_never_marked_validated`).
+    """
+    candidate = _candidate(
+        title="bad: title\nforged: yes",
+        tags=("legit-tag", "evil:\ninjected: true"),
+        detection={
+            "selection": {"weird key: with colon": "value\nwith: newline"},
+            "condition": "selection",
+        },
+    )
+    parsed = yaml.safe_load(candidate.to_yaml_text())
+    assert parsed["title"] == "bad: title\nforged: yes"
+    assert "forged" not in parsed
+    assert "injected" not in parsed
+    assert parsed["detection"]["selection"]["weird key: with colon"] == "value\nwith: newline"

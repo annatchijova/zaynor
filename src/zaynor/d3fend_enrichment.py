@@ -35,6 +35,29 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+# Red-team round 7 (RT-06): `HIGH_CONFIDENCE`/`NEEDS_VERIFICATION` are
+# ZAYNOR's own editorial judgment about how well-established a mapping is in
+# general security guidance — MITRE D3FEND does not itself publish a
+# per-relationship confidence rating, so a bare "HIGH_CONFIDENCE" label
+# reaching an analyst with no context could read as an official MITRE
+# certification it is not. This explanatory text travels WITH the label in
+# every emitted dict (`enrich_finding_d3fend`), not just in this module's
+# source docstring — a docstring an analyst reading a report will never see.
+_CONFIDENCE_BASIS = {
+    "HIGH_CONFIDENCE": (
+        "ZAYNOR's own editorial judgment that this mapping reflects "
+        "well-established, commonly cited security guidance — not an "
+        "official confidence rating published by MITRE D3FEND, which does "
+        "not itself grade relationship confidence."
+    ),
+    "NEEDS_VERIFICATION": (
+        "The defensive direction is plausible, but the exact D3FEND "
+        "technique ID was not checked against a live copy of the D3FEND "
+        "matrix (d3fend.mitre.org) before this mapping was written. "
+        "Verify before treating as authoritative."
+    ),
+}
+
 
 @dataclass(frozen=True)
 class D3fendTechnique:
@@ -100,6 +123,7 @@ def enrich_finding_d3fend(attack_technique_ids: tuple[str, ...]) -> dict:
                     "name": d.name,
                     "category": d.category,
                     "confidence": d.confidence,
+                    "confidence_basis": _CONFIDENCE_BASIS[d.confidence],
                 }
                 for d in mapped
             ]

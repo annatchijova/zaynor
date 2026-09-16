@@ -45,3 +45,25 @@ def test_confidence_is_labeled_never_silently_asserted():
     for technique_id in ("T1550.002", "T1110", "T1070.001", "T1543.003", "T1558.001", "T1055"):
         for d in d3fend_for_attack_technique(technique_id):
             assert d.confidence in ("HIGH_CONFIDENCE", "NEEDS_VERIFICATION")
+
+
+def test_confidence_basis_travels_with_the_label_into_the_emitted_dict():
+    """Red-team round 7 (RT-06): `HIGH_CONFIDENCE` is ZAYNOR's own editorial
+    judgment, not an official MITRE D3FEND rating — MITRE does not publish
+    per-relationship confidence. Before this fix, that caveat lived only in
+    this module's Python docstring, which an analyst reading a rendered
+    report would never see; a bare "HIGH_CONFIDENCE" string could read as
+    an official certification. The explanation must reach the same dict
+    the confidence label itself reaches.
+    """
+    enrichment = enrich_finding_d3fend(("T1550.002",))
+    entries = enrichment["attack_to_d3fend"]["T1550.002"]
+    assert entries, "expected at least one mapped D3FEND entry"
+    for entry in entries:
+        assert "confidence_basis" in entry
+        assert "confidence_basis" != ""
+        if entry["confidence"] == "HIGH_CONFIDENCE":
+            assert "MITRE D3FEND" in entry["confidence_basis"]
+            assert "does not itself grade" in entry["confidence_basis"]
+        else:
+            assert "not checked against a live copy" in entry["confidence_basis"]

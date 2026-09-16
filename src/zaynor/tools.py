@@ -33,7 +33,6 @@ from __future__ import annotations
 
 import hashlib
 import inspect
-import os
 import re
 from dataclasses import dataclass, field
 from functools import wraps
@@ -41,7 +40,6 @@ from fractions import Fraction
 from typing import Any, Callable
 
 from zaynor.audit_log import AuditLog
-from zaynor.hash_utils import sha256_file
 from zaynor.path_guard import PathGuard
 
 _ARGUMENT_HASH_PREFIX_BYTES = 4096
@@ -235,6 +233,15 @@ class ReadOnlyToolRegistry:
 def generate_forensic_hash(guard: PathGuard, audit_log: AuditLog, path: str) -> ToolResult:
     """Standalone hashing tool (ADR: reimplemented small — see
     `hash_utils.py`), audited the same way as the registry's methods.
+
+    Fixed (red-team round 7, RT-04 per Codex's fuller report): this used
+    to call `sha256_file(os.path.abspath(path))` after `guard.validate()`
+    — a plain re-open by path name, not through `guard.safe_open()`'s
+    O_NOFOLLOW/fstat-verified/locked descriptor that `_read_evidence` and
+    `_grep_pattern` in `ReadOnlyToolRegistry` already use. A path that
+    validated cleanly could be swapped (symlink retarget, file replace)
+    before this second, unprotected open — same class of bug those two
+    methods already close for read/grep, just not for hashing.
     """
 
     @audited_tool(audit_log)
@@ -242,6 +249,19 @@ def generate_forensic_hash(guard: PathGuard, audit_log: AuditLog, path: str) -> 
         check = guard.validate(path)
         if not check.valid:
             return ToolResult(success=False, error=f"PathGuard REJECT: {check.reason}")
-        return ToolResult(success=True, data={"path": path, "sha256": sha256_file(os.path.abspath(path))})
+
+        digest = hashlib.sha256()
+        with guard.safe_open(path, "rb") as handle:
+            while True:
+                block = handle.read(65536)
+                if not block:
+                    break
+                digest.update(block)
+
+        use = guard.verify_no_toctou(path, check)
+        if not use.valid:
+            return ToolResult(success=False, error=f"TOCTOU REJECT: {use.reason}")
+
+        return ToolResult(success=True, data={"path": path, "sha256": digest.hexdigest()})
 
     return _hash(path)

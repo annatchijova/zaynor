@@ -17,9 +17,48 @@ handful of key/value lines.
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 
 from zaynor.schemas import EvidenceRef
+
+_YAML_INDICATOR_LEADING_CHARS = set("-?:,[]{}#&*!|>'\"%@`")
+
+
+def _yaml_scalar(value: object) -> str:
+    """Render one value as a safe YAML scalar for `to_yaml_text`'s manual
+    line-based rendering (no pyyaml dependency; see module docstring).
+
+    Confirmed by red-team round 7 (RT-01): a title/tag/detection value
+    containing `:`, a newline, or a YAML structural character, interpolated
+    unescaped, either produces YAML `yaml.safe_load` rejects outright, or —
+    worse — is parsed as an entirely different, forged top-level key (a
+    title of `"Suspicious login\\nvalidated: true"` makes a downstream
+    parser read a fabricated `validated: true` key that was never on the
+    `SigmaCandidate` object, whose own `validated` field is fixed `False`
+    by construction). A value with no YAML-significant character is
+    rendered plain, for readability, matching prior output exactly; any
+    other string is rendered as a JSON-quoted scalar — JSON string syntax
+    is valid YAML double-quoted-scalar syntax, so this needs no library.
+    """
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if value is None:
+        return "null"
+    if not isinstance(value, str):
+        value = str(value)
+    if (
+        value != ""
+        and value == value.strip()
+        and "\n" not in value
+        and "\r" not in value
+        and ": " not in value
+        and not value.endswith(":")
+        and value[0] not in _YAML_INDICATOR_LEADING_CHARS
+        and value.lower() not in ("true", "false", "null", "yes", "no", "~")
+    ):
+        return value
+    return json.dumps(value)
 
 
 @dataclass(frozen=True)
@@ -72,7 +111,7 @@ class SigmaCandidate:
             f"# Evidence: {', '.join(r.artifact for r in self.evidence_refs)}",
             "# NOT INDEPENDENTLY VALIDATED — human review required before use",
             "# " + "=" * 60,
-            f"title: {self.title}",
+            f"title: {_yaml_scalar(self.title)}",
             "status: experimental",
             f"description: >-",
             f"  Candidate rule generated from ZAYNOR finding {self.finding_id}.",
@@ -80,23 +119,24 @@ class SigmaCandidate:
             "logsource:",
         ]
         for key, value in self.logsource.items():
-            lines.append(f"  {key}: {value}")
+            lines.append(f"  {_yaml_scalar(key)}: {_yaml_scalar(value)}")
         lines.append("detection:")
         for key, value in self.detection.items():
+            key_text = _yaml_scalar(key)
             if isinstance(value, dict):
-                lines.append(f"  {key}:")
+                lines.append(f"  {key_text}:")
                 for inner_key, inner_value in value.items():
-                    lines.append(f"    {inner_key}: {inner_value}")
+                    lines.append(f"    {_yaml_scalar(inner_key)}: {_yaml_scalar(inner_value)}")
             elif isinstance(value, (list, tuple)):
-                lines.append(f"  {key}:")
+                lines.append(f"  {key_text}:")
                 for item in value:
-                    lines.append(f"    - {item}")
+                    lines.append(f"    - {_yaml_scalar(item)}")
             else:
-                lines.append(f"  {key}: {value}")
+                lines.append(f"  {key_text}: {_yaml_scalar(value)}")
         if self.tags:
             lines.append("tags:")
             for tag in self.tags:
-                lines.append(f"  - {tag}")
+                lines.append(f"  - {_yaml_scalar(tag)}")
         return "\n".join(lines) + "\n"
 
 

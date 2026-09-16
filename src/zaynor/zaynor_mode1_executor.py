@@ -52,7 +52,7 @@ from typing import Any
 _SAFE_RUN_ID = re.compile(r"[^A-Za-z0-9._-]")
 
 from zaynor.adapter import AdapterError
-from zaynor.schemas import AuthoritativeFinding, EvidenceRef, ZaynorAuthoritativeResult
+from zaynor.schemas import AuthoritativeFinding, CaseManifest, EvidenceRef, ZaynorAuthoritativeResult
 
 _VERDICT_EXIT_OK = {0, 1, 3, 4, 5}  # NOISE, MALICE, INTENT, ABSTAIN, SUSPICION
 _EXIT_ERROR = 2
@@ -316,7 +316,9 @@ def run_vigia_mode1(
         return bundle
 
 
-def _signal_evidence_ref(signal: dict) -> EvidenceRef | None:
+def _signal_evidence_ref(
+    signal: dict, authorized_hashes: frozenset[str] | None = None
+) -> EvidenceRef | None:
     """Extract an `EvidenceRef` from one `pipeline_results.signals[]` entry,
     covering the two real signal shapes confirmed by running actual
     evidence through Mode 1:
@@ -352,6 +354,25 @@ def _signal_evidence_ref(signal: dict) -> EvidenceRef | None:
     Returns `None` for a signal VIGÍA itself marked as not a real
     observation (`metadata.unanalyzed`), or one with no identifying field
     at all.
+
+    `authorized_hashes` (red-team round 7, RT-03): the set of `sha256`
+    values from the frozen `CaseManifest`'s entries, when the caller has
+    one. Before this check existed, nothing in this module verified that a
+    signal's `metadata.hive_sha256` actually belonged to the frozen case —
+    confirmed by induction that a signal with a fabricated `hive_sha256`
+    (or, before this fix, an `artifact_id`/`hive_sha256` referencing
+    something outside the manifest entirely) flowed straight into an
+    `AuthoritativeFinding.evidence_refs` unchecked. `hive_sha256` is a real
+    content hash (confirmed by running the 2019-OWL Digital Corpora image:
+    it matches `sha256sum` of the actual hive file on disk), so it is
+    directly comparable to `ManifestEntry.sha256` — a mismatch here is a
+    genuine integrity violation, not a benign gap, and fails closed rather
+    than silently dropping the signal. `metadata.source_path`/
+    `source_profile` are NOT checked here: they are observed to be
+    whole-subdirectory paths, not individual manifest file paths, so no
+    exact-membership check applies to them without a false rejection —
+    documenting that as a known, narrower scope rather than forcing an
+    incorrect check.
     """
     if not isinstance(signal, dict):
         return None
@@ -369,14 +390,36 @@ def _signal_evidence_ref(signal: dict) -> EvidenceRef | None:
     if not isinstance(artifact_type, str) or not artifact_type:
         return None
 
+    hive_sha256 = metadata.get("hive_sha256")
+    if isinstance(hive_sha256, str) and hive_sha256 and authorized_hashes is not None:
+        if hive_sha256 not in authorized_hashes:
+            raise AdapterError(
+                f"signal metadata.hive_sha256 {hive_sha256!r} is not present "
+                "in the frozen case manifest — VIGÍA reported a hive not "
+                "part of this case's authorized evidence"
+            )
+
     specific = metadata.get("hive_sha256") or metadata.get("source_path") or metadata.get("source_profile") or metadata.get("path")
     identifier = f"{artifact_type}:{specific}" if isinstance(specific, str) and specific else artifact_type
     return EvidenceRef(artifact=identifier, lineage_id=artifact_type)
 
 
-def translate_mode1_bundle(case_id: str, bundle: dict[str, Any]) -> ZaynorAuthoritativeResult:
+def translate_mode1_bundle(
+    case_id: str, bundle: dict[str, Any], *, manifest: CaseManifest | None = None
+) -> ZaynorAuthoritativeResult:
     """Map VIGÍA's real Mode-1 bundle into `ZaynorAuthoritativeResult`,
     conservatively.
+
+    `manifest` (red-team round 7, RT-03), when given, is the frozen
+    `CaseManifest` for this case — its entries' `sha256` values become the
+    authorized set `_signal_evidence_ref` checks `metadata.hive_sha256`
+    against. Optional because several existing callers (tests exercising
+    synthetic bundles) have no manifest fixture to hand; the real
+    production path (`ZaynorMode1Adapter.analyze`, which already has the
+    manifest in scope) always passes it — omitting it silently narrows
+    this specific check's scope rather than failing, so a caller that
+    forgets to pass it does not get a false sense of an integrity check
+    that never ran.
 
     Mapped (confirmed real fields, descriptive metadata only — none of
     this is a truth claim about the evidence):
@@ -438,9 +481,12 @@ def translate_mode1_bundle(case_id: str, bundle: dict[str, Any]) -> ZaynorAuthor
         if isinstance(entry, dict)
     )
 
+    authorized_hashes = frozenset(e.sha256 for e in manifest.entries) if manifest is not None else None
     raw_signals = bundle.get("pipeline_results", {}).get("signals", [])
     evidence_refs = tuple(
-        ref for ref in (_signal_evidence_ref(signal) for signal in raw_signals) if ref is not None
+        ref
+        for ref in (_signal_evidence_ref(signal, authorized_hashes) for signal in raw_signals)
+        if ref is not None
     )
 
     if evidence_refs:

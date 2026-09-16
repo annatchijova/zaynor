@@ -1,10 +1,11 @@
+import hashlib
 import os
 
 import pytest
 
 from zaynor.audit_log import AuditLog
 from zaynor.path_guard import PathGuard
-from zaynor.tools import ReadOnlyToolRegistry
+from zaynor.tools import ReadOnlyToolRegistry, generate_forensic_hash
 
 
 @pytest.fixture
@@ -140,6 +141,39 @@ def test_audit_log_detects_tampering(registry, tmp_path):
     tampered = lines[0].replace("TOOL_INVOKED", "TOOL_INVOKED_TAMPERED")
     audit_path.write_text(tampered + "\n" + "\n".join(lines[1:]) + "\n")
     assert not AuditLog.verify(audit_path)
+
+
+def test_generate_forensic_hash_matches_real_sha256(registry):
+    reg, evidence_dir, tmp_path = registry
+    audit_log = AuditLog(tmp_path / "hash-audit.jsonl")
+    guard = PathGuard(allowed_base_paths=[evidence_dir])
+    target = evidence_dir / "auth.jsonl"
+
+    result = generate_forensic_hash(guard, audit_log, str(target))
+    assert result.success
+    assert result.data["sha256"] == hashlib.sha256(target.read_bytes()).hexdigest()
+
+
+def test_generate_forensic_hash_rejects_symlink_escape(registry, tmp_path):
+    """Red-team round 7 (RT-04, per Codex's fuller report): before this
+    fix, `generate_forensic_hash` validated the path with `PathGuard` and
+    then re-opened it by name via `sha256_file(os.path.abspath(path))` —
+    a plain open, not `guard.safe_open()`'s O_NOFOLLOW-protected
+    descriptor that `read_evidence`/`grep_pattern` already use in this
+    same module. A symlink swapped in between would have been followed.
+    """
+    reg, evidence_dir, _ = registry
+    audit_log = AuditLog(tmp_path / "hash-audit-2.jsonl")
+    guard = PathGuard(allowed_base_paths=[evidence_dir])
+
+    secret = tmp_path / "secret.txt"
+    secret.write_text("ground truth, must never leak")
+    trap = evidence_dir / "trap.txt"
+    trap.symlink_to(secret)
+
+    result = generate_forensic_hash(guard, audit_log, str(trap))
+    assert not result.success
+    assert "SYMLINK" in result.error
 
 
 def test_no_tool_can_write_or_execute(registry):

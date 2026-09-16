@@ -130,3 +130,75 @@ def test_rejects_unbounded_subprocess_output_and_timeout(tmp_path):
 def test_rejects_unknown_verdict_at_translation_boundary():
     with pytest.raises(AdapterError, match="unsupported"):
         translate_mode1_bundle("CASE", {"case_id": "CASE", "agent_verdict": "BOGUS"})
+
+
+def _manifest_with_hashes(*hashes: str) -> "CaseManifest":
+    from zaynor.schemas import CaseManifest, ManifestEntry
+
+    return CaseManifest(
+        case_id="CASE",
+        entries=tuple(
+            ManifestEntry(relative_path=f"artifact-{i}", sha256=h, size_bytes=1)
+            for i, h in enumerate(hashes)
+        ),
+        content_sha256="irrelevant-for-this-test",
+        sealed_at="1970-01-01T00:00:00+00:00",
+        sealed_at_sha256="irrelevant-for-this-test",
+    )
+
+
+def test_signal_hive_sha256_outside_the_manifest_is_rejected():
+    """Red-team round 7 (RT-03): confirmed by induction that, before this
+    fix, nothing checked a signal's `metadata.hive_sha256` against the
+    frozen case's manifest — a bundle citing a hive hash that was never
+    part of this case's evidence produced an authoritative finding anyway.
+    `hive_sha256` is a real content hash (confirmed against the 2019-OWL
+    Digital Corpora image: matches `sha256sum` of the actual hive file),
+    so a mismatch is a genuine integrity violation, not a benign gap.
+    """
+    bundle = {
+        "case_id": "CASE",
+        "agent_verdict": "NOISE",
+        "pipeline_results": {
+            "signals": [
+                {"metadata": {"artifact_type": "registry", "hive_sha256": "f" * 64}},
+            ]
+        },
+    }
+    manifest = _manifest_with_hashes("a" * 64, "b" * 64)  # does not include "f" * 64
+    with pytest.raises(AdapterError, match="not present in the frozen case manifest"):
+        translate_mode1_bundle("CASE", bundle, manifest=manifest)
+
+
+def test_signal_hive_sha256_inside_the_manifest_is_accepted():
+    bundle = {
+        "case_id": "CASE",
+        "agent_verdict": "NOISE",
+        "pipeline_results": {
+            "signals": [
+                {"metadata": {"artifact_type": "registry", "hive_sha256": "a" * 64}},
+            ]
+        },
+    }
+    manifest = _manifest_with_hashes("a" * 64, "b" * 64)
+    result = translate_mode1_bundle("CASE", bundle, manifest=manifest)
+    assert len(result.findings) == 1
+    assert result.findings[0].evidence_refs[0].artifact == f"registry:{'a' * 64}"
+
+
+def test_signal_hive_sha256_is_unchecked_when_no_manifest_is_given():
+    """Documents the deliberate scope limit: omitting `manifest` narrows
+    this check rather than failing — existing callers with only a
+    synthetic bundle and no manifest fixture keep working.
+    """
+    bundle = {
+        "case_id": "CASE",
+        "agent_verdict": "NOISE",
+        "pipeline_results": {
+            "signals": [
+                {"metadata": {"artifact_type": "registry", "hive_sha256": "f" * 64}},
+            ]
+        },
+    }
+    result = translate_mode1_bundle("CASE", bundle)
+    assert len(result.findings) == 1

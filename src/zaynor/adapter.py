@@ -189,7 +189,7 @@ class ZaynorMode1Adapter:
                     max_output_bytes=self._max_output_bytes,
                     allowed_evidence_root=snapshot.path.parent,
                 )
-                result = translate_mode1_bundle(manifest.case_id, bundle)
+                result = translate_mode1_bundle(manifest.case_id, bundle, manifest=manifest)
                 integrity = dict(result.integrity)
                 integrity.update(
                     {
