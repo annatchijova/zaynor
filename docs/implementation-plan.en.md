@@ -32,28 +32,64 @@ been inventoried.
 Filled from reading the real source in `vigia-repo`
 (`/home/labestiadevigia/vigia-repo`), not from module names alone. The
 critical method here was tracing actual `import` chains, not assuming a
-plausibly-named module is wired in: `vigia_agent.py`'s Mode-1 entry point
-(`VIGIAAgent.run()`, invoked via `python3 vigia_agent.py --evidence ...
---case-id ...`) only reaches
-`vigia/scripts/run_pipeline.py` → `vigia.core.semiotic_detector_v2`,
-`vigia.core.evidence_aggregator`, `vigia.core.decision_layer`. Several
-modules that look like obvious reuse candidates by name and docstring are
-**not imported anywhere in that chain** — confirmed by grepping for their
-import statements across `vigia_agent.py`, `run_pipeline.py`, and
-`decision_layer.py` and finding nothing. This corrects an earlier,
-less rigorous pass (in `propuesta.md`/`plan-implementacion.md`) that took
-`collapse_decision.py` to be "the gate" and `caie.py`/
-`hallucination_guard.py` to be live VIGÍA mechanisms on file-name
-plausibility — none of that was verified against the actual call graph at
-the time.
+plausibly-named module is wired in — and this table has already been
+revised once after tracing too shallowly the first time (see the
+**second correction** below), which is itself the point: verify by
+running, not by reading one import list and stopping.
+
+**First correction** (superseded some of the original reuse table in
+`propuesta.md`/`plan-implementacion.md`, which took `collapse_decision.py`
+to be "the gate" and `caie.py`/`hallucination_guard.py` to be live VIGÍA
+mechanisms on file-name plausibility alone, unverified against the call
+graph).
+
+**Second correction, found by actually running `vigia_agent.py` against a
+real frozen case** (see `vigia_mode1_executor.py`'s test): `_run_pipeline`
+in `vigia_agent.py` does not go straight to
+`vigia/scripts/run_pipeline.py` — it first tries `from sift_orchestrator
+import SIFTOrchestrator` (a root-level compatibility shim that delegates
+to `vigia/sift/sift_orchestrator.py`), and only falls back to the
+semiotic/text pipeline on `ImportError`. `sift_orchestrator.py` imports
+`vigia.tools.caie` directly; `vigia/sift/sift_orchestrator.py` imports
+`unified_timeline_engine.py`, `event_log_correlator.py`,
+`vigia.inference.abductive_reasoner` (`AbductiveReasonerV2`:
+`AbductiveHypothesis`, `HypothesisScores`, `DecisionTrace`,
+`InversionAnalysis`, `AbstainConditionsEngine` — a real, deep abductive
+engine, not the shallow `best_hypothesis`/`best_posterior` dict this table
+previously treated as the whole of it), plus MFT/memory/network/registry
+forensics engines, `CrossArtifactResonance`, `CasePatternLibrary`,
+`BehavioralFingerprint`, `MetabolicProfiler`. **CAIE, the timeline engine,
+and the event-log/MITRE correlator are reachable from Mode 1 after all** —
+the first-pass matrix below was wrong about this, not merely incomplete.
+`hallucination_guard.py` and `hypothesis_lineage.py` remain the only two
+modules confirmed unreached from both Mode 1 (`sift_orchestrator.py` and
+its imports, grepped clean) and Mode 2 (the MCP bridge's registered
+tools, also grepped clean).
+
+**A separate, practical problem found in the same run, not yet solved:**
+`_build_orchestrator_kwargs` only recognizes specific real forensic
+artifact patterns to decide which analyzer to invoke on a directory
+(`.evtx`, `.raw`, `.E01`, `.log`, `.pcap`, registry hive filenames,
+`History`/`places.sqlite`, `.pf`, `$MFT`, Android/iOS/macOS/Google-Takeout
+markers). ZAYNOR's `INC-2026-DEMO-001` fixture (`auth.jsonl`,
+`process.jsonl`, etc.) matches none of them — running Mode 1 against the
+frozen case produces `agent_verdict: ABSTAIN`, `n_total_signals: 0`,
+`caie: {"status": "NO_ARTIFACTS"}`. The fixture is currently invisible to
+VIGÍA's real pipeline. This has to be resolved — either reshape the
+fixture into a format one of these analyzers actually parses (e.g. real
+`auth.log`-style lines instead of JSONL), or find/build the JSON-evidence
+ingestion path the CLI's own `--help` epilog advertises
+(`--evidence /cases/evidence.json`) and confirm its expected schema —
+before any `findings[]` mapping design can be tested against real
+signals instead of an empty pipeline.
 
 | Required capability | Exists in VIGÍA? | Exact symbol/path | Actual semantics | Adapter needed? | Existing tests | Decision |
 |---|---|---|---|---|---|---|
 | evidence ingestion | Yes | `VIGIAAgent.__init__` + `_build_orchestrator_kwargs` (`vigia_agent.py`) | Auto-detects real forensic artifact types from a directory (`.evtx`, memory `.raw`, disk `.E01`, `.log`, `.pcap`, registry hives, browser profile, `.pf` prefetch, `$MFT`, Android/iOS markers) by filename pattern, or accepts a single `evidence.json` (format not yet confirmed) | Yes | not checked | THIN_ADAPTER — ZAYNOR's frozen-case JSONL evidence matches none of these real-artifact patterns; the adapter must either reshape frozen evidence into one of them or confirm the `evidence.json` path's expected schema |
 | canonicalization | Yes | inline in `VIGIAAgent`'s seal step (`vigia_agent.py` ~L1541) + `vigia/core/canonicalize.py` | `json.dumps(bundle, sort_keys=True, ensure_ascii=True)` → SHA-256 → `bundle_digest`, written only to `.sha256`/audit trail, never embedded in the bundle JSON itself (avoids self-reference) | No | not checked | USE_VIGIA_AS_IS |
-| timeline | Exists, NOT confirmed reachable from Mode 1 | `vigia/sift/unified_timeline_engine.py` | Not imported by `vigia_agent.py` or `run_pipeline.py` | n/a until reachability resolved | not checked | unresearched — may be Mode-2-only (Claude Code MCP tool), not part of the deterministic core |
-| temporal fractures | Exists, NOT confirmed reachable from Mode 1 | `vigia/tools/caie.py` (CAIE) | Not imported by `vigia_agent.py` or `run_pipeline.py` | n/a until reachability resolved | not checked | unresearched — same caveat as timeline |
-| hypotheses / alternatives | Partially confirmed | bundle's `pipeline_results.abduction` dict: `best_hypothesis`, `best_posterior`, `devil_advocate` (mandatory refutation, per VIGÍA's own CLAUDE.md) | Winner hypothesis + devil's-advocate only; the richer lineage tree below is not reachable from here | THIN_ADAPTER for winner + devil_advocate | not checked | THIN_ADAPTER (partial) |
+| timeline | Yes, reachable from Mode 1 | `vigia/sift/unified_timeline_engine.py`, imported by `vigia/sift/sift_orchestrator.py` (reached via `vigia_agent.py` → `sift_orchestrator.SIFTOrchestrator`) | Corrected from an earlier pass that missed the `sift_orchestrator` import chain entirely — see the "second correction" note above | THIN_ADAPTER | ran once against the demo fixture: 0 signals because the fixture's evidence format isn't one `_build_orchestrator_kwargs` recognizes (see practical problem above), so the timeline engine's real output shape still hasn't actually been observed | THIN_ADAPTER, blocked on getting real signals flowing first |
+| temporal fractures | Yes, reachable from Mode 1 | `vigia/tools/caie.py` (CAIE), imported directly by the root-level `sift_orchestrator.py` shim | Same correction — confirmed reachable, but the confirmed real bundle from a live run shows `"caie": {"status": "NO_ARTIFACTS"}` for this fixture specifically (no artifacts CAIE recognizes were present), not that CAIE itself is unreachable | THIN_ADAPTER | ran once, produced `NO_ARTIFACTS` — real fracture-output shape still unobserved | THIN_ADAPTER, blocked on the same fixture-format problem |
+| hypotheses / alternatives | Yes, reachable from Mode 1 | `vigia.inference.abductive_reasoner`/`abductive_reasoner_v2`: `AbductiveReasonerV2`, `AbductiveHypothesis`, `HypothesisScores`, `DecisionTrace`, `InversionAnalysis`, `AbstainConditionsEngine` — imported by `vigia/sift/sift_orchestrator.py` | A real, deep abductive engine — not just the shallow `best_hypothesis`/`best_posterior`/`devil_advocate` dict this row previously treated as the whole of it. That shallow dict is still what lands in the bundle's `pipeline_results.abduction`; whether `DecisionTrace`/`InversionAnalysis`'s richer internal structure also surfaces there hasn't been checked against a run with actual signals | THIN_ADAPTER | ran once, `best_hypothesis: UNDETERMINED` (0 signals, nothing to reason over) — the rich path unobserved for the same reason | THIN_ADAPTER, same block |
 | corroboration | Yes | `vigia.core.evidence_aggregator.aggregate_evidence` | Fraction-exact composition scoring (`ALPHA = Fraction(1,2)` dependency weight between components), not a per-artifact lineage id | Yes | not checked | THIN_ADAPTER — VIGÍA's model is a scalar independence *weight*, not AGENTS.md's `lineage_id`/`distinct_lineages` per-reference contract; these are not the same model and the adapter must translate, not assume equivalence |
 | contradiction | Yes | `ContradictionDetector`, `CorrectionEngine` (`vigia_agent.py` L471, L634) | Drives `VIGIAAgent.run()`'s iterate-until-converged loop; `self.corrections_applied` count is in the sealed bundle | THIN_ADAPTER | not checked | THIN_ADAPTER |
 | provenance / lineage | Gap confirmed | not found under this name anywhere in `decision_layer.py`, `evidence_aggregator.py`, `semiotic_detector_v2.py` | dependency between evidence components is a scalar weight (see corroboration row), not a traceable per-artifact lineage id | n/a | not checked | IMPLEMENT_IN_ZAYNOR_DOCUMENTED_GAP |
@@ -62,36 +98,39 @@ the time.
 | authorized facts | Exists, NOT confirmed reachable from Mode 1 | `vigia/llm/hallucination_guard.py` | Same `AuthorizedFact`/`NarrativeClaim` mechanism ZAYNOR already adapted into `src/zaynor/hallucination_guard.py` | n/a — ZAYNOR's own independent port already covers this for its own narrator | done, tested (ZAYNOR-side) | Correction: this was ported on the assumption it was a live VIGÍA mechanism to call; it is not confirmed to be in VIGÍA's own Mode-1 chain either. ZAYNOR's port stands on its own merits regardless — it doesn't need VIGÍA to call it live, since it operates over ZAYNOR's own `ZaynorAuthoritativeResult`, not VIGÍA's internal state |
 | hash / audit | Yes | `AgentAuditTrail` (`vigia_agent.py` L377), `evidence_sha256`, `bundle_digest`, `runtime_fingerprint` | Per-run audit trail plus a runtime fingerprint that invalidates cached results across a scorer/adapter code change | THIN_ADAPTER | not checked | THIN_ADAPTER — surface `audit_trail`/`bundle_digest`/`runtime_fingerprint` into ZAYNOR's `audit_refs`/`engine` fields |
 | narrative guard | see "authorized facts" | same | same | same | same | same |
-| MITRE mapping | Exists, reachable from Mode 2 only | `vigia/tools/mitre_mapping.py` ("MITRE ATT&CK Intelligence Hub": evidence_type → TTP dictionary, severity/confidence scoring, STIX 2.1 export), consumed by `vigia/tools/caie.py`, which the MCP bridge (`vigia_sift_bridge.py`) registers as the `cross_artifact_analysis` tool. Also `vigia/sift/event_log_correlator.py` (T1550.002, T1070.001, T1110, T1543.003, T1558.001, T1055) and `vigia/abduction/vigia_artifact_graph.py` (`MITRE_KILL_CHAIN` graph), neither confirmed reachable from either mode | Confirmed NOT imported by `vigia_agent.py`/`run_pipeline.py`/`decision_layer.py` (Mode 1); confirmed reachable from Mode 2 via `cross_artifact_analysis` → `caie.py` → `mitre_mapping.py` | Depends which mode the adapter targets (see open question below) | not checked | Correction (second pass): an earlier pass concluded "no MITRE mapping engine exists at all" — wrong. It exists, richly, and is reachable from Mode 2's MCP tool surface, just not from the Mode-1 CLI entry point |
-| competing-hypothesis representation | Exists, NOT confirmed reachable from Mode 1 | `vigia/abduction/hypothesis_lineage.py`: `HypothesisLineageTracker` → `LineageReport` (`winner`, `near_misses`, `pivot_signals`, `investigation_roadmap`, `audit_hash`) | Matches Phase 4.3's ACH view almost exactly (near_misses = contradicted alternatives, pivot_signals = discriminating evidence still needed) | n/a until reachability resolved | not checked | Confirmed NOT reachable: only imported by `vigia/core/causal_closure.py`, which is itself imported by nothing in the Mode-1 chain (`vigia_agent.py`, `run_pipeline.py`, `decision_layer.py` all grep-clean for it) — a second hop of unreachability, not a first-hop assumption |
+| MITRE mapping | Yes, reachable from Mode 1 (corrected twice now) | `vigia/tools/mitre_mapping.py` ("MITRE ATT&CK Intelligence Hub": evidence_type → TTP dictionary, severity/confidence scoring, STIX 2.1 export), consumed by `vigia/tools/caie.py`, which is imported by the root-level `sift_orchestrator.py` shim in `_run_pipeline`'s primary (non-fallback) path. Also `vigia/sift/event_log_correlator.py` (T1550.002, T1070.001, T1110, T1543.003, T1558.001, T1055), imported by `vigia/sift/sift_orchestrator.py` directly | First pass: "doesn't exist". Second pass: "exists, Mode-2-only". Third (this) pass, from actually running Mode 1 and tracing why: reachable from Mode 1 too — the earlier "Mode-2-only" conclusion inherited the same shallow-import-trace error as the timeline/CAIE rows above | THIN_ADAPTER | ran once — `caie: NO_ARTIFACTS`, so no real MITRE mapping has actually been observed in a bundle yet, only confirmed as reachable code | THIN_ADAPTER, blocked on the same fixture-format problem as the rows above |
+| competing-hypothesis representation | Exists, NOT confirmed reachable from Mode 1 | `vigia/abduction/hypothesis_lineage.py`: `HypothesisLineageTracker` → `LineageReport` (`winner`, `near_misses`, `pivot_signals`, `investigation_roadmap`, `audit_hash`) | Matches Phase 4.3's ACH view almost exactly (near_misses = contradicted alternatives, pivot_signals = discriminating evidence still needed). Unlike the timeline/CAIE/MITRE rows above, re-checked against `sift_orchestrator.py`'s full real import list (not just `vigia_agent.py`'s) and still absent | n/a until reachability resolved | not checked | Still confirmed NOT reachable even after the broader `sift_orchestrator.py` trace: only imported by `vigia/core/causal_closure.py`, which nothing in the real Mode-1 chain imports either |
 | sensitivity / evidence dependency | No | not found anywhere searched | n/a | n/a | not checked | IMPLEMENT_IN_ZAYNOR_DOCUMENTED_GAP — matches Phase 4.4's own expectation that this is new in ZAYNOR |
 
-**Open question this raises for 0.1 (integration surface selection),
-partially resolved:** checked whether the MCP bridge
-(`vigia/vigia_sift_bridge.py`) registers these modules as tools.
+**0.1's integration-surface question is resolved, differently than the
+previous revision of this document concluded:** Mode 1 (`vigia_agent.py`,
+the CLI, no LLM needed) is sufficient on its own for the sealed verdict,
+CAIE/fracture analysis, the timeline engine, MITRE mapping, and the deep
+abductive reasoner — all of it, confirmed reachable through
+`sift_orchestrator.SIFTOrchestrator`. There is no need to also drive Mode
+2 (VIGÍA's own MCP bridge) just to reach those capabilities; ZAYNOR's own
+separate MCP client (`vigia_mcp_client.py`) still exists for its own
+purpose — the Ollama-driven *investigator* choosing which read-only tool
+to call next (§ AGENTS.md 2.2's optional path) — not because Mode 1 was
+missing something Mode 2 had.
 
-- **CAIE + MITRE mapping are Mode-2-only, confirmed.** The bridge imports
-  `vigia.tools.caie.cross_artifact_analysis` and registers it as an MCP
-  tool; `caie.py` itself depends on `vigia.tools.mitre_mapping`. So
-  `caie.py`/`mitre_mapping.py` are real, reachable — just not from Mode 1's
-  CLI entry point.
-- **`unified_timeline_engine.py`, `hallucination_guard.py`,
-  `event_log_correlator.py`, `hypothesis_lineage.py` are unconfirmed in
-  BOTH modes** — none appear in the MCP bridge's registered tools either
-  (grepped, no match). Either genuinely orphaned/exploratory code, or
-  reachable through some third path not yet checked.
+`hallucination_guard.py` and `hypothesis_lineage.py` remain the two
+modules with no confirmed reachability from either mode. Both already
+have a resolution that doesn't depend on VIGÍA calling them: ZAYNOR ported
+the `hallucination_guard` mechanism independently (it operates on
+`ZaynorAuthoritativeResult`, not VIGÍA's internal state, so VIGÍA
+reachability was never actually required for it); `hypothesis_lineage`'s
+ACH-shaped output (Phase 4.3) is still an open design question, now
+correctly scoped as "build in ZAYNOR" rather than "adapt from an
+unreachable VIGÍA module."
 
-This means Phase 0.1's "selected integration surface" is not a single
-choice: if ZAYNOR wants MITRE context (Phase 4.1) or fracture/temporal
-analysis (originally assumed to come from CAIE), the adapter has to target
-**Mode 2** (drive VIGÍA's MCP tools, not the Mode 1 CLI) for those
-specific capabilities, while the sealed, evaluated verdict
-(`agent_verdict`/`abduction`/audit trail) only comes from **Mode 1**. A
-real adapter may need to call both, or Phase 0.1 needs to explicitly
-decide ZAYNOR only claims the capabilities Mode 1 actually provides and
-treats MITRE/fractures as a documented gap regardless of Mode 2's
-existence, to avoid depending on Claude Code being the one driving VIGÍA
-at demo time.
+**The real open blocker is the fixture, not the integration surface:**
+every capability confirmed reachable above has only been observed
+returning `NO_ARTIFACTS`/`0 signals`/`UNDETERMINED` against
+`INC-2026-DEMO-001`, because that fixture's format matches none of
+`_build_orchestrator_kwargs`'s recognized patterns. Phase 1/2's fixture
+work isn't done until it produces at least one real signal through Mode
+1 — everything in this table stays "reachable but unobserved" until then.
 
 Decision is exactly one of:
 
