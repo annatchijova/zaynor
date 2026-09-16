@@ -20,7 +20,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass, field
 
-from zaynor.schemas import EvidenceRef
+from zaynor.schemas import EvidenceRef, ZaynorAuthoritativeResult
 
 _YAML_INDICATOR_LEADING_CHARS = set("-?:,[]{}#&*!|>'\"%@`")
 
@@ -140,6 +140,10 @@ class SigmaCandidate:
         return "\n".join(lines) + "\n"
 
 
+class SigmaCandidateError(ValueError):
+    """A proposed Sigma candidate is not grounded in the sealed result."""
+
+
 def propose_sigma_candidate(
     *,
     finding_id: str,
@@ -148,12 +152,33 @@ def propose_sigma_candidate(
     logsource: dict[str, str],
     detection: dict[str, object],
     tags: tuple[str, ...] = (),
+    authorized_result: ZaynorAuthoritativeResult,
 ) -> SigmaCandidate:
     """The only constructor — kept separate from the dataclass itself so a
     future "promote candidate to validated rule" step, if ever built, must
     be its own explicit, human-gated function rather than a quiet default
     change here.
+
+    `authorized_result` is required (same reasoning and pattern as
+    `response_actions.propose_response_action`, red-team round 7 RT-02):
+    `finding_id` must be one produced by the sealed result, and every
+    `evidence_refs` entry must be among *that finding's own* refs —
+    scoped per-finding, not just anywhere in the result, matching
+    `authority_guard.py`'s existing per-finding evidence check. Before
+    this, a Sigma candidate could cite a `finding_id`/evidence pair VIGÍA
+    never produced, reaching a detection engineer as if it were grounded.
     """
+    authorized = {finding.finding_id: finding for finding in authorized_result.findings}
+    finding = authorized.get(finding_id)
+    if finding is None:
+        raise SigmaCandidateError(f"finding_id {finding_id!r} is not present in the sealed authoritative result")
+    allowed_refs = {(ref.artifact, ref.lineage_id) for ref in finding.evidence_refs}
+    for ref in evidence_refs:
+        if (ref.artifact, ref.lineage_id) not in allowed_refs:
+            raise SigmaCandidateError(
+                f"evidence_ref {ref.artifact!r}/{ref.lineage_id!r} is not "
+                f"among finding {finding_id!r}'s authorized evidence"
+            )
     return SigmaCandidate(
         finding_id=finding_id,
         evidence_refs=evidence_refs,

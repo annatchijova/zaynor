@@ -1,11 +1,19 @@
 import pytest
 
-from zaynor.schemas import EvidenceRef
-from zaynor.sigma_candidate import propose_sigma_candidate
+from zaynor.schemas import AuthoritativeFinding, EvidenceRef, ZaynorAuthoritativeResult
+from zaynor.sigma_candidate import SigmaCandidateError, propose_sigma_candidate
 
 yaml = pytest.importorskip("yaml", reason="PyYAML not installed; injection regression needs a real YAML parser")
 
 REF = EvidenceRef(artifact="auth:E001", lineage_id="auth")
+
+
+def _authorized_result(finding_id="F-003", *refs: EvidenceRef) -> ZaynorAuthoritativeResult:
+    return ZaynorAuthoritativeResult(
+        case_id="CASE-SIGMA",
+        engine={"name": "zaynor-test", "version": "1"},
+        findings=(AuthoritativeFinding(finding_id=finding_id, state="SUSPICION", evidence_refs=refs or (REF,)),),
+    )
 
 
 def _candidate(**overrides):
@@ -18,6 +26,7 @@ def _candidate(**overrides):
             "selection": {"event": "vpn_login", "account_role": "privileged"},
             "condition": "selection",
         },
+        authorized_result=_authorized_result(),
     )
     defaults.update(overrides)
     return propose_sigma_candidate(**defaults)
@@ -47,6 +56,36 @@ def test_rejects_candidate_with_no_evidence():
 def test_rejects_detection_without_condition():
     with pytest.raises(ValueError, match="condition"):
         _candidate(detection={"selection": {"event": "x"}})
+
+
+def test_rejects_finding_id_not_in_the_authoritative_result():
+    with pytest.raises(SigmaCandidateError, match="not present in the sealed authoritative result"):
+        _candidate(finding_id="F-FABRICATED")
+
+
+def test_rejects_evidence_ref_not_among_the_finding_s_authorized_refs():
+    fabricated = EvidenceRef(artifact="fabricated", lineage_id="not-bound-to-any-result")
+    with pytest.raises(SigmaCandidateError, match="not among finding"):
+        _candidate(evidence_refs=(fabricated,))
+
+
+def test_accepts_evidence_ref_scoped_to_a_different_finding_in_the_same_result_is_rejected():
+    """Per-finding scoping (matches authority_guard.py's existing pattern):
+    a ref genuinely produced by VIGÍA, but for a DIFFERENT finding than the
+    one cited, must still be rejected — grounding is per-finding, not
+    "anywhere in the result."
+    """
+    other_ref = EvidenceRef(artifact="other:E999", lineage_id="other")
+    result = ZaynorAuthoritativeResult(
+        case_id="CASE-SIGMA",
+        engine={"name": "zaynor-test", "version": "1"},
+        findings=(
+            AuthoritativeFinding(finding_id="F-003", state="SUSPICION", evidence_refs=(REF,)),
+            AuthoritativeFinding(finding_id="F-004", state="SUSPICION", evidence_refs=(other_ref,)),
+        ),
+    )
+    with pytest.raises(SigmaCandidateError, match="not among finding"):
+        _candidate(evidence_refs=(other_ref,), authorized_result=result)
 
 
 def test_yaml_text_is_well_formed_enough_to_round_trip_basic_structure():
