@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from zaynor.vigia_mcp_client import VigiaMCPClient, VigiaMCPConfig
+from zaynor.zaynor_mcp_client import VigiaMCPClient, VigiaMCPConfig
 
 VIGIA_REPO_PATH = Path("/home/labestiadevigia/vigia-repo")
 

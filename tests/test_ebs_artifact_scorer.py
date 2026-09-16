@@ -6,7 +6,7 @@ import pytest
 
 from zaynor.case_freezer import freeze_case
 from zaynor.ebs_artifact_scorer import score_inc_2026_demo_001, write_ebs_evidence
-from zaynor.vigia_mode1_executor import run_vigia_mode1, translate_mode1_bundle
+from zaynor.zaynor_mode1_executor import run_vigia_mode1, translate_mode1_bundle
 
 SCENARIO_ROOT = Path(__file__).parent.parent / "scenarios" / "inc-2026-demo-001"
 PROFILE_MAP = json.loads((SCENARIO_ROOT / "evidence_profile.json").read_text())

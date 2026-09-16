@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 from zaynor.adapter import AdapterError
-from zaynor.vigia_mode1_executor import (
+from zaynor.zaynor_mode1_executor import (
     Mode1ExecutionError,
     run_vigia_mode1,
     translate_mode1_bundle,

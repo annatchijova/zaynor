@@ -13,8 +13,8 @@ para cada ubicación.
 
 El repositorio ZAYNOR contiene módulos propios llamados:
 
-- `src/zaynor/vigia_mode1_executor.py`
-- `src/zaynor/vigia_mcp_client.py`
+- `src/zaynor/vigia_mode1_executor.py` (nombre anterior)
+- `src/zaynor/vigia_mcp_client.py` (nombre anterior)
 
 y tests con el mismo prefijo. Esto hace que un consumidor pueda importar la
 integración como si fuera un módulo nativo de VIGÍA y oculta qué parte es

@@ -44,7 +44,7 @@ mechanisms on file-name plausibility alone, unverified against the call
 graph).
 
 **Second correction, found by actually running `vigia_agent.py` against a
-real frozen case** (see `vigia_mode1_executor.py`'s test): `_run_pipeline`
+real frozen case** (see `zaynor_mode1_executor.py`'s test): `_run_pipeline`
 in `vigia_agent.py` does not go straight to
 `vigia/scripts/run_pipeline.py` — it first tries `from sift_orchestrator
 import SIFTOrchestrator` (a root-level compatibility shim that delegates
@@ -109,7 +109,7 @@ CAIE/fracture analysis, the timeline engine, MITRE mapping, and the deep
 abductive reasoner — all of it, confirmed reachable through
 `sift_orchestrator.SIFTOrchestrator`. There is no need to also drive Mode
 2 (VIGÍA's own MCP bridge) just to reach those capabilities; ZAYNOR's own
-separate MCP client (`vigia_mcp_client.py`) still exists for its own
+separate MCP client (`zaynor_mcp_client.py`) still exists for its own
 purpose — the Ollama-driven *investigator* choosing which read-only tool
 to call next (§ AGENTS.md 2.2's optional path) — not because Mode 1 was
 missing something Mode 2 had.

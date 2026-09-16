@@ -1,7 +1,7 @@
 """Integration test against the real vigia_agent.py (no mocks).
 
 Skips cleanly if vigia-repo isn't present, same policy as
-test_vigia_mcp_client.py.
+test_zaynor_mcp_client.py.
 """
 
 from __future__ import annotations
@@ -12,7 +12,7 @@ from pathlib import Path
 import pytest
 
 from zaynor.case_freezer import freeze_case
-from zaynor.vigia_mode1_executor import Mode1ExecutionError, run_vigia_mode1, translate_mode1_bundle
+from zaynor.zaynor_mode1_executor import Mode1ExecutionError, run_vigia_mode1, translate_mode1_bundle
 
 VIGIA_REPO_PATH = Path("/home/labestiadevigia/vigia-repo")
 SCENARIO_ROOT = Path(__file__).parent.parent / "scenarios" / "inc-2026-demo-001"

@@ -156,7 +156,7 @@ def write_ebs_evidence(case_id: str, rules: list[ScoringRule], output_path: Path
     `_analyze_ebs_json` expects, at `output_path`. Rejects a symlinked
     destination — this writes into per-case derived-input storage, the same
     "don't follow a link to write somewhere else" posture as
-    `case_freezer.py`/`vigia_mode1_executor.py`.
+    `case_freezer.py`/`zaynor_mode1_executor.py`.
     """
     if output_path.exists() and output_path.is_symlink():
         raise ValueError(f"refusing to write EBS evidence through a symlink: {output_path}")
