@@ -21,10 +21,12 @@ decide qué evidencia inspeccionar, propone hipótesis y narra la
 reconstrucción. El LLM nunca propone un veredicto directamente — propone una
 *claim* con predicados verificables ("el evento X tiene el campo Y = Z"), y
 una capa determinista vuelve a consultar cada predicado directamente contra
-la evidencia congelada antes de sellar cualquier cosa como `CORROBORATED`.
-Es la misma filosofía que ANNACONDA (recolección/correlación determinista
-primero, LLM narra después, nunca al revés) llevada a un caso post-incidente
-en vez de solo en vivo.
+la evidencia congelada y verifica los requisitos de procedencia e
+independencia definidos por la regla antes de promover la claim a
+`CORROBORATED`. El modelo puede investigar y proponer; la autoridad sobre
+los findings permanece fuera del LLM y se deriva de reglas explícitas
+aplicadas a evidencia congelada (ver "Referencias de diseño" más abajo para
+qué se tomó de qué proyecto).
 
 El principio arquitectónico central:
 
@@ -38,7 +40,8 @@ post-incidente:
 ```
 replay determinista de telemetría sintética -> detección -> correlación/triage
    -> INCIDENTE DECLARADO (evidencia congelada: manifest + SHA-256)
-   -> recolección de evidencia -> investigación local -> hipótesis/RCA
+   -> acceso a evidencia congelada (pre-recolectada; adquisición fuera de alcance)
+   -> investigación local -> hipótesis/RCA
    -> finding respaldado -> respuesta propuesta (no ejecutada) -> postmortem
 ```
 
@@ -56,6 +59,26 @@ tiene la última palabra.
   corriendo en hardware de desarrollador común — no se asume infraestructura
   de clase servidor.
 - Solo datos simulados o públicos.
+
+## Referencias de diseño
+
+Ningún proyecto externo se reutiliza como dependencia — Zaynor es un
+prototipo chico y propio. Estas son las ideas concretas que sí se tomaron de
+otros proyectos, para que se entienda de dónde vienen:
+
+- **VIGÍA** — sandbox de solo lectura sobre evidencia (hash antes de leer,
+  confinamiento de paths), y el principio de sellar un resultado
+  determinista antes de que cualquier LLM lo vea.
+- **ANNACONDA** — el patrón de guardia contra alucinaciones: la narrativa
+  del LLM solo puede citar hechos ya autorizados por el motor determinista,
+  nunca inventar uno nuevo.
+- **K8sGPT** — separar el hallazgo determinista de su explicación por IA en
+  campos distintos, de forma que el LLM nunca pueda escribir sobre el
+  veredicto, solo sobre el texto que lo acompaña.
+- **HolmesGPT** — el loop de investigación acotado (límite de pasos, no
+  autonomía ilimitada) y un registro declarativo de herramientas.
+- **Keep** — la idea de separar identidad de evento, fingerprint de alerta
+  e identidad de incidente en vez de una sola noción de "hash".
 
 ## Estructura del repositorio
 

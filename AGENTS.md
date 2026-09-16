@@ -25,7 +25,7 @@ don't do live telemetry":
 ```
 synthetic telemetry replay  ->  detection  ->  correlation/triage
    ->  INCIDENT DECLARED — case freeze (manifest + SHA-256, immutable case_id)
-   ->  evidence collection  ->  local investigation  ->  hypotheses/RCA
+   ->  frozen evidence access (pre-collected; acquisition out of scope)  ->  local investigation  ->  hypotheses/RCA
    ->  backed finding  ->  response/prevention (proposed, not executed)
    ->  postmortem
 ```
@@ -59,7 +59,7 @@ The two halves run on deliberately different-weight engines, split at
   handing it to the investigator. This is not a metaphor — it's a real,
   small piece of code between stage 3 and stage 5, and it's what "the
   evidence is frozen" actually means in this repo.
-- **Stages 5-10 (evidence collection → … → postmortem):** the actual DFIR
+- **Stages 5-10 (frozen evidence access → … → postmortem):** the actual DFIR
   core — this is where the LLM investigates and where §2's ledger boundary
   applies in full.
 
@@ -135,9 +135,12 @@ touching anything past the evidence-ingestion layer:
   stand (`{event_id, field, op, value}` tuples). The gate then re-looks-up
   every one of those predicates directly against the frozen evidence itself
   — it does not trust the model's account of what a record says, only the
-  record. `CORROBORATED` requires every required predicate to hold against
-  that independent lookup; a contradicting predicate yields `CONTRADICTED`;
-  anything the gate can't resolve is `INSUFFICIENT` (rendered to the human
+  record. Every required predicate must first be VERIFIED through that
+  independent lookup; a claim may become `CORROBORATED` only after its
+  verified predicates *also* satisfy the gate rule's declared provenance and
+  independence requirements (see the next bullet) — verification alone is
+  not sufficient. A contradicting predicate yields `CONTRADICTED`; anything
+  the gate can't resolve is `INSUFFICIENT` (rendered to the human
   report as `UNKNOWN`, never smoothed into a guess). If you find yourself
   passing an LLM completion straight into something that updates finding
   status — including trusting the LLM's own quote of an evidence field
@@ -172,9 +175,12 @@ touching anything past the evidence-ingestion layer:
   enforcement is a hardcoded function registry, not an LLM self-report. If a
   feature needs a new capability, it needs a new named tool with its own
   narrow contract — it does not need a broader existing tool.
-- **No float in anything that feeds a ledger status or a hash.** Corroboration
-  counts, gate thresholds, and hash inputs use integers/exact types. Floats
-  are fine in display-only rendering.
+- **No float in anything that feeds a ledger status or a hash.** Gate
+  thresholds, exact scores (if any), provenance-derived values, and
+  canonical hash inputs use integers or exact numeric types
+  (`fractions.Fraction`, not binary floating-point). Floats are fine in
+  display-only rendering — never in anything the gate reads to decide a
+  claim's status.
 - **A missing or ambiguous result is `UNKNOWN`, not a guess dressed as a
   finding.** Don't let a renderer or a prompt smooth over "we don't actually
   know" into a confident-sounding sentence.
@@ -228,12 +234,13 @@ three don't know it happened.
    ```bash
    git fetch origin main && git rebase origin/main
    ```
-   `main` moves while you work. A PR built on a stale base can silently
-   revert whatever landed in the meantime — this is exactly the kind of
-   thing that's invisible until the demo breaks the morning of. Rebase even
-   when git reports no conflict; a clean textual merge only means the same
-   lines weren't touched twice, not that your change still makes sense
-   against what arrived.
+   `main` moves while you work. A PR built on a stale base may remain
+   textually mergeable while being semantically incompatible with changes
+   that landed on `main` in the meantime — this is exactly the kind of thing
+   that's invisible until the demo breaks the morning of. Rebase even when
+   git reports no conflict; a clean textual merge only means the same lines
+   weren't touched twice, not that your change still makes sense against
+   what arrived.
 
    Don't read `git diff origin/main..your-branch` as a preview of what
    merging will do — two-dot diff makes everything `main` gained since you

@@ -20,11 +20,12 @@ immutable case ID) and the deep part starts: a local LLM that decides which
 evidence to inspect, proposes hypotheses, and narrates the reconstruction.
 The LLM never proposes a verdict directly — it proposes a *claim* with
 verifiable predicates ("event X has field Y = Z"), and a deterministic layer
-re-checks every predicate directly against the frozen evidence before
-anything is sealed as `CORROBORATED`. It's the same philosophy as ANNACONDA
-(deterministic collection/correlation first, LLM narrates after, never the
-other way around) applied to a post-incident case instead of only a live
-one.
+re-checks every predicate directly against the frozen evidence and verifies
+the rule's declared provenance and independence requirements before
+promoting the claim to `CORROBORATED`. The model can investigate and
+propose; authority over findings stays outside the LLM and is derived from
+explicit rules applied to frozen evidence (see "Design lineage" below for
+what was taken from which project).
 
 The core architectural principle:
 
@@ -38,7 +39,8 @@ half:
 ```
 deterministic replay of synthetic telemetry -> detection -> correlation/triage
    -> INCIDENT DECLARED (evidence frozen: manifest + SHA-256)
-   -> evidence collection -> local investigation -> hypotheses/RCA
+   -> frozen evidence access (pre-collected; acquisition out of scope)
+   -> local investigation -> hypotheses/RCA
    -> backed finding -> proposed response (not executed) -> postmortem
 ```
 
@@ -55,6 +57,26 @@ final say.
 - Inference via a local model (Ollama or an equivalent backend), running on
   ordinary developer hardware — no server-class infrastructure assumed.
 - Simulated or public data only.
+
+## Design lineage
+
+No external project is reused as a dependency — Zaynor is a small, original
+prototype. These are the concrete ideas actually taken from other projects,
+so the lineage is on record:
+
+- **VIGÍA** — the read-only evidence sandbox (hash before reading, path
+  confinement), and the principle of sealing a deterministic result before
+  any LLM ever sees it.
+- **ANNACONDA** — the hallucination-guard pattern: the LLM's narrative can
+  only cite facts already authorized by the deterministic engine, never
+  invent a new one.
+- **K8sGPT** — separating a deterministic finding from its AI explanation
+  into distinct fields, so the LLM can never write to the verdict, only to
+  the text alongside it.
+- **HolmesGPT** — the bounded investigation loop (a step limit, not
+  unlimited autonomy) and a declarative tool registry.
+- **Keep** — separating event identity, alert fingerprint, and incident
+  identity instead of one generic "hash" notion.
 
 ## Repository structure
 
