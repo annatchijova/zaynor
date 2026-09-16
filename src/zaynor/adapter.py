@@ -132,3 +132,58 @@ class VigiaAdapter:
         if not isinstance(raw, Mapping):
             raise AdapterError("executor must return a mapping")
         return translate_result(manifest.case_id, raw)
+
+
+class ZaynorMode1Adapter:
+    """Production wiring for ZAYNOR's real Mode-1 integration.
+
+    This keeps the generic injected adapter above useful for contract tests,
+    while providing the missing concrete path from a frozen case to the real
+    subprocess executor. The executor module is imported lazily to avoid a
+    circular dependency: it imports ``AdapterError`` for its translation
+    boundary.
+    """
+
+    def __init__(
+        self,
+        engine_repo_path: Path,
+        output_root: Path,
+        *,
+        python_executable: str = "python3",
+        timeout_seconds: int = 300,
+        max_output_bytes: int = 1_048_576,
+    ) -> None:
+        self._engine_repo_path = engine_repo_path
+        self._output_root = output_root
+        self._python_executable = python_executable
+        self._timeout_seconds = timeout_seconds
+        self._max_output_bytes = max_output_bytes
+
+    def analyze(self, manifest: CaseManifest, evidence_dir: Path) -> ZaynorAuthoritativeResult:
+        if not manifest.case_id:
+            raise AdapterError("frozen case_id must not be empty")
+        if not evidence_dir.is_dir() or evidence_dir.is_symlink():
+            raise AdapterError("frozen evidence directory is missing or unsafe")
+        case_root = evidence_dir.parent
+        if case_root.name != manifest.case_id:
+            raise AdapterError("evidence directory is not under the manifest case root")
+
+        from zaynor.zaynor_mode1_executor import run_vigia_mode1, translate_mode1_bundle
+
+        output_path = self._output_root / manifest.case_id / "bundle.json"
+        try:
+            bundle = run_vigia_mode1(
+                vigia_repo_path=self._engine_repo_path,
+                evidence_path=evidence_dir,
+                case_id=manifest.case_id,
+                output_path=output_path,
+                python_executable=self._python_executable,
+                timeout_seconds=self._timeout_seconds,
+                max_output_bytes=self._max_output_bytes,
+                allowed_evidence_root=case_root,
+            )
+            return translate_mode1_bundle(manifest.case_id, bundle)
+        except (OSError, RuntimeError, AdapterError) as exc:
+            if isinstance(exc, AdapterError):
+                raise
+            raise AdapterError(f"Mode-1 execution failed for {manifest.case_id}: {exc}") from exc
