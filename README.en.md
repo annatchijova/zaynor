@@ -48,8 +48,9 @@ The first three stages are handled by a small, deterministic engine
 (a synthetic event stream, a detection rule, a correlation rule) — no eBPF,
 no per-node agents, no production monitoring stack. The real weight of the
 project, and where the substantive AI lives, starts at the incident: that's
-where the local LLM investigates and where the deterministic ledger has the
-final say.
+where the local LLM investigates, the deterministic gate controls which
+claims can acquire authoritative status, and the ledger keeps the resulting
+findings in an auditable record.
 
 ## Requirements
 

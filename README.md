@@ -49,8 +49,9 @@ Las primeras tres etapas se resuelven con un motor chico y determinista
 (stream sintético, una regla de detección, una regla de correlación) — nada
 de eBPF, agentes por nodo, ni un stack de monitoreo de producción. El peso
 real del proyecto, y donde vive la IA sustantiva, está a partir del
-incidente: ahí es donde el LLM local investiga y donde el ledger determinista
-tiene la última palabra.
+incidente: ahí es donde el LLM local investiga, el gate determinista
+controla qué claims pueden adquirir estado autoritativo, y el ledger
+conserva los findings resultantes de forma auditable.
 
 ## Requisitos
 

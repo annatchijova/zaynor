@@ -7,8 +7,8 @@ if a PR doesn't follow it, that's a legitimate reason to ask for changes
 before reviewing the diff itself.
 
 ZAYNOR is a hybrid, not a post-incident-only tool: a small deterministic
-front end detects and correlates signals in real time over synthetic
-telemetry until something becomes an incident, then a local LLM picks which
+front end detects and correlates signals over a deterministic replay of
+synthetic telemetry until something becomes an incident, then a local LLM picks which
 read-only evidence to inspect next and narrates a reconstruction — while a
 deterministic layer owns claim-state transitions, evidence bindings,
 provenance checks, hashes, and every assertion that can be mechanically
@@ -303,6 +303,10 @@ in the PR instead of letting a green checkmark imply more than it proves.
       a genuinely new file.
 - [ ] Nothing from an LLM completion writes directly to ledger/finding
       status (§2).
+- [ ] No claim became `CORROBORATED` from predicate verification alone when
+      its gate rule requires provenance/independence constraints.
+- [ ] Evidence references preserve `lineage_id`; duplicated or derived
+      artifacts are not counted as independent corroboration.
 - [ ] No new evidence path bypasses the read-only tool allowlist.
 - [ ] No float entered a ledger-status or hash computation.
 - [ ] An ambiguous or missing result renders as `UNKNOWN`, not a confident
