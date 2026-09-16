@@ -286,11 +286,18 @@ than silently complying or silently refusing.
 
 ## 4. Git and PR workflow
 
-**Nobody commits straight to `main` — no exceptions for anyone on the team.**
-The flow is: branch → commit → push → PR → review → merge. This holds even
-solo, even at hour 40: a four-person team moving fast in parallel is exactly
-when an unreviewed direct push to `main` costs the most, because the other
-three don't know it happened.
+**Only the repo owner pushes straight to `main`; the other three don't,
+ever.** For everyone but the owner, the flow is: branch → commit → push →
+PR → review by the owner → merge. This holds even solo, even at hour 40: with
+three people moving fast in parallel, an unreviewed direct push from any of
+them is exactly what costs the most, because the other two don't know it
+happened. The owner already reviews every PR that lands — a PR opened by the
+owner would have no one left to review it independently, so requiring one
+buys nothing. The owner pushing directly is the asymmetry that keeps the
+review gate meaningful for everyone else; it's not a loophole anyone else
+gets to use by analogy.
+
+The flow for the three non-owner contributors:
 
 1. **Branch off current `main`:**
    ```bash
