@@ -5,53 +5,59 @@
 > Estado: en desarrollo activo para un hackathon (48 h). Este README es
 > provisorio y se va a actualizar a medida que el proyecto tome forma.
 
-Sistema híbrido de defensa: detección y correlación sobre un replay
-determinista de telemetría sintética que alimenta una investigación forense
-post-incidente asistida por un LLM local, para el desafío "Inteligencia
-artificial para la defensa de redes e infraestructura".
+Sistema híbrido de defensa para investigar incidentes ya declarados: toma
+evidencia congelada, construye y contrasta hipótesis con un motor matemático
+determinista, y usa IA local para decidir nuevas investigaciones y producir
+reportes para distintos públicos, para el desafío "Inteligencia artificial
+para la defensa de redes e infraestructura".
 
 ## Qué es
 
-Zaynor cubre el incidente de punta a punta, no solo la mitad post-mortem:
-un frente liviano y determinista detecta y correlaciona señales sobre un
-replay de telemetría sintética (no telemetría en vivo real) hasta que algo
-se convierte en un incidente — ahí la evidencia queda congelada (manifest +
-SHA-256, case ID inmutable) y arranca la parte profunda: un LLM local que
-decide qué evidencia inspeccionar, propone hipótesis y narra la
-reconstrucción. El LLM nunca propone un veredicto directamente — propone una
-*claim* con predicados verificables ("el evento X tiene el campo Y = Z"), y
-una capa determinista vuelve a consultar cada predicado directamente contra
-la evidencia congelada y verifica los requisitos de procedencia e
-independencia definidos por la regla antes de promover la claim a
-`CORROBORATED`. El modelo puede investigar y proponer; la autoridad sobre
-los findings permanece fuera del LLM y se deriva de reglas explícitas
-aplicadas a evidencia congelada (ver "Referencias de diseño" más abajo para
-qué se tomó de qué proyecto).
+Zaynor empieza cuando ocurre un incidente y ya hay evidencia recolectada; la
+declaración del incidente y la adquisición quedan fuera de este repo. Sobre
+la evidencia congelada, el investigador mantiene hipótesis y preguntas usando
+la tríada de Peirce: abducción para proponer explicaciones, deducción para
+derivar qué las distinguiría e inducción para contrastarlas con evidencia.
+Las evidencias discriminantes y las fracturas alimentan el motor matemático
+determinista, que calcula score y nivel de confianza y asigna el veredicto
+VIGÍA: `MALICE`, `ABSTAIN`, `UNKNOWN`, `BENIGN` o `SUSPICION`. El veredicto no
+lo decide el LLM.
+
+Después de ese paso autoritativo, la IA puede decidir qué investigar a
+continuación —en un loop acotado, parecido al de ANNACONDA— usando únicamente
+operaciones de lectura permitidas. La evidencia nueva vuelve a pasar por el
+motor determinista antes de modificar el resultado. El LLM también narra el
+resultado sellado: copia el formato de reportes de Forge tal cual —Markdown,
+PDF y HTML— y ofrece un chat con LLM para analistas junior; la vista y el flujo de investigación para
+analistas senior conservan hipótesis, fracturas, score, confianza,
+alternativas y trazabilidad.
 
 El principio arquitectónico central:
 
-> La IA decide qué investigar. La IA no decide qué es verdad.
+> La IA puede decidir qué investigar. El motor matemático determinista decide
+> qué sostiene la evidencia.
 
 ## Por qué es un híbrido
 
-El proyecto cubre el ciclo completo de un incidente, no solo la mitad
-post-incidente:
+El proyecto cubre el flujo post-incidente:
 
 ```
-replay determinista de telemetría sintética -> detección -> correlación/triage
-   -> INCIDENTE DECLARADO (evidencia congelada: manifest + SHA-256)
-   -> acceso a evidencia congelada (pre-recolectada; adquisición fuera de alcance)
-   -> investigación local -> hipótesis/RCA
-   -> finding respaldado -> respuesta propuesta (no ejecutada) -> postmortem
+INCIDENTE DECLARADO + EVIDENCIA RECOLECTADA (externos a Zaynor)
+   -> evidencia congelada (manifest + SHA-256, case_id inmutable)
+   -> hipótesis Peirce: abducción -> deducción -> inducción
+   -> evidencia discriminante / fracturas
+   -> motor matemático determinista VIGÍA
+   -> MALICE | ABSTAIN | UNKNOWN | BENIGN | SUSPICION + score/confianza
+   -> hash chain + resultado autoritativo sellado
+   -> IA decide investigación adicional acotada (opcional, read-only)
+   -> nueva evidencia -> VIGÍA / reanálisis determinista
+   -> reporte Forge (.md/.pdf/.html) + chat local para analistas
 ```
 
-Las primeras tres etapas se resuelven con un motor chico y determinista
-(stream sintético, una regla de detección, una regla de correlación) — nada
-de eBPF, agentes por nodo, ni un stack de monitoreo de producción. El peso
-real del proyecto, y donde vive la IA sustantiva, está a partir del
-incidente: ahí es donde el LLM local investiga, el gate determinista
-controla qué claims pueden adquirir estado autoritativo, y el ledger
-conserva los findings resultantes de forma auditable.
+La separación es intencional: el motor determinista sostiene los veredictos,
+los scores, la confianza, las fracturas, la trazabilidad y el hash chain; la
+IA propone próximos pasos de investigación y traduce resultados ya sellados
+para humanos. Una propuesta del LLM nunca cambia por sí sola el veredicto.
 
 ## Requisitos
 
@@ -60,6 +66,8 @@ conserva los findings resultantes de forma auditable.
   corriendo en hardware de desarrollador común — no se asume infraestructura
   de clase servidor.
 - Solo datos simulados o públicos.
+- Interfaces previstas: CLI, frontend local, API y chat con Ollama; MCP puede
+  exponer herramientas de investigación read-only.
 
 ## Referencias de diseño
 
@@ -67,12 +75,15 @@ Ningún proyecto externo se reutiliza como dependencia — Zaynor es un
 prototipo chico y propio. Estas son las ideas concretas que sí se tomaron de
 otros proyectos, para que se entienda de dónde vienen:
 
-- **VIGÍA** — sandbox de solo lectura sobre evidencia (hash antes de leer,
-  confinamiento de paths), y el principio de sellar un resultado
-  determinista antes de que cualquier LLM lo vea.
+- **VIGÍA** — motor forense matemático determinista, score, confianza,
+  veredictos cuadripartitos y sellado del resultado antes de que cualquier
+  LLM lo vea; también aporta el modelo de sandbox read-only.
 - **ANNACONDA** — el patrón de guardia contra alucinaciones: la narrativa
   del LLM solo puede citar hechos ya autorizados por el motor determinista,
-  nunca inventar uno nuevo.
+  nunca inventar uno nuevo, y el loop acotado para decidir qué investigar.
+- **Forge** — formato de reporte para analistas copiado tal cual: Markdown,
+  PDF y HTML, más la separación entre el flujo explicativo junior y el
+  análisis profundo senior.
 - **K8sGPT** — separar el hallazgo determinista de su explicación por IA en
   campos distintos, de forma que el LLM nunca pueda escribir sobre el
   veredicto, solo sobre el texto que lo acompaña.
@@ -84,8 +95,9 @@ otros proyectos, para que se entienda de dónde vienen:
 ## Estructura del repositorio
 
 Los contratos de trabajo están en `AGENTS.md`, `docs/SANDBOX.md` y
-`SYSTEM_PROMPT--ZAYNOR.md`. El primer slice implementado es el límite del
-worker en `src/zaynor/sandbox.py`; no parsea ni ejecuta contenido de artefactos.
+`SYSTEM_PROMPT--ZAYNOR.md`. El límite del worker en `src/zaynor/sandbox.py`
+mantiene la inspección de evidencia acotada; no parsea ni ejecuta contenido de
+artefactos dentro del proceso API.
 
 El catálogo de skills está en `docs/skills/` y está acotado al pipeline local de
 DFIR y detección de este proyecto.
