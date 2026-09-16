@@ -4,6 +4,11 @@ from __future__ import annotations
 
 from typing import Iterable
 
+from zaynor.authority_seal import AuthoritySeal, verify_authoritative_result
+from zaynor.agents.authority_guard import check_narrative
+from zaynor.hallucination_guard import GuardResult
+from zaynor.schemas import ZaynorAuthoritativeResult
+
 from .contracts import Audience, UntrustedContext
 from .ollama_client import OllamaClient
 
@@ -33,3 +38,31 @@ class Mentor:
             system=_SYSTEM,
             prompt=build_mentor_prompt(question, audience=audience, contexts=contexts),
         )
+
+    def chat_checked(
+        self,
+        question: str,
+        *,
+        audience: Audience,
+        result: ZaynorAuthoritativeResult,
+        seal: AuthoritySeal,
+        contexts: Iterable[UntrustedContext] = (),
+    ) -> GuardResult:
+        """Narrate and conservatively check the response against sealed facts.
+
+        Callers must use ``safe_narration`` from the returned guard result for
+        user-facing output. The raw completion remains available only as
+        diagnostic data and never changes the authoritative result.
+
+        `seal` is verified against `result` before anything is checked
+        against it (red-team audit: `check_narrative` itself trusts
+        `result` as given and never re-verifies a seal — confirmed by
+        induction that, without this check, a caller passing a forged or
+        merely mismatched `result` alongside an unrelated, genuinely-valid
+        `seal` got a `GuardResult` that silently approved a narrative
+        matching the forged result, e.g. "The result is MALICE" for a
+        `result` object nothing had verified was ever actually sealed).
+        """
+        verify_authoritative_result(result, seal)
+        narration = self.chat(question, audience=audience, contexts=contexts)
+        return check_narrative(result, narration)

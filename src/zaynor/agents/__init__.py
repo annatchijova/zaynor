@@ -10,6 +10,7 @@ from .runtime import AgentRuntime, AgentRuntimeError
 from .authority_guard import AuthorityGuardError, check_narrative, check_structured_output
 from .consult_tools import ConsultToolError, ConsultTools
 from .investigator_tools import InvestigatorToolAdapter, InvestigatorToolError, build_investigator_tools
+from .mentor import Mentor
 
 __all__ = [
     "AgentRole",
@@ -42,4 +43,5 @@ __all__ = [
     "InvestigatorToolAdapter",
     "InvestigatorToolError",
     "build_investigator_tools",
+    "Mentor",
 ]
