@@ -46,6 +46,13 @@ def test_freeze_case_rejects_unknown_evidence_profile():
         freeze_case("INC-TEST-003", "nonexistent-profile", PROFILE_MAP, SCENARIO_ROOT, Path("/tmp"))
 
 
+def test_freeze_case_rejects_path_traversal_inputs(tmp_path):
+    with pytest.raises(ValueError, match="path-safe"):
+        freeze_case("../escape", "admin-session-investigation", PROFILE_MAP, SCENARIO_ROOT, tmp_path)
+    with pytest.raises(ValueError, match="relative"):
+        freeze_case("INC-SAFE", "malicious", {"malicious": ["../secret"]}, SCENARIO_ROOT, tmp_path)
+
+
 def test_frozen_evidence_is_only_readable_through_the_case_boundary(tmp_path):
     """Ground truth lives at docs/ground-truth-*.md, outside `scenarios/`'s
     evidence_profile.json entries — confirm freezing the case never pulls

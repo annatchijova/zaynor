@@ -10,12 +10,28 @@ source directory. See AGENTS.md "The case-freeze boundary".
 from __future__ import annotations
 
 import json
+import re
 import shutil
 from pathlib import Path
 
 from zaynor.custody import ChainOfCustody
 from zaynor.hash_utils import sha256_file
 from zaynor.schemas import CaseManifest, ManifestEntry
+
+_SAFE_CASE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
+
+
+def _confined_relative_path(source_root: Path, relative_path: str) -> Path:
+    if not isinstance(relative_path, str):
+        raise ValueError("evidence paths must be strings")
+    relative = Path(relative_path)
+    if relative.is_absolute() or ".." in relative.parts:
+        raise ValueError("evidence paths must be relative and cannot contain '..'")
+    root = source_root.resolve(strict=True)
+    candidate = (root / relative).resolve(strict=False)
+    if root not in candidate.parents:
+        raise ValueError("evidence path escapes source_root")
+    return relative
 
 
 def freeze_case(
@@ -37,6 +53,8 @@ def freeze_case(
     """
     if evidence_profile not in profile_map:
         raise KeyError(f"unknown evidence_profile: {evidence_profile}")
+    if not isinstance(case_id, str) or not _SAFE_CASE_ID.fullmatch(case_id):
+        raise ValueError("case_id must be a bounded path-safe identifier")
 
     case_dir = cases_root / case_id
     evidence_dir = case_dir / "evidence"
@@ -46,8 +64,9 @@ def freeze_case(
     entries: list[ManifestEntry] = []
 
     for relative_path in profile_map[evidence_profile]:
+        relative_path = _confined_relative_path(source_root, relative_path).as_posix()
         source_path = source_root / relative_path
-        if not source_path.is_file():
+        if source_path.is_symlink() or not source_path.is_file():
             raise FileNotFoundError(f"evidence file not found: {source_path}")
 
         dest_path = evidence_dir / relative_path

@@ -36,3 +36,10 @@ def test_unverifiable_claim_does_not_count_as_hallucinated():
     result = guard.check("Technique T1070.001 was observed.")
     assert result.claims_hallucinated == 0
     assert result.claims_unverifiable == 1
+
+
+def test_unrecognized_nonempty_narrative_is_not_passed_through():
+    guard = HallucinationGuard(extract_authorized_facts(FAKE_RESULT))
+    result = guard.check("The attacker exfiltrated confidential data from the host.")
+    assert result.suspicious
+    assert result.safe_narration == "[CLAIM NOT VERIFIED]"

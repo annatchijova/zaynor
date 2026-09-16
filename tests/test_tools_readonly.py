@@ -53,6 +53,21 @@ def test_read_evidence_hashes_and_previews_content(registry):
     assert len(result.data["sha256"]) == 64
 
 
+def test_read_evidence_rejects_invalid_preview_limits(registry):
+    reg, evidence_dir, _ = registry
+    assert reg.read_evidence(str(evidence_dir / "auth.jsonl"), max_bytes=-1).error == "REJECTED_PREVIEW_LIMIT"
+    assert reg.read_evidence(str(evidence_dir / "auth.jsonl"), max_bytes=1_000_001).error == "REJECTED_PREVIEW_LIMIT"
+
+
+def test_grep_pattern_rejects_unbounded_input_and_output(registry):
+    reg, evidence_dir, _ = registry
+    large = evidence_dir / "many.txt"
+    large.write_text("needle\n" * 1001)
+    result = reg.grep_pattern(str(large), "needle")
+    assert not result.success
+    assert result.error == "GREP_RESULT_LIMIT_EXCEEDED"
+
+
 def test_read_evidence_rejects_symlink_escape(registry, tmp_path):
     reg, evidence_dir, _ = registry
     secret = tmp_path / "secret.txt"

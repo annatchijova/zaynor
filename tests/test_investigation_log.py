@@ -63,19 +63,14 @@ def test_unbacked_summary_entry_is_detected():
     assert any("journal never recorded" in e for e in result["errors"])
 
 
-def test_in_place_field_flip_is_not_caught_by_journal_backing():
-    """Documents a real, confirmed limit (not a regression): flipping an
-    existing, journal-backed entry's field in place — without a matching
-    record() call — keeps its id known, so id-membership alone does not
-    notice. ANNACONDA's own source docstring overclaimed "added or
-    flipped"; only "added" holds. Left as a known gap, not silently fixed,
-    per the port's docstring in investigation_log.py.
-    """
+def test_in_place_field_flip_is_detected_by_journal_backing():
+    """A summary mutation without a matching journal mutation is detected."""
     log = new_investigation_log("INC-TEST-001")
     h = add_hypothesis(log, actor="investigator", text="Stolen admin credential")
     log["hypotheses"][0]["status"] = "supported"  # no record() call
     result = verify_log(log)
-    assert result["log_ok"], "if this starts failing, the gap was closed — update the docstring too"
+    assert not result["log_ok"]
+    assert any("summary differs" in e for e in result["errors"])
 
 
 def test_tampering_with_a_sealed_entry_is_detected():

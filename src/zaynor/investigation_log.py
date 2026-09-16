@@ -154,17 +154,9 @@ def _journal_backing(log: dict) -> list[str]:
     journal entry — one-directional, since `_trim` legitimately drops
     entries the journal still keeps.
 
-    This catches an entry ADDED to the summary with no journal mutation
-    behind it at all (an id with no matching journal entry). It does NOT
-    catch an existing, journal-backed entry whose field was flipped
-    in-place afterwards (e.g. `status` changed without a matching
-    `update_hypothesis` entry) — the id is still known, so membership alone
-    doesn't notice. Confirmed by induction while porting this from
-    ANNACONDA's `agent/mission.py`, whose docstring claimed "added or
-    flipped"; only "added" holds for this id-membership check. Catching a
-    flip needs comparing the summary's current field values against the
-    journal's last recorded values for that id, not just id membership —
-    not implemented yet.
+    This catches an entry added to the summary with no journal mutation
+    behind it, and a journal-backed entry whose fields were changed without
+    a matching mutation entry.
     """
     errors = []
     journal = [e for e in log.get("journal", []) if isinstance(e, dict)]
@@ -176,13 +168,20 @@ def _journal_backing(log: dict) -> list[str]:
         ("hypotheses", ("add_hypothesis", "update_hypothesis"), "hypothesis"),
         ("open_questions", ("note_open_question", "resolve_open_question"), "open question"),
     ):
-        known = {d.get("id") for action in actions for d in details(action)}
+        latest: dict[str, dict] = {}
+        for action in actions:
+            for detail in details(action):
+                if isinstance(detail.get("id"), str):
+                    latest[detail["id"]] = detail
         for item in log.get(field) or []:
-            if item.get("id") not in known:
+            item_id = item.get("id")
+            if item_id not in latest:
                 errors.append(
                     f"{label} {item.get('id')!r} appears in the summary but the "
                     f"journal never recorded it"
                 )
+            elif item != latest[item_id]:
+                errors.append(f"{label} {item_id!r} summary differs from its last journal state")
     return errors
 
 

@@ -45,6 +45,9 @@ from zaynor.path_guard import PathGuard
 
 _ARGUMENT_HASH_PREFIX_BYTES = 4096
 MAX_GREP_PATTERN_LENGTH = 200
+MAX_PREVIEW_BYTES = 1_000_000
+MAX_GREP_INPUT_BYTES = 10 * 1024 * 1024
+MAX_GREP_MATCHES = 1_000
 _ALLOWED_GREP_PATTERN = re.compile(r"^[\w\s.\-@:/\\]+$")
 
 
@@ -144,6 +147,8 @@ class ReadOnlyToolRegistry:
         its hash still computed — never silently dropped, per VIGÍA's
         "malformed evidence is a signal" principle.
         """
+        if not isinstance(max_bytes, int) or isinstance(max_bytes, bool) or not 0 <= max_bytes <= MAX_PREVIEW_BYTES:
+            return ToolResult(success=False, error="REJECTED_PREVIEW_LIMIT")
         try:
             check = self._guard.validate(path)
             if not check.valid:
@@ -192,7 +197,21 @@ class ReadOnlyToolRegistry:
         if len(pattern) > MAX_GREP_PATTERN_LENGTH or not _ALLOWED_GREP_PATTERN.match(pattern):
             return ToolResult(success=False, error="REJECTED_PATTERN")
         try:
-            data = self._guard.safe_read(path)
+            check = self._guard.validate(path)
+            if not check.valid:
+                return ToolResult(success=False, error=f"PathGuard REJECT: {check.reason}")
+            data = bytearray()
+            with self._guard.safe_open(path, "rb") as handle:
+                while len(data) <= MAX_GREP_INPUT_BYTES:
+                    block = handle.read(min(65536, MAX_GREP_INPUT_BYTES + 1 - len(data)))
+                    if not block:
+                        break
+                    data.extend(block)
+            use = self._guard.verify_no_toctou(path, check)
+            if not use.valid:
+                return ToolResult(success=False, error=f"TOCTOU REJECT: {use.reason}")
+            if len(data) > MAX_GREP_INPUT_BYTES:
+                return ToolResult(success=False, error="EVIDENCE_INPUT_LIMIT_EXCEEDED")
         except PermissionError as exc:
             return ToolResult(success=False, error=str(exc))
 
@@ -202,6 +221,8 @@ class ReadOnlyToolRegistry:
             return ToolResult(success=False, error="BINARY_CONTENT_NOT_SEARCHABLE")
 
         matches = [line for line in text.splitlines() if pattern in line]
+        if len(matches) > MAX_GREP_MATCHES:
+            return ToolResult(success=False, error="GREP_RESULT_LIMIT_EXCEEDED")
         return ToolResult(success=True, data={"path": path, "pattern": pattern, "matches": matches})
 
 

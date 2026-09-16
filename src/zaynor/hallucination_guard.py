@@ -349,11 +349,17 @@ class HallucinationGuard:
         # count as evidence against the narration.
         verifiable_total = verified + hallucinated
         rate = Fraction(hallucinated, verifiable_total) if verifiable_total > 0 else Fraction(0)
-        suspicious = rate > self.threshold
+        # A non-empty narrative with no machine-recognized claims cannot be
+        # authorized by this conservative guard. Do not pass arbitrary prose
+        # merely because the extractor failed to classify it.
+        unrecognized_narrative = bool(narration.strip()) and not claims
+        suspicious = rate > self.threshold or unrecognized_narrative
 
         # Index-based redaction, applied from end to start so earlier
         # indices stay valid as later ones are replaced.
         safe = narration
+        if unrecognized_narrative:
+            safe = self.redact_marker
         if hallucinated_claims:
             intervals = sorted(
                 [(c.start, c.end) for c in hallucinated_claims], key=lambda x: x[0], reverse=True
