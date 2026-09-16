@@ -30,6 +30,14 @@ _TOOL_EFFECTS = {
 }
 
 
+def declared_tool_capability(tool: str) -> tuple[CapabilityEffect, str]:
+    """Return the policy-owned effect/resource declaration for one tool."""
+    effect_resource = _TOOL_EFFECTS.get(tool)
+    if effect_resource is None:
+        raise AgentPolicyError(f"tool {tool!r} has no declared capability")
+    return effect_resource
+
+
 def authorize_tool(role: AgentRole, request: ToolRequest, *, human_approved: bool = False) -> None:
     """Authorize by role and tool name, never by the model's justification."""
     spec = spec_for(role)
@@ -39,10 +47,7 @@ def authorize_tool(role: AgentRole, request: ToolRequest, *, human_approved: boo
         )
     if not isinstance(request.arguments, dict):
         raise AgentPolicyError("tool arguments must be an object")
-    effect_resource = _TOOL_EFFECTS.get(request.tool)
-    if effect_resource is None:
-        raise AgentPolicyError(f"tool {request.tool!r} has no declared capability")
-    effect, resource = effect_resource
+    effect, resource = declared_tool_capability(request.tool)
     spec_capabilities = {(item.effect, item.resource, item.requires_human_approval) for item in spec.capabilities}
     matching = [item for item in spec_capabilities if item[:2] == (effect, resource)]
     if not matching:

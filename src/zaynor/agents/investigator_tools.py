@@ -27,6 +27,8 @@ from __future__ import annotations
 
 import asyncio
 import json
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass
 from typing import Any
 
 from zaynor.zaynor_mcp_client import VigiaMCPClient, VigiaMCPConfig, VigiaMCPError
@@ -36,6 +38,9 @@ from .consult_tools import ConsultTools
 
 class InvestigatorToolError(ValueError):
     """An INVESTIGATOR tool call could not be completed."""
+
+
+ToolHandler = Callable[[dict[str, Any]], Any]
 
 
 def _run_mcp_call(config: VigiaMCPConfig, tool: str, arguments: dict[str, Any]) -> Any:
@@ -92,9 +97,25 @@ def verify_custody(config: VigiaMCPConfig, arguments: dict[str, Any]) -> Any:
     return _run_mcp_call(config, "generate_forensic_hash", {"file_path": path})
 
 
+@dataclass(frozen=True)
+class InvestigatorToolAdapter:
+    """Typed adapter for the minimal real external-tool subset.
+
+    The adapter only exposes handlers. It has no method that can create or
+    alter an authoritative result; the bounded investigator remains the sole
+    caller of the policy gate and records returned values as observations.
+    """
+
+    mcp_config: VigiaMCPConfig
+    consult: ConsultTools
+
+    def handlers(self) -> Mapping[str, ToolHandler]:
+        return build_investigator_tools(self.mcp_config, self.consult)
+
+
 def build_investigator_tools(
     mcp_config: VigiaMCPConfig, consult: ConsultTools
-) -> dict[str, Any]:
+) -> dict[str, ToolHandler]:
     """The real INVESTIGATOR tool set for
     `AgentRuntime.run(AgentRole.INVESTIGATOR, tools=build_investigator_tools(...))`.
 
