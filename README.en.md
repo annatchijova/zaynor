@@ -83,7 +83,7 @@ so the lineage is on record:
 
 The working contracts are in `AGENTS.md`, `docs/SANDBOX.md`, and
 `SYSTEM_PROMPT--ZAYNOR.md`. The first implementation slice is the worker-side
-boundary in `zaynor/sandbox.py`; it does not parse or execute artifact content.
+boundary in `src/zaynor/sandbox.py`; it does not parse or execute artifact content.
 
 The engineering skill catalog lives in `docs/skills/` and is intentionally
 scoped to this project's local DFIR and detection pipeline.

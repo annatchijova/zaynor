@@ -85,7 +85,7 @@ otros proyectos, para que se entienda de dónde vienen:
 
 Los contratos de trabajo están en `AGENTS.md`, `docs/SANDBOX.md` y
 `SYSTEM_PROMPT--ZAYNOR.md`. El primer slice implementado es el límite del
-worker en `zaynor/sandbox.py`; no parsea ni ejecuta contenido de artefactos.
+worker en `src/zaynor/sandbox.py`; no parsea ni ejecuta contenido de artefactos.
 
 El catálogo de skills está en `docs/skills/` y está acotado al pipeline local de
 DFIR y detección de este proyecto.
