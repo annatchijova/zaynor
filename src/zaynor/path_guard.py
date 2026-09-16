@@ -22,6 +22,7 @@ import hashlib
 import os
 import stat
 from dataclasses import dataclass
+from fractions import Fraction
 from pathlib import Path
 
 
@@ -31,7 +32,8 @@ class PathValidationResult:
     reason: str
     inode: int
     size: int
-    mtime: float
+    # Exact seconds represented as a Fraction derived from st_mtime_ns.
+    mtime: Fraction
     hash_prefix: str
 
 
@@ -77,13 +79,13 @@ class PathGuard:
             if ".." in p.parts:
                 return PathValidationResult(
                     valid=False, reason="PATH_TRAVERSAL",
-                    inode=0, size=0, mtime=0.0, hash_prefix="",
+                    inode=0, size=0, mtime=Fraction(0), hash_prefix="",
                 )
             abs_path = self._lexical_absolute(p)
         except (OSError, TypeError, ValueError) as exc:
             return PathValidationResult(
                 valid=False, reason=f"INVALID_PATH: {exc}",
-                inode=0, size=0, mtime=0.0, hash_prefix="",
+                inode=0, size=0, mtime=Fraction(0), hash_prefix="",
             )
 
         try:
@@ -93,17 +95,17 @@ class PathGuard:
                 if parent.is_symlink():
                     return PathValidationResult(
                         valid=False, reason="SYMLINK_DETECTED_IN_PATH",
-                        inode=0, size=0, mtime=0.0, hash_prefix="",
+                        inode=0, size=0, mtime=Fraction(0), hash_prefix="",
                     )
                 if getattr(os.lstat(str(parent)), "st_reparse_tag", 0):
                     return PathValidationResult(
                         valid=False, reason="REPARSE_POINT_DETECTED_IN_PATH",
-                        inode=0, size=0, mtime=0.0, hash_prefix="",
+                        inode=0, size=0, mtime=Fraction(0), hash_prefix="",
                     )
         except OSError as exc:
             return PathValidationResult(
                 valid=False, reason=f"SYMLINK_CHECK_FAILED: {exc}",
-                inode=0, size=0, mtime=0.0, hash_prefix="",
+                inode=0, size=0, mtime=Fraction(0), hash_prefix="",
             )
 
         # Allowlist by path component, not text prefix: "<root>-neighbor" is
@@ -115,18 +117,19 @@ class PathGuard:
             reason = "FILE_NOT_FOUND" if not abs_path.exists() else "OUTSIDE_ALLOWLIST"
             return PathValidationResult(
                 valid=False, reason=reason,
-                inode=0, size=0, mtime=0.0, hash_prefix="",
+                inode=0, size=0, mtime=Fraction(0), hash_prefix="",
             )
 
         if not abs_path.exists():
             return PathValidationResult(
                 valid=False, reason="FILE_NOT_FOUND",
-                inode=0, size=0, mtime=0.0, hash_prefix="",
+                inode=0, size=0, mtime=Fraction(0), hash_prefix="",
             )
 
         try:
             st = abs_path.lstat()
-            inode, size, mtime = st.st_ino, st.st_size, st.st_mtime
+            inode, size = st.st_ino, st.st_size
+            mtime = Fraction(st.st_mtime_ns, 1_000_000_000)
             if allow_dir:
                 if not (stat.S_ISREG(st.st_mode) or stat.S_ISDIR(st.st_mode)):
                     return PathValidationResult(
@@ -141,7 +144,7 @@ class PathGuard:
         except OSError as exc:
             return PathValidationResult(
                 valid=False, reason=f"STAT_FAILED: {exc}",
-                inode=0, size=0, mtime=0.0, hash_prefix="",
+                inode=0, size=0, mtime=Fraction(0), hash_prefix="",
             )
 
         hash_prefix = ""
@@ -183,7 +186,7 @@ class PathGuard:
                 inode=current.inode, size=current.size,
                 mtime=current.mtime, hash_prefix=current.hash_prefix,
             )
-        if abs(current.mtime - previous.mtime) > 0.001:
+        if abs(current.mtime - previous.mtime) > Fraction(1, 1_000):
             return PathValidationResult(
                 valid=False, reason="TOCTOU_MTIME_CHANGED",
                 inode=current.inode, size=current.size,

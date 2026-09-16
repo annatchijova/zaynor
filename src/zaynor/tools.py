@@ -37,6 +37,7 @@ import os
 import re
 from dataclasses import dataclass, field
 from functools import wraps
+from fractions import Fraction
 from typing import Any, Callable
 
 from zaynor.audit_log import AuditLog
@@ -58,8 +59,13 @@ def _audit_argument_value(value: object) -> str:
         prefix = encoded[:_ARGUMENT_HASH_PREFIX_BYTES]
         truncated = ", truncated=true" if len(encoded) > len(prefix) else ""
         return f"str(bytes={len(encoded)}, sha256_prefix={hashlib.sha256(prefix).hexdigest()}{truncated})"
-    if value is None or isinstance(value, (bool, int, float)):
+    if value is None or isinstance(value, (bool, int)):
         return repr(value)
+    if isinstance(value, float):
+        try:
+            return f"float_as_fraction={Fraction.from_float(value)}"
+        except (OverflowError, ValueError):
+            return repr(value)
     return type(value).__name__
 
 
