@@ -41,6 +41,41 @@ def test_freeze_case_is_reproducible():
         assert hashes_a == hashes_b
 
 
+def test_content_sha256_is_deterministic_across_freezes():
+    """content_sha256 depends only on (relative_path, sha256) pairs — same
+    evidence set, any time, same value.
+    """
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as a, tempfile.TemporaryDirectory() as b:
+        manifest_a, _ = freeze_case(
+            "INC-CONTENT-HASH", "admin-session-investigation", PROFILE_MAP, SCENARIO_ROOT, Path(a)
+        )
+        manifest_b, _ = freeze_case(
+            "INC-CONTENT-HASH", "admin-session-investigation", PROFILE_MAP, SCENARIO_ROOT, Path(b)
+        )
+        assert manifest_a.content_sha256 == manifest_b.content_sha256
+
+
+def test_sealed_at_sha256_differs_across_freezes_of_identical_content():
+    """sealed_at_sha256 folds in the freeze timestamp — two freezes of the
+    exact same evidence must NOT produce the same sealed_at_sha256, even
+    though content_sha256 does match.
+    """
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as a, tempfile.TemporaryDirectory() as b:
+        manifest_a, _ = freeze_case(
+            "INC-SEAL-HASH", "admin-session-investigation", PROFILE_MAP, SCENARIO_ROOT, Path(a)
+        )
+        manifest_b, _ = freeze_case(
+            "INC-SEAL-HASH", "admin-session-investigation", PROFILE_MAP, SCENARIO_ROOT, Path(b)
+        )
+        assert manifest_a.content_sha256 == manifest_b.content_sha256
+        assert manifest_a.sealed_at != manifest_b.sealed_at
+        assert manifest_a.sealed_at_sha256 != manifest_b.sealed_at_sha256
+
+
 def test_freeze_case_rejects_unknown_evidence_profile():
     with pytest.raises(KeyError):
         freeze_case("INC-TEST-003", "nonexistent-profile", PROFILE_MAP, SCENARIO_ROOT, Path("/tmp"))

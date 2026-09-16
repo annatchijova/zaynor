@@ -72,13 +72,34 @@ class ManifestEntry:
 class CaseManifest:
     """The frozen case: an immutable, hashed inventory of evidence.
 
-    `sha256` is *byte identity/integrity* under this manifest — it says the
-    bytes referenced here are the bytes read at freeze time. It is not proof
-    of truth, authorship, or completeness of the underlying evidence.
+    `sha256` (per entry) is *byte identity/integrity* under this manifest —
+    it says the bytes referenced here are the bytes read at freeze time. It
+    is not proof of truth, authorship, or completeness of the underlying
+    evidence.
+
+    Two manifest-level hashes, deliberately distinct:
+
+    - `content_sha256` is fully DETERMINISTIC: a hash over the sorted
+      (relative_path, sha256) pairs alone. Freezing the same evidence set
+      twice produces the same `content_sha256`, at any time, on any
+      machine — it is the case's content identity.
+    - `sealed_at_sha256` additionally folds in `sealed_at` (the freeze
+      timestamp), so it is DIFFERENT for every freeze even when
+      `content_sha256` is identical — it is this specific sealing EVENT's
+      identity, not the content's. Comparing the two tells you whether two
+      manifests describe the same evidence (`content_sha256` matches) that
+      was frozen at different times (`sealed_at_sha256` differs) — a
+      replayed-old-bundle-as-if-new attempt changes `sealed_at_sha256`
+      only if `sealed_at` itself is honestly refreshed; this field does not
+      by itself prove *when* something happened, only that a comparison
+      says "not the same sealing event."
     """
 
     case_id: str
     entries: tuple[ManifestEntry, ...]
+    content_sha256: str
+    sealed_at: str
+    sealed_at_sha256: str
 
 
 @dataclass(frozen=True)

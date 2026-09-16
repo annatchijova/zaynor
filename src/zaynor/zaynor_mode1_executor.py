@@ -188,6 +188,19 @@ def run_vigia_mode1(
         # Their own env vars default to hardcoded system paths (/cases,
         # /evidence, /var/vigia/registry) that don't cover an arbitrary
         # ZAYNOR case directory, so both are pointed at the evidence root.
+        #
+        # This is also the memory/Volatility path (VIGIA_ALLOWED_DUMP_PATHS
+        # is memory_forensics.py's allowlist): _build_orchestrator_kwargs
+        # auto-detects `.raw`/`.vmem`/`.mem`/`.dmp` in the evidence directory
+        # into `memory_path`, and `sift_orchestrator.py` calls
+        # `MemoryForensicsEngine.analyze()` (real Volatility3 plugins:
+        # pslist, malfind, netscan, cmdline) on it — no separate ZAYNOR code
+        # needed, per AGENTS.md §2.1 (call the existing mechanism, don't
+        # reimplement it). Confirmed operational (the `vol` binary is
+        # installed and runnable on this machine) but NOT yet exercised
+        # end-to-end here: no real memory dump was available locally when
+        # this was checked (Digital Corpora's memory scenarios run into the
+        # gigabytes) — sourcing one is separate, deferred work.
         evidence_root = str(evidence_path if evidence_path.is_dir() else evidence_path.parent)
         subprocess_env = dict(os.environ)
         subprocess_env["VIGIA_ALLOWED_REGISTRY_PATHS"] = evidence_root

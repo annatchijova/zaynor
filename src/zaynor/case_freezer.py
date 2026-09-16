@@ -9,14 +9,39 @@ source directory. See AGENTS.md "The case-freeze boundary".
 
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 import shutil
+from datetime import datetime, timezone
 from pathlib import Path
 
 from zaynor.custody import ChainOfCustody
 from zaynor.hash_utils import sha256_file
 from zaynor.schemas import CaseManifest, ManifestEntry
+
+
+def _content_sha256(entries: list[ManifestEntry]) -> str:
+    """Deterministic across freezes of the same evidence set, at any time:
+    a hash over the sorted (relative_path, sha256) pairs alone — no
+    timestamp, no ordering dependency on how `entries` was built.
+    """
+    digest = hashlib.sha256()
+    for relative_path, sha256 in sorted((e.relative_path, e.sha256) for e in entries):
+        digest.update(relative_path.encode("utf-8"))
+        digest.update(b"\x00")
+        digest.update(sha256.encode("utf-8"))
+        digest.update(b"\x00")
+    return digest.hexdigest()
+
+
+def _sealed_at_sha256(content_sha256: str, sealed_at: str) -> str:
+    """Identity of THIS sealing event, not of the content alone — folds in
+    the freeze timestamp so re-freezing identical evidence at a different
+    time produces a different value here, even though `content_sha256`
+    stays the same.
+    """
+    return hashlib.sha256(f"{content_sha256}\x00{sealed_at}".encode("utf-8")).hexdigest()
 
 _SAFE_CASE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 
@@ -83,7 +108,15 @@ def freeze_case(
         )
         custody.add_record("FREEZE_COPY", artifact_hash=digest, metadata={"relative_path": relative_path})
 
-    manifest = CaseManifest(case_id=case_id, entries=tuple(entries))
+    content_sha256 = _content_sha256(entries)
+    sealed_at = datetime.now(timezone.utc).isoformat()
+    manifest = CaseManifest(
+        case_id=case_id,
+        entries=tuple(entries),
+        content_sha256=content_sha256,
+        sealed_at=sealed_at,
+        sealed_at_sha256=_sealed_at_sha256(content_sha256, sealed_at),
+    )
 
     manifest_path = case_dir / "manifest.json"
     manifest_path.write_text(
@@ -94,6 +127,9 @@ def freeze_case(
                     {"relative_path": e.relative_path, "sha256": e.sha256, "size_bytes": e.size_bytes}
                     for e in manifest.entries
                 ],
+                "content_sha256": manifest.content_sha256,
+                "sealed_at": manifest.sealed_at,
+                "sealed_at_sha256": manifest.sealed_at_sha256,
             },
             sort_keys=True,
             indent=2,
