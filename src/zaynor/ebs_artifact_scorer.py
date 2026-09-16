@@ -22,11 +22,29 @@ documented per rule so the scoring logic is auditable, not a black box.
 This module is deliberately fixture-specific (it knows this scenario's
 event shapes and its known-device list), not a general detector; a general
 version is future work, not claimed here.
+
+Red-team round 3/4 finding #5 (CONFIRMED BY INDUCTION): the derived
+`evidence.json` this module writes is what VIGÍA actually reads and cites
+back in its verdict — but nothing re-checked it against the frozen source
+records after the fact. Reproduced: score a case, then edit the frozen
+`auth.jsonl` directly; the already-written `evidence.json` kept citing the
+stale description with no error. This is the same class of gap AGENTS.md
+§2.3 closes for an LLM ("the gate re-reads evidence directly, it does not
+trust the model's account") — here the un-reverified "account" was this
+scorer's own derived description, not an LLM's. Closed by embedding a hash
+of the exact source records at scoring time
+(`_zaynor_source_records_sha256`) and providing `verify_ebs_freshness` to
+check it before the EBS file is ever handed to Mode 1 — callers MUST call
+it immediately before `run_vigia_mode1`, not just at write time, since the
+frozen files could change in between.
 """
 
 from __future__ import annotations
 
+import hashlib
 import json
+import os
+import tempfile
 from dataclasses import dataclass
 from fractions import Fraction
 from pathlib import Path
@@ -37,6 +55,19 @@ from typing import Any
 # (it's a stage-1-3 detection input from before the incident was declared,
 # not case evidence) — hardcoded here since this scorer is fixture-specific.
 _KNOWN_DEVICES = frozenset({"DEV-CORP-01", "DEV-CORP-02", "DEV-CORP-LAPTOP-09"})
+
+_SOURCE_RELATIVE_PATHS = (
+    "collected/auth.jsonl",
+    "collected/process.jsonl",
+    "collected/filesystem.jsonl",
+    "collected/network.jsonl",
+)
+
+
+class EbsFreshnessError(ValueError):
+    """A derived EBS evidence file no longer matches the frozen source
+    records it was scored from.
+    """
 
 
 @dataclass(frozen=True)
@@ -67,9 +98,36 @@ class ScoringRule:
 
 
 def _read_jsonl(path: Path) -> list[dict[str, Any]]:
+    """Parse a JSONL file, skipping blank lines and any line that doesn't
+    decode to a JSON object — a malformed or unexpectedly-shaped record is
+    treated as absent (per this module's own "missing signal is honestly
+    absent" contract), never as a crash (closes red-team finding #6's
+    AttributeError-on-non-dict-record case).
+    """
     if not path.is_file():
         return []
-    return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+    records: list[dict[str, Any]] = []
+    for line in path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        parsed = json.loads(line)
+        if isinstance(parsed, dict):
+            records.append(parsed)
+    return records
+
+
+def _source_records_sha256(evidence_dir: Path) -> str:
+    """Hash exactly the frozen records this scorer reads (not the whole
+    evidence tree — `operator_note.txt` etc. aren't scoring inputs), keyed
+    by relative path so a rename is also detected, not just content drift.
+    """
+    digest = hashlib.sha256()
+    for relative in _SOURCE_RELATIVE_PATHS:
+        path = evidence_dir / relative
+        digest.update(relative.encode("utf-8"))
+        if path.is_file():
+            digest.update(path.read_bytes())
+    return digest.hexdigest()
 
 
 def score_inc_2026_demo_001(evidence_dir: Path) -> list[ScoringRule]:
@@ -77,6 +135,10 @@ def score_inc_2026_demo_001(evidence_dir: Path) -> list[ScoringRule]:
     three documented rules. Returns an empty list (never an error) if a
     record a rule depends on is missing — a missing signal is honestly
     absent, not a crash.
+
+    Each rule iterates every matching record, not just the first (closes
+    red-team finding #6: a `next()`-based version silently dropped a
+    second privileged login, a second timestomp, etc. from the same case).
     """
     auth = _read_jsonl(evidence_dir / "collected" / "auth.jsonl")
     process = _read_jsonl(evidence_dir / "collected" / "process.jsonl")
@@ -91,8 +153,13 @@ def score_inc_2026_demo_001(evidence_dir: Path) -> list[ScoringRule]:
     # same predicate the now-descoped detection.py front end used) — 0.7
     # severity, 0.9 trust because authentication logs are a high-reliability
     # source.
-    login = next((e for e in auth if e.get("event") == "vpn_login"), None)
-    if login and login.get("account_role") == "privileged" and login.get("device") not in _KNOWN_DEVICES:
+    for login in auth:
+        if login.get("event") != "vpn_login":
+            continue
+        if login.get("account_role") != "privileged" or login.get("device") in _KNOWN_DEVICES:
+            continue
+        if not isinstance(login.get("ref"), str):
+            continue
         rules.append(
             ScoringRule(
                 artifact_id=login["ref"],
@@ -111,9 +178,15 @@ def score_inc_2026_demo_001(evidence_dir: Path) -> list[ScoringRule]:
     # birth_time. Weight rationale: 0.65 severity (a real but not
     # unambiguous anti-forensics signal — legitimate tooling can also alter
     # mtimes), 0.85 trust for filesystem metadata.
-    ts_change = next((e for e in process if e.get("event") == "file_timestamp_change"), None)
-    fs_record = next((e for e in filesystem if ts_change and e.get("path") == ts_change.get("path")), None)
-    if fs_record and fs_record.get("modified_time_logical", 0) < fs_record.get("birth_time_logical", 1):
+    ts_changes = [e for e in process if e.get("event") == "file_timestamp_change"]
+    for ts_change in ts_changes:
+        fs_record = next(
+            (e for e in filesystem if e.get("path") == ts_change.get("path")), None
+        )
+        if not fs_record or not isinstance(fs_record.get("ref"), str):
+            continue
+        if fs_record.get("modified_time_logical", 0) >= fs_record.get("birth_time_logical", 1):
+            continue
         rules.append(
             ScoringRule(
                 artifact_id=fs_record["ref"],
@@ -129,11 +202,15 @@ def score_inc_2026_demo_001(evidence_dir: Path) -> list[ScoringRule]:
             )
         )
 
-    # Rule 3: outbound connection from the same pid that altered the
+    # Rule 3: outbound connection from the same pid that altered a
     # timestamped file. Weight rationale: 0.5 severity (correlation, not
     # content inspection of what was sent), 0.8 trust for network telemetry.
-    egress = next((e for e in network if e.get("event") == "network_egress"), None)
-    if egress and ts_change and egress.get("pid") == ts_change.get("pid"):
+    for egress in network:
+        if egress.get("event") != "network_egress":
+            continue
+        correlated = next((tc for tc in ts_changes if tc.get("pid") == egress.get("pid")), None)
+        if not correlated or not isinstance(egress.get("ref"), str):
+            continue
         rules.append(
             ScoringRule(
                 artifact_id=egress["ref"],
@@ -142,7 +219,7 @@ def score_inc_2026_demo_001(evidence_dir: Path) -> list[ScoringRule]:
                 prior_trust=Fraction(4, 5),
                 description=(
                     f"Outbound connection to {egress.get('destination')} from the same "
-                    f"pid ({egress.get('pid')}) that altered {ts_change.get('path')}"
+                    f"pid ({egress.get('pid')}) that altered {correlated.get('path')}"
                 ),
                 source_tool="zaynor_net_correlation_rule",
             )
@@ -151,16 +228,67 @@ def score_inc_2026_demo_001(evidence_dir: Path) -> list[ScoringRule]:
     return rules
 
 
-def write_ebs_evidence(case_id: str, rules: list[ScoringRule], output_path: Path) -> Path:
-    """Serialize scored artifacts into the EBS JSON shape VIGÍA's
-    `_analyze_ebs_json` expects, at `output_path`. Rejects a symlinked
-    destination — this writes into per-case derived-input storage, the same
-    "don't follow a link to write somewhere else" posture as
-    `case_freezer.py`/`zaynor_mode1_executor.py`.
+def _reject_parent_symlinks(path: Path) -> None:
+    """Same pattern as `case_freezer.py`/`zaynor_mode1_executor.py`: refuse
+    to write through a symlinked ancestor directory, not just a symlinked
+    final path.
     """
-    if output_path.exists() and output_path.is_symlink():
-        raise ValueError(f"refusing to write EBS evidence through a symlink: {output_path}")
-    payload = {"case_id": case_id, "artifacts": [rule.as_ebs_artifact() for rule in rules]}
+    current = path
+    while current != current.parent:
+        if current.exists() and current.is_symlink():
+            raise ValueError(f"refusing to write EBS evidence through a symlink: {current}")
+        current = current.parent
+
+
+def write_ebs_evidence(case_id: str, rules: list[ScoringRule], output_path: Path, *, source_evidence_dir: Path) -> Path:
+    """Serialize scored artifacts into the EBS JSON shape VIGÍA's
+    `_analyze_ebs_json` expects, at `output_path`, plus a
+    `_zaynor_source_records_sha256` field VIGÍA itself ignores (it only
+    reads `case_id`/`artifacts`) but `verify_ebs_freshness` checks before
+    this file is ever handed to Mode 1.
+
+    Writes atomically (temp file + `os.replace`) and rejects a symlinked
+    destination or a symlinked ancestor directory — closes red-team
+    finding #7 (non-atomic write, parent-symlink not checked).
+    """
+    _reject_parent_symlinks(output_path)
+    payload = {
+        "case_id": case_id,
+        "artifacts": [rule.as_ebs_artifact() for rule in rules],
+        "_zaynor_source_records_sha256": _source_records_sha256(source_evidence_dir),
+    }
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+    _reject_parent_symlinks(output_path)  # re-check: mkdir above could itself have followed a link
+    fd, temp_name = tempfile.mkstemp(dir=str(output_path.parent), prefix=f".{output_path.name}.")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as handle:
+            handle.write(json.dumps(payload, indent=2, sort_keys=True))
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.replace(temp_name, output_path)
+    except BaseException:
+        try:
+            os.unlink(temp_name)
+        except OSError:
+            pass
+        raise
     return output_path
+
+
+def verify_ebs_freshness(ebs_path: Path, evidence_dir: Path) -> None:
+    """Raise `EbsFreshnessError` if the frozen source records this EBS file
+    was scored from have changed since. Callers MUST call this immediately
+    before handing `ebs_path` to `run_vigia_mode1` — checking only at write
+    time (as the original version of this module did) leaves the same gap
+    open for any edit that happens after scoring but before analysis.
+    """
+    payload = json.loads(Path(ebs_path).read_text(encoding="utf-8"))
+    recorded = payload.get("_zaynor_source_records_sha256")
+    if not isinstance(recorded, str):
+        raise EbsFreshnessError(f"{ebs_path} has no _zaynor_source_records_sha256 to verify against")
+    current = _source_records_sha256(evidence_dir)
+    if recorded != current:
+        raise EbsFreshnessError(
+            f"EBS evidence at {ebs_path} is stale: frozen source records under {evidence_dir} "
+            "changed since this file was scored"
+        )

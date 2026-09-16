@@ -283,6 +283,16 @@ def _signal_evidence_ref(signal: dict) -> EvidenceRef | None:
     source would overclaim; AGENTS.md's `distinct_lineages` bar is meant to
     be hard to clear, not easy.
 
+    Honesty note (red-team round 3/4, finding #3): grouping by
+    `artifact_type` is a conservative HEURISTIC, not a verified provenance
+    chain — it prevents the specific overclaim above, but it does not
+    positively prove that two `EvidenceRef`s with different `lineage_id`s
+    came from genuinely independent collection/acquisition paths. A real
+    provenance chain (which collector, which acquisition event, which
+    upstream tool) is not tracked anywhere in this pipeline yet. Any code
+    that reads `lineage_id` to decide independence should treat it as "not
+    known to be the same lineage," never as "confirmed independent."
+
     Returns `None` for a signal VIGÍA itself marked as not a real
     observation (`metadata.unanalyzed`), or one with no identifying field
     at all.
@@ -374,6 +384,15 @@ def translate_mode1_bundle(case_id: str, bundle: dict[str, Any]) -> ZaynorAuthor
     )
 
     if evidence_refs:
+        # Explicit semantic decision (red-team round 3/4, finding #4): a
+        # BENIGN/NOISE verdict still produces a finding here, citing every
+        # signal that was actually examined. This is read as "these
+        # artifacts were analyzed; the composite result is clean" — an
+        # honest, bounded claim about what was looked at, not "the case is
+        # clean" as a global statement. It must never be read as "no
+        # evidence exists" or "nothing was suspicious" beyond the cited
+        # evidence_refs; anything not covered by them stays whatever
+        # `unknowns` elsewhere says it is.
         abduction = bundle.get("pipeline_results", {}).get("abduction", {})
         rationale = str(abduction.get("narrative", ""))[:2000]
         findings = (
