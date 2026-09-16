@@ -38,13 +38,15 @@ def test_ollama_host_accepts_localhost_variants():
 
 def test_extra_env_cannot_override_the_local_only_backend():
     """Confirmed by induction: before this fix, `extra_env` applied last
-    and unconditionally, so `extra_env={"VIGIA_LLM_BACKEND": "anthropic",
-    "ANTHROPIC_API_KEY": "sk-..."}` would have silently defeated the
-    hackathon's local-only-AI guarantee this same class already documents
-    enforcing for `OllamaClient`.
+    and unconditionally, so a caller passing `extra_env` could silently
+    repoint `VIGIA_LLM_BACKEND` at any non-Ollama value, or reintroduce a
+    stripped cloud credential — defeating the hackathon's local-only-AI
+    guarantee this same class already documents enforcing for
+    `OllamaClient`. The check protects the KEY name, not any specific
+    value, so what a caller would have set it to is irrelevant here.
     """
     with pytest.raises(VigiaMCPError, match="extra_env"):
-        _config(extra_env={"VIGIA_LLM_BACKEND": "anthropic"})
+        _config(extra_env={"VIGIA_LLM_BACKEND": "not-ollama"})
     with pytest.raises(VigiaMCPError, match="extra_env"):
         _config(extra_env={"ANTHROPIC_API_KEY": "sk-forged"})
     with pytest.raises(VigiaMCPError, match="extra_env"):

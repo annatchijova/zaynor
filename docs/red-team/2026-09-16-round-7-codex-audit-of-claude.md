@@ -324,7 +324,7 @@ hagamos eso").
    `server_params()`, después de fijar `VIGIA_LLM_BACKEND=ollama` y de
    remover las variables de credenciales cloud — cualquier caller que
    construyera `VigiaMCPConfig(extra_env={"VIGIA_LLM_BACKEND":
-   "anthropic", "ANTHROPIC_API_KEY": "sk-..."})` habría revertido
+   "not-ollama", "ANTHROPIC_API_KEY": "sk-..."})` habría revertido
    silenciosamente ambas protecciones para el subproceso del bridge.
 
 **Fix aplicado:**
