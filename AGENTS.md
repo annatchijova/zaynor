@@ -12,10 +12,44 @@ while a small deterministic layer owns every claim that can actually be
 verified (hashes, corroboration counts, hypothesis status). Keep that
 boundary in mind — it shapes almost every rule below.
 
+## Scope: the hybrid pipeline
+
+ZAYNOR is a hybrid across the full incident lifecycle, not just the
+post-incident half — don't read the deterministic/LLM split in §2 as "we
+don't do live telemetry":
+
+```
+telemetry (synthetic)  ->  detection  ->  correlation/triage  ->  INCIDENT
+   ->  evidence collection  ->  local investigation  ->  hypotheses/RCA
+   ->  backed finding  ->  response/prevention  ->  postmortem
+```
+
+The two halves run on deliberately different-weight engines, split at
+`INCIDENT`:
+
+- **Stages 1-3 (telemetry → detection → correlation/triage):** small,
+  deterministic, synthetic. A generated/replayed event stream, a threshold or
+  pattern rule, and a declarative correlation rule group it into one
+  incident. No eBPF, no per-node agents, no Postgres/Redis stack — that's
+  production AIOps infrastructure and explicitly out of scope. This is a
+  demo-scale front end, not a monitoring platform.
+- **Stages 4-10 (incident → … → postmortem):** the actual DFIR core — this
+  is where the LLM investigates and where §2's ledger boundary applies in
+  full.
+
+If a task touches stages 1-3, it still needs to be genuinely deterministic
+and genuinely small — resist the temptation to make the "live" side richer
+than the demo needs just because reference platforms (Keep, Coroot, K8sGPT)
+do a lot more there. If a task touches 4-10, §2 is binding.
+
 ## 0. Language and scope
 
-- Code, tests, comments, docstrings, commit messages, PR titles/descriptions:
-  English, always, no exceptions for a hackathon deadline.
+- **Code, tests, comments, docstrings, commit messages, PR titles/
+  descriptions: English, always — no exceptions for a hackathon deadline,
+  no exceptions because a teammate is more comfortable writing Spanish
+  inline.** If you find a non-English identifier, string constant, or
+  comment in application code (not user-facing demo strings), that's a
+  defect — flag it or fix it in the same PR.
 - The demo output and the incident report itself are user-facing and go in
   Spanish (see `README.md` for the exact split) — don't "fix" that to English.
 - No emojis in anything committed to the repo.
