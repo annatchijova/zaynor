@@ -174,10 +174,32 @@ The recommended jury explanation is:
 ## Status and scope
 
 The repository is integrating existing capabilities rather than building a
-platform from scratch. The current tree includes, among other pieces, case
-freezing, hashing and custody, bounded read-only evidence tools, a VIGÍA
-adapter contract, a local MCP client, an investigation log, and the synthetic
-demonstration scenario.
+platform from scratch. The current tree includes, among other pieces: case
+freezing with a dual hash (one deterministic over content, one folding in the
+sealing timestamp); two hash-chained audit trails with an optional HMAC
+anchor; the real VIGÍA Mode 1 executor (a real subprocess, not simulated); a
+local MCP client to VIGÍA's bridge; the MITRE ATT&CK → D3FEND enrichment
+engine (pure annotation, never authoritative); candidate Sigma rule
+generation (always marked `experimental`, never deployable without human
+review); a matrix of proposed response actions (`PROPOSED`, never executed);
+the investigation log adapted from ANNACONDA; and the synthetic demonstration
+scenario.
+
+### Local agents (Ollama), by role
+
+`agents/` defines eight roles with explicit capability contracts
+(`READ`/`DERIVE`/`ACQUIRE`/`MUTATE`/`AUTHORIZE`), verified by manifest hash.
+Their real status, not an aspirational one:
+
+| Role | Status | What it actually does |
+|------|--------|------------------------|
+| MENTOR | wired | Explains an already-sealed result — reads `ZaynorAuthoritativeResult`, never calls VIGÍA again. |
+| INVESTIGATOR | wired | `collect_window`/`verify_custody` genuinely call VIGÍA's real MCP bridge (`read_evidence`/`generate_forensic_hash`); the rest reuses the same read-only view MENTOR uses. |
+| FLEET_COMMANDER | wired | Writes to the investigation log (hypotheses, tasking, escalation) — never produces a verdict or triggers an autonomous loop. |
+| DETECTION_ENGINEER | wired | `draft_sigma_rule` generates Sigma candidates grounded in a real finding from the sealed result. |
+| DISPATCHER | wired | A catalog of the evidence types Mode 1 can actually analyze (registry, prefetch, browser, event log, memory, MFT, EBS-JSON). |
+| ENDPOINT_HUNTER / PERSISTENCE_HUNTER | out of scope | Would require a live collection backend (EDR-style) this project does not have and does not intend to build — VIGÍA analyzes already-frozen evidence, not live telemetry. |
+| THREAT_INTEL | out of scope, for now | A portable implementation exists (VirusTotal/GTI enrichment with honest no-key degradation), evaluated but not yet wired in: it implies an external network dependency, a pending product decision. |
 
 The final integration must preserve these properties:
 
@@ -218,6 +240,9 @@ of the product being integrated now.
 - [`docs/hackathon/`](./docs/hackathon/) — Hackathon CyberAr rules, challenge
   material, and research notes.
 - [`docs/SANDBOX.md`](./docs/SANDBOX.md) — evidence-worker boundaries.
+- [`docs/red-team/`](./docs/red-team/) — adversarial audit rounds (Claude
+  and Codex auditing each other), with findings confirmed by induction, not
+  just by reading code.
 
 ## Design lineage
 

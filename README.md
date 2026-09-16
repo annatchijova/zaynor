@@ -174,10 +174,32 @@ La explicación recomendada para el jurado es:
 ## Estado y alcance
 
 El repositorio está integrando capacidades existentes, no construyendo una
-plataforma desde cero. El árbol actual contiene, entre otras piezas, el
-congelamiento de casos, hashes y custodia, herramientas de evidencia
-read-only, contrato de adaptación a VIGÍA, cliente MCP local, log de
-investigación y el escenario sintético de demostración.
+plataforma desde cero. El árbol actual contiene, entre otras piezas: el
+congelamiento de casos con doble hash (uno determinista sobre el contenido,
+otro que pliega el timestamp de sellado); dos audit trails con hash chain y
+ancla HMAC opcional; el ejecutor real de VIGÍA Mode 1 (subprocess, no
+simulado); un cliente MCP local hacia el bridge de VIGÍA; el motor de
+enriquecimiento MITRE ATT&CK → D3FEND (anotación pura, nunca autoritativo);
+generación de reglas Sigma candidatas (siempre marcadas `experimental`,
+nunca desplegables sin revisión humana); una matriz de acciones de respuesta
+propuestas (`PROPOSED`, nunca ejecutadas); el log de investigación adaptado
+de ANNACONDA; y el escenario sintético de demostración.
+
+### Agentes locales (Ollama), por rol
+
+`agents/` define ocho roles con contratos de capability explícitos
+(`READ`/`DERIVE`/`ACQUIRE`/`MUTATE`/`AUTHORIZE`), verificados por hash de
+manifest. Su estado real, no aspiracional:
+
+| Rol | Estado | Qué hace de verdad |
+|-----|--------|---------------------|
+| MENTOR | conectado | Explica un resultado ya sellado — lee `ZaynorAuthoritativeResult`, nunca vuelve a invocar a VIGÍA. |
+| INVESTIGATOR | conectado | `collect_window`/`verify_custody` llaman de verdad al bridge MCP de VIGÍA (`read_evidence`/`generate_forensic_hash`); el resto reutiliza la misma vista de solo-lectura que MENTOR. |
+| FLEET_COMMANDER | conectado | Escribe en el log de investigación (hipótesis, tareas, escalamiento) — nunca produce un veredicto ni dispara un loop autónomo. |
+| DETECTION_ENGINEER | conectado | `draft_sigma_rule` genera candidatos Sigma anclados a un finding real del resultado sellado. |
+| DISPATCHER | conectado | Catálogo de los tipos de evidencia que Mode 1 realmente sabe analizar (registro, prefetch, browser, event log, memoria, MFT, EBS-JSON). |
+| ENDPOINT_HUNTER / PERSISTENCE_HUNTER | fuera de alcance | Requerirían un backend de recolección en vivo (tipo EDR) que este proyecto no tiene ni pretende tener — VIGÍA analiza evidencia ya congelada, no telemetría en vivo. |
+| THREAT_INTEL | fuera de alcance, por ahora | Existe una implementación portable (enriquecimiento vía VirusTotal/GTI con degradación honesta sin API key) evaluada y no incorporada todavía: implica una dependencia de red externa, una decisión de producto pendiente. |
 
 La integración final debe conservar estas propiedades:
 
@@ -220,6 +242,9 @@ integrando.
 - [`docs/hackathon/`](./docs/hackathon/) — bases, reglamento y material de
   investigación del Hackathon CyberAr.
 - [`docs/SANDBOX.md`](./docs/SANDBOX.md) — límites del worker de evidencia.
+- [`docs/red-team/`](./docs/red-team/) — rondas de auditoría adversarial
+  (Claude y Codex auditándose mutuamente), con hallazgos confirmados por
+  inducción, no solo por lectura de código.
 
 ## Referencias de diseño
 
