@@ -1,104 +1,228 @@
-# Zaynor
+# Zaynor — local, traceable DFIR investigation
 
 *[Leer en español](./README.md)*
 
-> Status: active development for a 48-hour hackathon. This README is
-> provisional and will be updated as the project takes shape.
+> Status: active prototype for Hackathon CyberAr 2026. Zaynor is being
+> assembled by migrating capabilities from three existing repositories; the
+> product integration is still advancing in this checkout.
 
-A hybrid defense system for already-declared incidents: it takes frozen
-evidence, builds and tests hypotheses with a deterministic mathematical
-engine, and uses local AI to choose further investigation steps and produce
-reports for different audiences, built for the "AI for network and
-infrastructure defense" challenge.
+## The real problem
 
-## What it is
+After an incident, an investigator must reconstruct what happened from
+authentication, process, network, filesystem, ticket, and operator-note
+records. The sources may be incomplete, contradictory, or contain text
+controlled by an attacker. Manual correlation is slow. A generic LLM assistant
+may be fast, but it can also invent facts, overstate causality, or treat a
+sentence inside a log as an instruction.
 
-Zaynor starts when an incident has occurred and evidence has already been
-collected; incident declaration and acquisition are external to this repo.
-From the frozen evidence, the investigator maintains hypotheses and questions
-using Peirce's triad: abduction proposes explanations, deduction derives what
-would discriminate them, and induction tests them against evidence.
-Discriminating evidence and fractures feed VIGÍA's deterministic mathematical
-engine, which calculates score and confidence and assigns one of its
-verdicts: `MALICE`, `ABSTAIN`, `UNKNOWN`, `BENIGN`, or `SUSPICION`. The LLM
-does not decide the verdict.
+Zaynor addresses one concrete question:
 
-After that authoritative step, AI may decide what to investigate next — in a
-bounded loop similar to ANNACONDA — using only allowlisted read-only
-operations. New evidence must cross the deterministic engine again before it
-can change the result. The LLM also narrates the sealed result: it copies
-Forge's report format as-is — Markdown, PDF, and HTML — and provides an LLM
-chat for junior analysts; the senior view preserves hypotheses, fractures, score, confidence,
-alternatives, and traceability.
+> What does the evidence support, which alternative explanations were
+> considered, what should be investigated next, and what remains unknown?
 
-The core architectural principle:
+Zaynor is not a SIEM, an EDR, or a real-time monitoring system. It is a local,
+post-incident DFIR investigation tool.
 
-> AI may decide what to investigate. The deterministic mathematical engine
-> decides what the evidence supports.
+## What it does
 
-## Why it's a hybrid
+Zaynor receives an already-declared incident and already-collected evidence. It
+freezes the case, preserves artifact identity, and passes the evidence to a
+deterministic mathematical engine. That engine produces and seals the
+authoritative result using one of these public labels:
 
-The project covers the post-incident flow:
-
-```
-INCIDENT DECLARED + COLLECTED EVIDENCE (external to Zaynor)
-   -> frozen evidence (manifest + SHA-256, immutable case ID)
-   -> Peircean hypotheses: abduction -> deduction -> induction
-   -> discriminating evidence / fractures
-   -> VIGÍA deterministic mathematical engine
-   -> MALICE | ABSTAIN | UNKNOWN | BENIGN | SUSPICION + score/confidence
-   -> hash chain + sealed authoritative result
-   -> AI chooses bounded additional investigation (optional, read-only)
-   -> new evidence -> VIGÍA / deterministic re-analysis
-   -> Forge reports (.md/.pdf/.html) + local analyst chat
+```text
+MALICE | ABSTAIN | UNKNOWN | BENIGN | SUSPICION
 ```
 
-The separation is intentional: the deterministic engine owns verdicts, scores,
-confidence, fractures, traceability, and the hash chain; AI proposes next
-investigation steps and translates already-sealed results for humans. An LLM
-proposal never changes the verdict by itself.
+AI does not detect the incident or decide the verdict. After the result is
+sealed, a local LLM may decide what to investigate next, propose a bounded
+read-only operation, and explain the result for different audiences. If a
+query produces new evidence, that evidence passes through the mathematical
+engine again before it can change an authoritative result.
 
-## Requirements
+The architectural principle is:
 
-- Everything runs locally. No data leaves the machine.
-- Inference via a local model (Ollama or an equivalent backend), running on
-  ordinary developer hardware — no server-class infrastructure assumed.
-- Simulated or public data only.
-- Planned interfaces: local CLI, frontend, API, and Ollama chat; MCP may
-  expose read-only investigation tools.
+> **AI decides what to investigate. The deterministic mathematical engine
+decides what the evidence supports.**
+
+The quadripartite engine in the VIGÍA lineage exists as a technical capability.
+Its detailed mechanics, score, and internal semantics are a later technical
+deep dive; this README prioritizes the authority boundary that the jury can
+observe in the demo.
+
+## Authority flow
+
+```text
+DECLARED INCIDENT + COLLECTED EVIDENCE
+        (simulated fixture or authorized public data)
+    -> case freeze: manifest, hashes, immutable case_id
+    -> deterministic mathematical engine
+    -> sealed authoritative verdict
+    -> comprehensive MITRE ATT&CK / NIST context
+    -> local AI proposes what to investigate next
+    -> typed, bounded, read-only operation
+    -> new evidence -> deterministic re-analysis -> re-sealing
+    -> local chat, technical view, and human-facing report
+```
+
+The AI can never:
+
+- write directly to the verdict or sealed result;
+- create evidence references that no real tool returned;
+- execute a shell, arbitrary network request, or filesystem write;
+- turn ambiguity into a confident conclusion;
+- execute a defensive recommendation.
+
+An instruction written inside a log, ticket, or artifact remains **untrusted
+evidence**, never a system command.
+
+## Audiences
+
+### Junior forensic examiner (perito junior)
+
+The perito junior has a full local-LLM chat for asking questions about the case
+in natural language. The chat explains:
+
+1. what was observed;
+2. why it matters;
+3. which evidence supports each explanation;
+4. which alternatives were considered;
+5. what should be queried next;
+6. what remains unknown.
+
+The chat helps investigate and understand the case. It is not a second verdict
+engine and cannot execute remediation.
+
+### Senior analyst
+
+The technical view preserves frozen artifacts, provenance, timeline, fractures,
+hypotheses, evidence references, verdict state, MITRE/NIST context, audit data,
+and open questions.
+
+### Incident owner
+
+The executive view summarizes the sealed result, supported sequence, material
+uncertainty, framework context, and proposed defensive actions. Actions are
+shown as `PROPOSED` and `NOT EXECUTED`.
+
+## Demonstration case
+
+The demo uses `INC-2026-DEMO-001`, a simulated Linux incident:
+
+```text
+privileged login from an unknown device
+    -> SSH session on srv-files-01
+    -> process creates collection.zip
+    -> timestamp metadata is changed
+    -> related outbound connection is observed
+    -> operator note attempts to manipulate the investigator
+```
+
+The system must show both what it can establish and what it cannot. The
+identity of the person at the keyboard, the credential origin, and the
+complete transfer of the file remain unknown unless the frozen evidence
+supports them.
+
+A synthetic fixture or replay may put an already-formed case on screen. It is
+a demonstration harness, not a claim that Zaynor is live monitoring or a
+production SIEM.
+
+## Three-minute demonstration
+
+The recommended jury explanation is:
+
+1. **Problem:** evidence is scattered, contradictory, and potentially
+   manipulative.
+2. **Sealed verdict:** the deterministic engine produces a public label before
+   the LLM is called.
+3. **Investigation:** the local LLM selects a discriminating question and can
+   use only read-only tools.
+4. **Manipulation:** an artifact contains an instruction; it is recorded as
+   untrusted data and cannot change permissions, tools, or the verdict.
+5. **Explanation:** the perito junior asks the local chat about the result and
+   what remains to be investigated.
+6. **Close:** supported facts, uncertainty, MITRE/NIST context, and proposed
+   actions are shown separately.
+
+> **AI investigates. Evidence and the deterministic engine decide.**
+
+## Requirements and sovereignty
+
+- All processing runs locally.
+- Inference uses Ollama or an equivalent local backend.
+- Case data is never sent to an external service.
+- Only simulated or authorized public data is used.
+- The model operates through explicit read-only operations with step, time,
+  byte, and result limits.
+- No testing is performed against real systems.
+
+## Status and scope
+
+The repository is integrating existing capabilities rather than building a
+platform from scratch. The current tree includes, among other pieces, case
+freezing, hashing and custody, bounded read-only evidence tools, a VIGÍA
+adapter contract, a local MCP client, an investigation log, and the synthetic
+demonstration scenario.
+
+The final integration must preserve these properties:
+
+- the same frozen case and configuration produce the same authoritative result;
+- enabling or disabling the LLM does not change the sealed result;
+- every finding has traceable references;
+- invented references are rejected;
+- path traversal, unauthorized tools, and writes are rejected;
+- an adversarial artifact cannot modify authority state;
+- missing or ambiguous evidence remains `UNKNOWN`;
+- comprehensive MITRE and NIST context does not promote a finding;
+- the perito junior chat explains authorized facts only.
+
+## Out of current scope
+
+The current demonstration does not include:
+
+- real-time monitoring or collection;
+- acquisition from real systems;
+- autonomous remediation;
+- shell, arbitrary network, or write access for the LLM;
+- PDF or HTML rendering;
+- a SIEM, EDR, or operational-scale product.
+
+Real-time monitoring, new report formats, and operational connectors are later
+improvements. The full local chat and comprehensive MITRE/NIST context are part
+of the product being integrated now.
+
+## Documentation
+
+- [`docs/extra_arenaai.md`](./docs/extra_arenaai.md) — formal product
+  position, users, demo, scope, and acceptance criteria.
+- [`AGENTS.md`](./AGENTS.md) — VIGÍA integration contracts and authority limits
+  between evidence, deterministic engine, and LLM.
+- [`docs/proposal.en.md`](./docs/proposal.en.md) — architecture proposal.
+- [`docs/implementation-plan.en.md`](./docs/implementation-plan.en.md) —
+  integration plan and capability matrix.
+- [`docs/hackathon/`](./docs/hackathon/) — Hackathon CyberAr rules, challenge
+  material, and research notes.
+- [`docs/SANDBOX.md`](./docs/SANDBOX.md) — evidence-worker boundaries.
 
 ## Design lineage
 
-No external project is reused as a dependency — Zaynor is a small, original
-prototype. These are the concrete ideas actually taken from other projects,
-so the lineage is on record:
+Zaynor is being assembled from three existing repositories and takes concrete
+patterns from related projects. These references do not grant authority to the
+LLM and do not replace the project's local contracts:
 
-- **VIGÍA** — the deterministic mathematical forensic engine, score,
-  confidence, quadripartite verdicts, and sealing before any LLM sees the
-  result; it also contributes the read-only sandbox model.
-- **ANNACONDA** — the hallucination-guard pattern: the LLM's narrative can
-  only cite facts already authorized by the deterministic engine, never
-  invent a new one, plus the bounded loop for choosing what to investigate.
-- **Forge** — the analyst reporting shape copied as-is: Markdown, PDF, and
-  HTML, with a junior explanation flow separated from the deeper senior
-  analysis.
-- **K8sGPT** — separating a deterministic finding from its AI explanation
-  into distinct fields, so the LLM can never write to the verdict, only to
-  the text alongside it.
-- **HolmesGPT** — the bounded investigation loop (a step limit, not
-  unlimited autonomy) and a declarative tool registry.
-- **Keep** — separating event identity, alert fingerprint, and incident
-  identity instead of one generic "hash" notion.
+- **VIGÍA:** deterministic mathematical engine, verdicts, sealing, and the
+  read-only evidence model.
+- **ANNACONDA:** separation between authorized facts and narrative, plus the
+  bounded investigation loop.
+- **Forge:** report structure and separation between junior explanation and
+  technical analysis.
+- **K8sGPT:** separation between structured findings and generated explanation.
+- **HolmesGPT:** iterative tool-based investigation with a step budget.
+- **Keep:** separation between event identity, alert fingerprint, and incident
+  identity.
 
-## Repository structure
-
-The working contracts are in `AGENTS.md`, `docs/SANDBOX.md`, and
-`SYSTEM_PROMPT--ZAYNOR.md`. The worker boundary in `src/zaynor/sandbox.py`
-keeps evidence inspection bounded; it does not parse or execute artifact
-content inside the API process.
-
-The engineering skill catalog lives in `docs/skills/` and is intentionally
-scoped to this project's local DFIR and detection pipeline.
+Third-party components and adaptations remain subject to their licenses and
+will be documented before final submission.
 
 ## License
 
