@@ -32,6 +32,8 @@ import json
 from datetime import datetime, timezone
 from typing import Any
 
+from zaynor.hmac_chain import compute_entry_hmac
+
 GENESIS_HASH = "0" * 64
 
 _TS_FMT = "%Y-%m-%dT%H:%M:%SZ"
@@ -125,10 +127,21 @@ def new_investigation_log(case_id: str) -> dict:
     }
 
 
-def record(log: dict, *, actor: str, action: str, detail: dict) -> dict:
+def record(
+    log: dict, *, actor: str, action: str, detail: dict, hmac_key: bytes | None = None
+) -> dict:
     """Append one sealed entry. Every mutation in this module goes through
     here, so the journal is the complete history of the investigator's own
     reasoning about this case — chained, so a later edit is detectable.
+
+    `hmac_key` (optional, same rationale and env convention as
+    `audit_log.py`'s `entry_hmac`/`chain_tip_hmac`, see `hmac_chain.py`):
+    plain SHA-256 chaining only proves internal consistency — anyone who
+    can edit `log` can recompute a whole new, consistent chain from
+    scratch. A caller holding a key can't be forged by one that doesn't.
+    This module stays pure (no env reads, no I/O) — a caller wanting the
+    default `ZAYNOR_HMAC_KEY[_FILE]` resolution calls
+    `hmac_chain.resolve_hmac_key()` itself and passes the result in.
     """
     actor = _text(actor, "actor", limit=120)
     action = _text(action, "action", limit=120)
@@ -143,9 +156,13 @@ def record(log: dict, *, actor: str, action: str, detail: dict) -> dict:
         "recorded_utc": _now(),
         "prev_hash": log.get("memory_head", GENESIS_HASH),
     }
-    entry = dict(body, entry_hash=_seal(body))
+    entry_hash = _seal(body)
+    entry = dict(body, entry_hash=entry_hash)
+    if hmac_key is not None:
+        entry["entry_hmac"] = compute_entry_hmac(hmac_key, entry_hash)
+        log["memory_head_hmac"] = compute_entry_hmac(hmac_key, entry_hash)
     log["journal"].append(entry)
-    log["memory_head"] = entry["entry_hash"]
+    log["memory_head"] = entry_hash
     return entry
 
 
@@ -185,15 +202,24 @@ def _journal_backing(log: dict) -> list[str]:
     return errors
 
 
-def verify_log(log: dict) -> dict:
+def verify_log(log: dict, *, hmac_key: bytes | None = None) -> dict:
     """Re-derive the journal chain, then check the working state against
     it. The chain alone proves nobody rewrote history; it says nothing
     about whether the summary lists (`hypotheses`, `open_questions`) match
     what the chain actually recorded — `_journal_backing` closes that gap.
 
+    `hmac_key`: verifies `entry_hmac`/`memory_head_hmac` when present (see
+    `record`'s docstring). A missing key, or entries recorded before one
+    was configured, are caveats in the returned dict, never `log_ok=False`
+    on their own — only a mismatched HMAC (wrong key, or a wholesale
+    recomputed chain) is a real failure.
+
     Reports every break found, not just the first.
     """
-    errors = []
+    errors: list[str] = []
+    caveats: list[str] = []
+    saw_any_hmac = False
+    saw_any_missing_hmac = False
     prev = GENESIS_HASH
     for i, entry in enumerate(log.get("journal", [])):
         if not isinstance(entry, dict):
@@ -203,20 +229,43 @@ def verify_log(log: dict) -> dict:
             errors.append(f"entry {i} has seq {entry.get('seq')!r} — an entry was inserted, dropped, or reordered")
         if entry.get("prev_hash") != prev:
             errors.append(f"entry {i} does not chain onto its predecessor")
-        body = {k: v for k, v in entry.items() if k != "entry_hash"}
-        if _seal(body) != entry.get("entry_hash"):
+        body = {k: v for k, v in entry.items() if k not in ("entry_hash", "entry_hmac")}
+        entry_hash = entry.get("entry_hash")
+        if _seal(body) != entry_hash:
             errors.append(f"entry {i} was altered after it was sealed")
-        prev = entry.get("entry_hash", prev)
+        entry_hmac = entry.get("entry_hmac")
+        if entry_hmac is not None:
+            saw_any_hmac = True
+            if hmac_key is not None and compute_entry_hmac(hmac_key, entry_hash) != entry_hmac:
+                errors.append(f"entry {i} entry_hmac mismatch (wrong key or forged chain)")
+        else:
+            saw_any_missing_hmac = True
+        prev = entry_hash if entry_hash is not None else prev
 
     head_ok = prev == log.get("memory_head", GENESIS_HASH)
     if not head_ok:
         errors.append("memory_head does not match the end of the journal")
+    memory_head_hmac = log.get("memory_head_hmac")
+    if memory_head_hmac is not None:
+        saw_any_hmac = True
+        if hmac_key is not None and compute_entry_hmac(hmac_key, prev) != memory_head_hmac:
+            errors.append("memory_head_hmac mismatch (wrong key or forged tail)")
     errors.extend(_journal_backing(log))
+
+    if not saw_any_hmac:
+        caveats.append("hash-only mode: no HMAC anchor on this journal")
+    else:
+        if hmac_key is None:
+            caveats.append("entry_hmac present but not verified (no key supplied)")
+        if saw_any_missing_hmac:
+            caveats.append("some entries predate HMAC key configuration and lack entry_hmac")
+
     return {
         "log_ok": not errors,
         "journal_entries": len(log.get("journal", [])),
         "memory_head": log.get("memory_head", GENESIS_HASH),
         "errors": errors,
+        "caveats": caveats,
     }
 
 

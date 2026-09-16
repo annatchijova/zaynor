@@ -5,10 +5,14 @@ from zaynor.investigation_log import (
     add_hypothesis,
     new_investigation_log,
     note_open_question,
+    record,
     resolve_open_question,
     update_hypothesis,
     verify_log,
 )
+
+KEY_A = bytes.fromhex("aa" * 32)
+KEY_B = bytes.fromhex("bb" * 32)
 
 
 def test_new_log_verifies_clean():
@@ -80,3 +84,66 @@ def test_tampering_with_a_sealed_entry_is_detected():
     result = verify_log(log)
     assert not result["log_ok"]
     assert any("altered after it was sealed" in e for e in result["errors"])
+
+
+def test_hash_only_mode_when_no_key_is_used():
+    log = new_investigation_log("INC-TEST-001")
+    record(log, actor="investigator", action="NOTE", detail={"x": 1})
+    result = verify_log(log)
+    assert result["log_ok"]
+    assert "hash-only mode: no HMAC anchor on this journal" in result["caveats"]
+
+
+def test_entry_hmac_and_memory_head_hmac_verify_with_the_right_key():
+    log = new_investigation_log("INC-TEST-001")
+    record(log, actor="investigator", action="NOTE", detail={"x": 1}, hmac_key=KEY_A)
+    assert "entry_hmac" in log["journal"][0]
+    assert "memory_head_hmac" in log
+
+    result = verify_log(log, hmac_key=KEY_A)
+    assert result["log_ok"]
+    assert result["caveats"] == []
+
+
+def test_entry_hmac_rejects_the_wrong_key():
+    log = new_investigation_log("INC-TEST-001")
+    record(log, actor="investigator", action="NOTE", detail={"x": 1}, hmac_key=KEY_A)
+
+    result = verify_log(log, hmac_key=KEY_B)
+    assert not result["log_ok"]
+    assert any("entry_hmac mismatch" in e for e in result["errors"])
+
+
+def test_entry_hmac_detects_a_wholesale_forged_journal():
+    """Confirmed by induction: recomputing every SHA-256 hash from scratch
+    (what an attacker with write access to `log` can always do) still
+    fails HMAC verification without the real key.
+    """
+    genuine = new_investigation_log("INC-TEST-001")
+    record(genuine, actor="investigator", action="NOTE", detail={"x": 1}, hmac_key=KEY_A)
+
+    forged = new_investigation_log("INC-TEST-001")
+    record(forged, actor="investigator", action="NOTE", detail={"x": 1}, hmac_key=KEY_B)
+
+    result = verify_log(forged, hmac_key=KEY_A)
+    assert not result["log_ok"]
+    assert any("entry_hmac mismatch" in e for e in result["errors"])
+
+
+def test_missing_key_at_verification_is_a_caveat_not_a_failure():
+    log = new_investigation_log("INC-TEST-001")
+    record(log, actor="investigator", action="NOTE", detail={"x": 1}, hmac_key=KEY_A)
+
+    result = verify_log(log, hmac_key=None)
+    assert result["log_ok"]
+    assert "entry_hmac present but not verified (no key supplied)" in result["caveats"]
+
+
+def test_entries_without_hmac_are_reported_as_a_caveat_not_a_failure():
+    log = new_investigation_log("INC-TEST-001")
+    record(log, actor="investigator", action="NOTE_1", detail={"x": 1})  # no key yet
+    record(log, actor="investigator", action="NOTE_2", detail={"x": 2}, hmac_key=KEY_A)
+
+    result = verify_log(log, hmac_key=KEY_A)
+    assert result["log_ok"]
+    assert any("predate HMAC key configuration" in c for c in result["caveats"])
