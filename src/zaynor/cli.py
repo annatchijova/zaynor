@@ -23,6 +23,7 @@ from zaynor.correlation import correlate, open_case
 from zaynor.case_freezer import freeze_case
 from zaynor.detection import CORRELATION_WINDOW_SECONDS, detect_suspicious_privileged_login
 from zaynor.frozen_snapshot import _manifest_digest, _snapshot_digest, _validated_entries
+from zaynor.adapter import _evidence_path_for_mode1
 from zaynor.replay import replay
 from zaynor.authority_seal import AuthoritySeal, seal_authoritative_result, verify_authoritative_result
 
@@ -336,6 +337,12 @@ def _run_audit(args: argparse.Namespace) -> int:
         evidence_dir = case_dir / "evidence"
         entries = _validated_entries(manifest, evidence_dir)
         snapshot_digest = _snapshot_digest(evidence_dir)
+        mode1_evidence_path = _evidence_path_for_mode1(evidence_dir)
+        bundle_evidence_digest = (
+            snapshot_digest
+            if mode1_evidence_path == evidence_dir
+            else hashlib.sha256(mode1_evidence_path.read_bytes()).hexdigest()
+        )
         report["snapshot"] = "VERIFIED"
         report["evidence"] = f"{len(entries)}/{len(manifest.entries)} VERIFIED"
 
@@ -351,7 +358,7 @@ def _run_audit(args: argparse.Namespace) -> int:
         fields = _fixture_path(str(sidecar_path)).read_text(encoding="utf-8").strip().split()
         if not fields or fields[0] != hashlib.sha256(bundle_bytes).hexdigest():
             raise CliInputError("stored bundle sidecar does not match bundle")
-        if bundle.get("evidence_sha256") != snapshot_digest:
+        if bundle.get("evidence_sha256") != bundle_evidence_digest:
             raise CliInputError("stored bundle evidence hash does not match current snapshot")
         report["engine"] = str(bundle.get("vigia_agent_version", "UNKNOWN"))
 

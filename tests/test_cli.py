@@ -50,6 +50,71 @@ def _analyzed_case(tmp_path: Path, capsys):
     return scenario, cases_root, output_root
 
 
+_STUB_AGENT_BODY = textwrap.dedent("""
+    import hashlib, json, pathlib, sys
+    evidence = pathlib.Path(sys.argv[sys.argv.index('--evidence') + 1])
+    output = pathlib.Path(sys.argv[sys.argv.index('--output') + 1])
+    if evidence.is_dir():
+        digest = hashlib.sha256()
+        for path in sorted(evidence.rglob('*')):
+            if path.is_file():
+                digest.update(str(path.relative_to(evidence)).encode())
+                digest.update(hashlib.sha256(path.read_bytes()).digest())
+        evidence_sha256 = digest.hexdigest()
+    else:
+        evidence_sha256 = hashlib.sha256(evidence.read_bytes()).hexdigest()
+    bundle = {'case_id': 'INC-CLI-JSON-CASE', 'evidence_sha256': evidence_sha256,
+              'agent_verdict': 'ABSTAIN', 'audit_trail': []}
+    raw = json.dumps(bundle).encode()
+    output.write_bytes(raw)
+    output.with_suffix(output.suffix + '.sha256').write_text(
+        hashlib.sha256(raw).hexdigest() + '  ' + str(output) + '\\n')
+    sys.exit(4)
+""")
+
+
+def test_analyze_and_audit_a_single_vigia_case_json_file(tmp_path, capsys):
+    """Regression for the routing fix: a frozen case whose only evidence is
+    one VIGÍA case-corpus JSON file (artifacts[] with type/source/content/
+    metadata) must reach the engine as that FILE, not the directory
+    containing it, and `audit` must recompute evidence_sha256 the same way
+    (file hash, not directory hash) or a genuine, untampered case would
+    fail closed for the wrong reason.
+    """
+    source = tmp_path / "source"
+    source.mkdir()
+    case_json = source / "OWL-MINI-CASE.json"
+    case_json.write_text(json.dumps({
+        "case_id": "INC-CLI-JSON-CASE",
+        "artifacts": [{"id": "ART-001", "type": "account_registration"}],
+    }))
+    (source / "profile_map.json").write_text(json.dumps({"vigia-case": ["OWL-MINI-CASE.json"]}))
+
+    cases_root = tmp_path / "cases"
+    assert main([
+        "freeze", "--case-id", "INC-CLI-JSON-CASE", "--evidence-profile", "vigia-case",
+        "--profile-map", str(source / "profile_map.json"), "--source-root", str(source),
+        "--cases-root", str(cases_root), "--json",
+    ]) == 0
+    capsys.readouterr()
+
+    engine = tmp_path / "engine"
+    engine.mkdir()
+    (engine / "vigia_agent.py").write_text(_STUB_AGENT_BODY)
+    output_root = tmp_path / "outputs"
+    assert main([
+        "analyze", "--case-id", "INC-CLI-JSON-CASE", "--cases-root", str(cases_root),
+        "--engine-repo", str(engine), "--output-root", str(output_root), "--json",
+    ]) == 0
+    capsys.readouterr()
+
+    assert main([
+        "audit", "--case-id", "INC-CLI-JSON-CASE", "--cases-root", str(cases_root),
+        "--output-root", str(output_root), "--json",
+    ]) == 0
+    assert json.loads(capsys.readouterr().out)["overall"] == "VERIFIED"
+
+
 def test_case_cli_emits_reproducible_json(capsys):
     assert main(["case", "--fixture", str(FIXTURE), "--json"]) == 0
     first = capsys.readouterr().out

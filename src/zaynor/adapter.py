@@ -140,6 +140,32 @@ class VigiaAdapter:
         return translate_result(manifest.case_id, raw)
 
 
+def _evidence_path_for_mode1(snapshot_path: Path) -> Path:
+    """Route a frozen snapshot to VIGÍA's directory-scan path, or its
+    single-file EBS-JSON path, whichever the frozen content actually is.
+
+    `zaynor_mode1_executor.run_vigia_mode1` (and VIGÍA's own
+    `_build_orchestrator_kwargs`) branch on whether `--evidence` is a
+    directory (auto-detects `.evtx`/`.raw`/`.pcap`/registry hives/etc. by
+    walking it) or a single `.json` file (routed to VIGÍA's own
+    EBS-JSON/rich-case-schema ingestion, `_analyze_ebs_json`). A frozen
+    case whose evidence is exactly one `.json` file — e.g. one of VIGÍA's
+    own case corpus files (`cases/*.json`: `artifacts[]` with `type`/
+    `source`/`content`/`metadata`, confirmed by running `vigia_agent.py`
+    directly against one: 20 real primary signals, not the 0-signal
+    'no usable format' ABSTAIN a directory-mode scan produces for a lone
+    JSON file, since the directory scanner has no `*.json` pattern) needs
+    the second path, or VIGÍA never sees it as anything but an
+    unrecognized artifact. This is a pure routing decision: the snapshot
+    itself, its hash verification, and everything else about the frozen
+    case stay exactly as `materialize_frozen_snapshot` already produced.
+    """
+    entries = [path for path in snapshot_path.rglob("*") if path.is_file()]
+    if len(entries) == 1 and entries[0].suffix.lower() == ".json":
+        return entries[0]
+    return snapshot_path
+
+
 class ZaynorMode1Adapter:
     """Production wiring for ZAYNOR's real Mode-1 integration.
 
@@ -181,7 +207,7 @@ class ZaynorMode1Adapter:
             with materialize_frozen_snapshot(manifest, evidence_dir) as snapshot:
                 bundle = run_vigia_mode1(
                     vigia_repo_path=self._engine_repo_path,
-                    evidence_path=snapshot.path,
+                    evidence_path=_evidence_path_for_mode1(snapshot.path),
                     case_id=manifest.case_id,
                     output_path=output_path,
                     python_executable=self._python_executable,
