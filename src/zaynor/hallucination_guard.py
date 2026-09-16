@@ -210,7 +210,7 @@ class NarrativeClaim:
 # Deliberately conservative extraction — prefer false negatives over false
 # positives. A missed claim is not verified (neutral); a false claim match
 # would be worse.
-_VERDICT_RE = re.compile(r"\b(MALICE|BENIGN|NOISE|SUSPICION|INCONCLUSIVE)\b", re.IGNORECASE)
+_VERDICT_RE = re.compile(r"\b(MALICE|BENIGN|NOISE|SUSPICION|ABSTAIN|UNKNOWN|INCONCLUSIVE)\b", re.IGNORECASE)
 _SCORE_RE = re.compile(r"(?:score|composite|posterior|confidence)[:\s]+([0-9]+\.[0-9]+)", re.IGNORECASE)
 _SEVERITY_RE = re.compile(r"(?:severity)[:\s]+([0-9]+\.[0-9]+)", re.IGNORECASE)
 _FRACTURE_TYPE_RE = re.compile(

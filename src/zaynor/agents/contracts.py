@@ -23,12 +23,28 @@ class Audience(StrEnum):
     SENIOR = "senior"
 
 
+class CapabilityEffect(StrEnum):
+    READ = "read"
+    DERIVE = "derive"
+    ACQUIRE = "acquire"
+    MUTATE = "mutate"
+    AUTHORIZE = "authorize"
+
+
+@dataclass(frozen=True)
+class Capability:
+    effect: CapabilityEffect
+    resource: str
+    requires_human_approval: bool = False
+
+
 @dataclass(frozen=True)
 class AgentSpec:
     name: AgentRole
     version: str
     tools: tuple[str, ...]
     data_classes: tuple[str, ...]
+    capabilities: tuple[Capability, ...] = ()
     can_write: bool = False
     can_adjudicate: bool = False
 

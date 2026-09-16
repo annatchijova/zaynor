@@ -35,6 +35,7 @@ class AgentRuntime:
         system: str,
         prompt: str,
         tools: Mapping[str, ToolHandler] | None = None,
+        human_approved: bool = False,
     ) -> str:
         handlers = dict(tools or {})
         approved = spec_for(role)
@@ -50,7 +51,7 @@ class AgentRuntime:
                 return message["text"]
 
             request = ToolRequest(message["tool"], message["arguments"])
-            authorize_tool(role, request)
+            authorize_tool(role, request, human_approved=human_approved)
             handler = handlers.get(request.tool)
             if handler is None:
                 raise AgentRuntimeError(f"tool {request.tool!r} was not bound")
