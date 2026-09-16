@@ -1,0 +1,455 @@
+"""Command-line entry point for ZAYNOR's deterministic front end.
+
+The CLI is an interface, not a second decision engine. It only composes the
+existing replay, detection, correlation, and case contracts. Later commands
+(`freeze`, `analyze`, `chat`) must follow the same rule: parse at the edge,
+delegate to the core, and never manufacture an authoritative result.
+"""
+
+from __future__ import annotations
+
+import argparse
+import hashlib
+import json
+import os
+import re
+import sys
+import tempfile
+from dataclasses import asdict
+from pathlib import Path
+from typing import Any, Sequence
+
+from zaynor.correlation import correlate, open_case
+from zaynor.case_freezer import freeze_case
+from zaynor.detection import CORRELATION_WINDOW_SECONDS, detect_suspicious_privileged_login
+from zaynor.frozen_snapshot import _manifest_digest, _snapshot_digest, _validated_entries
+from zaynor.replay import replay
+from zaynor.authority_seal import AuthoritySeal, seal_authoritative_result, verify_authoritative_result
+
+_MAX_FIXTURE_BYTES = 10 * 1024 * 1024
+_DEFAULT_KNOWN_DEVICES = frozenset({"DEV-CORP-01", "DEV-CORP-02", "DEV-CORP-LAPTOP-09"})
+_SAFE_CASE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
+
+
+class CliInputError(ValueError):
+    """A command-line value failed validation at the CLI boundary."""
+
+
+def _fixture_path(raw: str) -> Path:
+    """Accept one bounded, regular, non-symlink fixture file."""
+    if not isinstance(raw, str) or not raw.strip():
+        raise CliInputError("fixture path must not be empty")
+    path = Path(raw)
+    lexical = Path.cwd() / path if not path.is_absolute() else path
+    for component in (lexical, *lexical.parents):
+        if component.exists() and component.is_symlink():
+            raise CliInputError("fixture path must not traverse a symlink")
+    try:
+        resolved = path.resolve(strict=True)
+        stat = resolved.stat()
+    except OSError as exc:
+        raise CliInputError(f"fixture cannot be read: {raw}") from exc
+    if not resolved.is_file():
+        raise CliInputError("fixture path must be a regular file")
+    if stat.st_size > _MAX_FIXTURE_BYTES:
+        raise CliInputError(f"fixture exceeds {_MAX_FIXTURE_BYTES} bytes")
+    return resolved
+
+
+def _directory_path(raw: str, *, create: bool = False) -> Path:
+    if not isinstance(raw, str) or not raw.strip():
+        raise CliInputError("directory path must not be empty")
+    path = Path(raw)
+    lexical = Path.cwd() / path if not path.is_absolute() else path
+
+    def reject_symlink_components() -> None:
+        for component in (lexical, *lexical.parents):
+            if component.exists() and component.is_symlink():
+                raise CliInputError("directory path must not traverse a symlink")
+
+    reject_symlink_components()
+    if create:
+        try:
+            path.mkdir(parents=True, exist_ok=True)
+        except OSError as exc:
+            raise CliInputError(f"directory cannot be created: {raw}") from exc
+        reject_symlink_components()
+    try:
+        resolved = path.resolve(strict=True)
+    except OSError as exc:
+        raise CliInputError(f"directory cannot be read: {raw}") from exc
+    if not resolved.is_dir() or resolved.is_symlink():
+        raise CliInputError("path must be a regular directory")
+    return resolved
+
+
+def _known_devices(values: Sequence[str] | None) -> set[str]:
+    devices = set(_DEFAULT_KNOWN_DEVICES if not values else values)
+    if any(not isinstance(device, str) or not device.strip() for device in devices):
+        raise CliInputError("known device identifiers must be non-empty strings")
+    return devices
+
+
+def _json_default(value: Any) -> Any:
+    if hasattr(value, "__dataclass_fields__"):
+        return asdict(value)
+    raise TypeError(f"cannot serialize {type(value).__name__}")
+
+
+def _emit(value: Any, *, as_json: bool) -> None:
+    if as_json:
+        print(json.dumps(value, default=_json_default, ensure_ascii=False, sort_keys=True, indent=2))
+        return
+    if isinstance(value, dict) and value.get("alerts") is not None:
+        print(f"Eventos: {value['events']}")
+        print(f"Alertas: {len(value['alerts'])}")
+        for alert in value["alerts"]:
+            print(f"- {alert['rule_id']}: {alert['reason']} [{alert['severity']}]")
+        if value.get("case"):
+            print(f"Caso: {value['case']['case_id']} ({value['case']['priority']})")
+        return
+    if isinstance(value, list):
+        for item in value:
+            print(json.dumps(item, default=_json_default, ensure_ascii=False, sort_keys=True))
+        return
+    if isinstance(value, dict) and value.get("overall") in {"VERIFIED", "FAILED"}:
+        labels = (
+            ("case_id", "CASE"),
+            ("snapshot", "SNAPSHOT"),
+            ("manifest", "MANIFEST"),
+            ("evidence", "EVIDENCE"),
+            ("engine", "ENGINE"),
+            ("result", "RESULT"),
+            ("seal", "SEAL"),
+            ("verdict", "VERDICT"),
+            ("confidence", "CONFIDENCE"),
+            ("findings", "FINDINGS"),
+            ("provenance", "PROVENANCE"),
+            ("overall", "OVERALL"),
+        )
+        for key, label in labels:
+            if key in value:
+                print(f"{label:<12} {value[key]}")
+        for unknown in value.get("unknowns", []):
+            print(f"UNKNOWN      {unknown}")
+        if value.get("error"):
+            print(f"ERROR        {value['error']}")
+        return
+    print(json.dumps(value, default=_json_default, ensure_ascii=False, sort_keys=True))
+
+
+def _atomic_json_write(path: Path, value: Any) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    if path.exists() and path.is_symlink():
+        raise CliInputError(f"output path must not be a symlink: {path}")
+    encoded = json.dumps(value, default=_json_default, ensure_ascii=False, sort_keys=True, indent=2) + "\n"
+    with tempfile.NamedTemporaryFile(dir=path.parent, prefix=f".{path.name}.", mode="w", encoding="utf-8", delete=False) as temp:
+        temp.write(encoded)
+        temp.flush()
+        os.fsync(temp.fileno())
+        temporary = Path(temp.name)
+    os.replace(temporary, path)
+
+
+def _replayed_events(fixture: str):
+    path = _fixture_path(fixture)
+    try:
+        return list(replay(path))
+    except (OSError, KeyError, TypeError, ValueError, json.JSONDecodeError) as exc:
+        raise CliInputError(f"fixture is invalid: {path}") from exc
+
+
+def _run_replay(args: argparse.Namespace) -> int:
+    events = _replayed_events(args.fixture)
+    _emit(events, as_json=args.json)
+    return 0
+
+
+def _run_detect(args: argparse.Namespace) -> int:
+    events = _replayed_events(args.fixture)
+    alerts = detect_suspicious_privileged_login(events, _known_devices(args.known_device))
+    payload = {"events": len(events), "alerts": alerts}
+    _emit(payload, as_json=args.json)
+    return 0
+
+
+def _run_case(args: argparse.Namespace) -> int:
+    events = _replayed_events(args.fixture)
+    alerts = detect_suspicious_privileged_login(events, _known_devices(args.known_device))
+    payload: dict[str, Any] = {"events": len(events), "alerts": alerts, "case": None}
+    if alerts:
+        triggering = next(event for event in events if event.event_id in alerts[0].triggering_event_ids)
+        related = [event for event in events if abs(event.logical_time - triggering.logical_time) <= args.window]
+        correlation = correlate(alerts[0], triggering, related, window_seconds=args.window)
+        payload["case"] = open_case(alerts[0], correlation, evidence_profile=args.evidence_profile)
+    _emit(payload, as_json=args.json)
+    return 0
+
+
+def _run_freeze(args: argparse.Namespace) -> int:
+    source_root = _directory_path(args.source_root)
+    cases_root = _directory_path(args.cases_root, create=True)
+    profile_path = _fixture_path(args.profile_map)
+    try:
+        profile_map = json.loads(profile_path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise CliInputError(f"profile map is invalid: {profile_path}") from exc
+    if (
+        not isinstance(profile_map, dict)
+        or any(not isinstance(name, str) or not isinstance(paths, list) for name, paths in profile_map.items())
+        or any(not isinstance(path, str) for paths in profile_map.values() for path in paths)
+    ):
+        raise CliInputError("profile map must be an object of string profiles and path lists")
+    try:
+        manifest, evidence_dir = freeze_case(
+            args.case_id,
+            args.evidence_profile,
+            profile_map,
+            source_root,
+            cases_root,
+        )
+    except (KeyError, OSError, ValueError) as exc:
+        raise CliInputError(f"case freeze failed: {exc}") from exc
+    payload = {"manifest": manifest, "evidence_dir": str(evidence_dir)}
+    _emit(payload, as_json=args.json)
+    return 0
+
+
+def _load_case_manifest(case_dir: Path):
+    from zaynor.schemas import CaseManifest, ManifestEntry
+
+    manifest_path = case_dir / "manifest.json"
+    manifest_file = _fixture_path(str(manifest_path))
+    try:
+        raw = json.loads(manifest_file.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise CliInputError(f"manifest is invalid: {manifest_file}") from exc
+    if not isinstance(raw, dict) or raw.get("case_id") != case_dir.name:
+        raise CliInputError("manifest case_id does not match the selected case")
+    entries = raw.get("entries")
+    if not isinstance(entries, list):
+        raise CliInputError("manifest entries must be a list")
+    parsed_entries = []
+    for entry in entries:
+        if not isinstance(entry, dict) or not all(key in entry for key in ("relative_path", "sha256", "size_bytes")):
+            raise CliInputError("manifest contains an invalid entry")
+        if not isinstance(entry["relative_path"], str) or not isinstance(entry["sha256"], str):
+            raise CliInputError("manifest entry fields have invalid types")
+        if not isinstance(entry["size_bytes"], int) or isinstance(entry["size_bytes"], bool) or entry["size_bytes"] < 0:
+            raise CliInputError("manifest entry size_bytes must be a non-negative integer")
+        parsed_entries.append(ManifestEntry(**entry))
+    for key in ("content_sha256", "sealed_at", "sealed_at_sha256"):
+        if not isinstance(raw.get(key), str) or not raw[key]:
+            raise CliInputError(f"manifest field {key} is invalid")
+    return CaseManifest(
+        case_id=raw["case_id"],
+        entries=tuple(parsed_entries),
+        content_sha256=raw["content_sha256"],
+        sealed_at=raw["sealed_at"],
+        sealed_at_sha256=raw["sealed_at_sha256"],
+    )
+
+
+def _run_analyze(args: argparse.Namespace) -> int:
+    if args.python is not None and not args.dev:
+        raise CliInputError("--python is dev-only; use --dev explicitly")
+    if not _SAFE_CASE_ID.fullmatch(args.case_id):
+        raise CliInputError("case-id must be a bounded path-safe identifier")
+    cases_root = _directory_path(args.cases_root)
+    case_dir = cases_root / args.case_id
+    if case_dir.is_symlink() or not case_dir.is_dir():
+        raise CliInputError("selected case directory is missing or unsafe")
+    manifest = _load_case_manifest(case_dir)
+    evidence_dir = case_dir / "evidence"
+    engine_repo = _directory_path(args.engine_repo)
+    output_root = _directory_path(args.output_root, create=True)
+    try:
+        from zaynor.adapter import ZaynorMode1Adapter
+
+        result = ZaynorMode1Adapter(
+            engine_repo,
+            output_root,
+            python_executable=args.python or sys.executable,
+            timeout_seconds=args.timeout,
+        ).analyze(manifest, evidence_dir)
+    except (OSError, RuntimeError, ValueError) as exc:
+        raise CliInputError(f"case analysis failed: {exc}") from exc
+    result_path = output_root / args.case_id / "result.json"
+    seal = seal_authoritative_result(result)
+    seal_path = output_root / args.case_id / "result.seal.json"
+    _atomic_json_write(result_path, result)
+    _atomic_json_write(seal_path, seal)
+    _emit({"result": result, "seal": seal, "result_path": str(result_path), "seal_path": str(seal_path)}, as_json=args.json)
+    return 0
+
+
+def _load_stored_result(case_id: str, result_path: Path):
+    from zaynor.adapter import translate_result
+
+    result_file = _fixture_path(str(result_path))
+    try:
+        raw = json.loads(result_file.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise CliInputError(f"stored result is invalid: {result_file}") from exc
+    if not isinstance(raw, dict):
+        raise CliInputError("stored result must be a JSON object")
+    return translate_result(case_id, raw)
+
+
+def _load_stored_seal(seal_path: Path) -> AuthoritySeal:
+    seal_file = _fixture_path(str(seal_path))
+    try:
+        raw = json.loads(seal_file.read_text(encoding="utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise CliInputError(f"stored result seal is invalid: {seal_file}") from exc
+    if not isinstance(raw, dict) or not isinstance(raw.get("canonicalize_version"), str) or not isinstance(raw.get("sha256"), str):
+        raise CliInputError("stored result seal has invalid fields")
+    return AuthoritySeal(raw["canonicalize_version"], raw["sha256"])
+
+
+def _run_audit(args: argparse.Namespace) -> int:
+    report: dict[str, Any] = {
+        "case_id": args.case_id,
+        "manifest": "FAILED",
+        "snapshot": "FAILED",
+        "evidence": "FAILED",
+        "engine": "UNKNOWN",
+        "result": "FAILED",
+        "seal": "FAILED",
+        "verdict": "UNKNOWN",
+        "confidence": "UNKNOWN",
+        "findings": 0,
+        "unknowns": [],
+        "provenance": "UNKNOWN",
+        "overall": "FAILED",
+    }
+    try:
+        if not _SAFE_CASE_ID.fullmatch(args.case_id):
+            raise CliInputError("case-id must be a bounded path-safe identifier")
+        cases_root = _directory_path(args.cases_root)
+        case_dir = cases_root / args.case_id
+        if case_dir.is_symlink() or not case_dir.is_dir():
+            raise CliInputError("selected case directory is missing or unsafe")
+        manifest = _load_case_manifest(case_dir)
+        manifest_digest = _manifest_digest(manifest)
+        report["manifest"] = "VERIFIED"
+        evidence_dir = case_dir / "evidence"
+        entries = _validated_entries(manifest, evidence_dir)
+        snapshot_digest = _snapshot_digest(evidence_dir)
+        report["snapshot"] = "VERIFIED"
+        report["evidence"] = f"{len(entries)}/{len(manifest.entries)} VERIFIED"
+
+        output_root = _directory_path(args.output_root)
+        output_case_dir = output_root / args.case_id
+        bundle_path = output_case_dir / "bundle.json"
+        bundle_file = _fixture_path(str(bundle_path))
+        bundle_bytes = bundle_file.read_bytes()
+        bundle = json.loads(bundle_bytes.decode("utf-8"))
+        if not isinstance(bundle, dict) or bundle.get("case_id") != args.case_id:
+            raise CliInputError("stored bundle case_id does not match selected case")
+        sidecar_path = bundle_path.with_suffix(bundle_path.suffix + ".sha256")
+        fields = _fixture_path(str(sidecar_path)).read_text(encoding="utf-8").strip().split()
+        if not fields or fields[0] != hashlib.sha256(bundle_bytes).hexdigest():
+            raise CliInputError("stored bundle sidecar does not match bundle")
+        if bundle.get("evidence_sha256") != snapshot_digest:
+            raise CliInputError("stored bundle evidence hash does not match current snapshot")
+        report["engine"] = str(bundle.get("vigia_agent_version", "UNKNOWN"))
+
+        result = _load_stored_result(args.case_id, output_case_dir / "result.json")
+        seal = _load_stored_seal(output_case_dir / "result.seal.json")
+        verify_authoritative_result(result, seal)
+        if result.integrity.get("authorized_manifest_sha256") != manifest_digest:
+            raise CliInputError("result manifest hash does not match selected manifest")
+        if result.integrity.get("analyzed_snapshot_sha256") != snapshot_digest:
+            raise CliInputError("result snapshot hash does not match current evidence")
+        if result.integrity.get("authorized_case_id") != args.case_id:
+            raise CliInputError("result authorized case_id does not match selected case")
+        report.update(
+            {
+                "result": "VERIFIED",
+                "seal": "VERIFIED",
+                "verdict": result.verdict,
+                "confidence": result.integrity.get("confidence", "UNKNOWN"),
+                "findings": len(result.findings),
+                "unknowns": list(result.unknowns),
+                # A non-empty provenance field proves presence only. The
+                # current contract does not independently validate every
+                # provenance edge against an external authority.
+                "provenance": "PRESENT" if result.provenance else "EMPTY",
+                "overall": "VERIFIED",
+            }
+        )
+        _emit(report, as_json=args.json)
+        return 0
+    except (CliInputError, OSError, RuntimeError, ValueError, json.JSONDecodeError) as exc:
+        report["error"] = str(exc)
+        _emit(report, as_json=args.json)
+        return 1
+
+
+def build_parser() -> argparse.ArgumentParser:
+    parser = argparse.ArgumentParser(prog="zaynor", description="Investigación DFIR local y trazable")
+    subparsers = parser.add_subparsers(dest="command", required=True)
+
+    replay_parser = subparsers.add_parser("replay", help="reproduce eventos de un fixture JSONL")
+    replay_parser.add_argument("--fixture", required=True)
+    replay_parser.add_argument("--json", action="store_true", help="emitir JSON estable")
+    replay_parser.set_defaults(handler=_run_replay)
+
+    detect_parser = subparsers.add_parser("detect", help="ejecutar la detección determinista")
+    detect_parser.add_argument("--fixture", required=True)
+    detect_parser.add_argument("--known-device", action="append", dest="known_device")
+    detect_parser.add_argument("--json", action="store_true", help="emitir JSON estable")
+    detect_parser.set_defaults(handler=_run_detect)
+
+    case_parser = subparsers.add_parser("case", help="reproducir detección y abrir un caso candidato")
+    case_parser.add_argument("--fixture", required=True)
+    case_parser.add_argument("--known-device", action="append", dest="known_device")
+    case_parser.add_argument("--window", type=int, default=CORRELATION_WINDOW_SECONDS)
+    case_parser.add_argument("--evidence-profile", default="admin-session-investigation")
+    case_parser.add_argument("--json", action="store_true", help="emitir JSON estable")
+    case_parser.set_defaults(handler=_run_case)
+
+    freeze_parser = subparsers.add_parser("freeze", help="congelar evidencia y crear el manifest del caso")
+    freeze_parser.add_argument("--case-id", required=True)
+    freeze_parser.add_argument("--evidence-profile", required=True)
+    freeze_parser.add_argument("--profile-map", required=True)
+    freeze_parser.add_argument("--source-root", required=True)
+    freeze_parser.add_argument("--cases-root", required=True)
+    freeze_parser.add_argument("--json", action="store_true", help="emitir JSON estable")
+    freeze_parser.set_defaults(handler=_run_freeze)
+
+    analyze_parser = subparsers.add_parser("analyze", help="analizar únicamente la evidencia del caso congelado")
+    analyze_parser.add_argument("--case-id", required=True)
+    analyze_parser.add_argument("--cases-root", required=True)
+    analyze_parser.add_argument("--engine-repo", required=True)
+    analyze_parser.add_argument("--output-root", required=True)
+    analyze_parser.add_argument("--python", default=None, help=argparse.SUPPRESS)
+    analyze_parser.add_argument("--dev", action="store_true", help="habilitar opciones de desarrollo")
+    analyze_parser.add_argument("--timeout", type=int, default=300)
+    analyze_parser.add_argument("--json", action="store_true", help="emitir JSON estable")
+    analyze_parser.set_defaults(handler=_run_analyze)
+
+    audit_parser = subparsers.add_parser("audit", help="verificar artefactos almacenados sin reanalizar")
+    audit_parser.add_argument("--case-id", required=True)
+    audit_parser.add_argument("--cases-root", required=True)
+    audit_parser.add_argument("--output-root", required=True)
+    audit_parser.add_argument("--json", action="store_true", help="emitir JSON estable")
+    audit_parser.set_defaults(handler=_run_audit)
+    return parser
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    if getattr(args, "window", 1) <= 0 or getattr(args, "timeout", 1) <= 0:
+        parser.error("--window y --timeout deben ser positivos")
+    try:
+        return args.handler(args)
+    except CliInputError as exc:
+        print(f"zaynor: error de entrada: {exc}", file=sys.stderr)
+        return 2
+
+
+if __name__ == "__main__":  # pragma: no cover
+    raise SystemExit(main())
