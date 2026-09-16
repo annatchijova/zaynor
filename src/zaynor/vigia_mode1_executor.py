@@ -26,7 +26,9 @@ writing this:
   `adapter.translate_result` was originally written against — that shape
   was provisional, written before this inventory existed.
 
-What this module deliberately does NOT do: invent a `findings[]` list
+The executor verifies the evidence digest, bundle sidecar, exit/verdict
+agreement, and output destination before returning anything. What this module
+deliberately does NOT do: invent a `findings[]` list
 with fabricated `evidence_refs`/`lineage_id` out of `pipeline_results`.
 `pipeline_results.signals` is not yet inspected deeply enough to know
 which fields would make honest per-finding evidence references (real
@@ -37,9 +39,10 @@ as an explicit `unknowns` entry instead of a guess.
 
 from __future__ import annotations
 
+import hashlib
 import json
+import os
 import re
-import shutil
 import subprocess
 import tempfile
 from pathlib import Path
@@ -52,10 +55,61 @@ from zaynor.schemas import ZaynorAuthoritativeResult
 
 _VERDICT_EXIT_OK = {0, 1, 3, 4, 5}  # NOISE, MALICE, INTENT, ABSTAIN, SUSPICION
 _EXIT_ERROR = 2
+_EXIT_TO_VERDICT = {0: "NOISE", 1: "MALICE", 3: "INTENT", 4: "ABSTAIN", 5: "SUSPICION"}
+_KNOWN_VERDICTS = frozenset(_EXIT_TO_VERDICT.values())
+_MAX_SUBPROCESS_OUTPUT = 1_048_576
+_CANONICAL_VERDICT = {
+    "MALICE": "MALICE",
+    "INTENT": "SUSPICION",
+    "ABSTAIN": "ABSTAIN",
+    "NOISE": "BENIGN",
+    "SUSPICION": "SUSPICION",
+}
 
 
 class Mode1ExecutionError(RuntimeError):
     """`vigia_agent.py` could not be run or did not produce a readable bundle."""
+
+
+def _hash_evidence_dir(evidence_dir: Path) -> str:
+    """Match VIGÍA's deterministic directory digest and reject unsafe entries."""
+    if evidence_dir.is_symlink():
+        raise Mode1ExecutionError(f"evidence directory is a symlink: {evidence_dir}")
+    digest = hashlib.sha256()
+    for path in sorted(evidence_dir.rglob("*")):
+        if path.is_symlink():
+            raise Mode1ExecutionError(f"evidence contains symlink: {path}")
+        if path.is_file():
+            file_digest = hashlib.sha256(path.read_bytes()).digest()
+            digest.update(str(path.relative_to(evidence_dir)).encode())
+            digest.update(file_digest)
+    return digest.hexdigest()
+
+
+def _reject_symlink_path(path: Path) -> None:
+    """Reject an output path whose existing components are symlinks."""
+    current = path
+    while current != current.parent:
+        if current.exists() and current.is_symlink():
+            raise Mode1ExecutionError(f"output path contains symlink: {current}")
+        current = current.parent
+
+
+def _tail(path: Path, limit: int = 2000) -> str:
+    if not path.is_file():
+        return ""
+    with path.open("rb") as handle:
+        handle.seek(0, os.SEEK_END)
+        handle.seek(max(0, handle.tell() - limit))
+        return handle.read().decode("utf-8", errors="replace")
+
+
+def _read_sidecar(sidecar: Path, bundle_digest: str) -> None:
+    if not sidecar.is_file() or sidecar.is_symlink():
+        raise Mode1ExecutionError("VIGÍA did not produce a safe bundle digest sidecar")
+    fields = sidecar.read_text(encoding="utf-8").strip().split()
+    if not fields or fields[0] != bundle_digest:
+        raise Mode1ExecutionError("VIGÍA bundle digest sidecar does not match bundle bytes")
 
 
 def run_vigia_mode1(
@@ -65,6 +119,7 @@ def run_vigia_mode1(
     output_path: Path,
     python_executable: str = "python3",
     timeout_seconds: int = 300,
+    max_output_bytes: int = _MAX_SUBPROCESS_OUTPUT,
 ) -> dict[str, Any]:
     """Run `vigia_agent.py` against `evidence_dir` and return its parsed
     bundle. Raises on exit code 2 (ERROR) or a missing/unparseable output
@@ -80,46 +135,75 @@ def run_vigia_mode1(
     # docstring); write there first, in a private run-scoped subdirectory,
     # then copy the result to wherever the caller actually wants it.
     safe_run_id = _SAFE_RUN_ID.sub("_", case_id) or "run"
+    if timeout_seconds <= 0 or max_output_bytes <= 0:
+        raise Mode1ExecutionError("timeout_seconds and max_output_bytes must be positive")
+    evidence_digest = _hash_evidence_dir(evidence_dir)
     with tempfile.TemporaryDirectory(dir=str(vigia_repo_path), prefix=f".zaynor_mode1_{safe_run_id}_") as run_dir:
         internal_output = Path(run_dir) / "bundle.json"
+        stdout_path = Path(run_dir) / "stdout.log"
+        stderr_path = Path(run_dir) / "stderr.log"
 
-        result = subprocess.run(
-            [
-                python_executable,
-                str(agent_path),
-                "--evidence", str(evidence_dir),
-                "--case-id", case_id,
-                "--output", str(internal_output),
-            ],
-            cwd=str(vigia_repo_path),
-            capture_output=True,
-            text=True,
-            timeout=timeout_seconds,
-        )
+        try:
+            with stdout_path.open("wb") as stdout, stderr_path.open("wb") as stderr:
+                result = subprocess.run(
+                    [python_executable, str(agent_path), "--evidence", str(evidence_dir),
+                     "--case-id", case_id, "--output", str(internal_output)],
+                    cwd=str(vigia_repo_path), stdout=stdout, stderr=stderr,
+                    timeout=timeout_seconds,
+                )
+        except subprocess.TimeoutExpired as exc:
+            raise Mode1ExecutionError(f"vigia_agent.py timed out after {timeout_seconds}s") from exc
 
         if result.returncode == _EXIT_ERROR:
             raise Mode1ExecutionError(
-                f"vigia_agent.py reported an agent-level error (exit 2): {result.stderr[-2000:]}"
+                f"vigia_agent.py reported an agent-level error (exit 2): {_tail(stderr_path)}"
             )
         if result.returncode not in _VERDICT_EXIT_OK:
             raise Mode1ExecutionError(
-                f"vigia_agent.py exited with unexpected code {result.returncode}: {result.stderr[-2000:]}"
+                f"vigia_agent.py exited with unexpected code {result.returncode}: {_tail(stderr_path)}"
             )
+        if stdout_path.stat().st_size > max_output_bytes or stderr_path.stat().st_size > max_output_bytes:
+            raise Mode1ExecutionError("vigia_agent.py exceeded the subprocess output limit")
         if not internal_output.is_file():
             raise Mode1ExecutionError(
-                f"vigia_agent.py exited {result.returncode} but wrote no bundle: {result.stderr[-2000:]}"
+                f"vigia_agent.py exited {result.returncode} but wrote no bundle: {_tail(stderr_path)}"
             )
 
-        output_path.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(internal_output, output_path)
         sha_sidecar = internal_output.with_suffix(internal_output.suffix + ".sha256")
-        if sha_sidecar.is_file():
-            shutil.copy2(sha_sidecar, output_path.with_suffix(output_path.suffix + ".sha256"))
-
         try:
-            return json.loads(output_path.read_text(encoding="utf-8"))
-        except json.JSONDecodeError as exc:
-            raise Mode1ExecutionError(f"bundle at {output_path} is not valid JSON: {exc}") from exc
+            bundle_bytes = internal_output.read_bytes()
+            bundle = json.loads(bundle_bytes.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise Mode1ExecutionError(f"bundle at {internal_output} is not valid JSON: {exc}") from exc
+        if not isinstance(bundle, dict):
+            raise Mode1ExecutionError("VIGÍA bundle must be a JSON object")
+        bundle_digest = hashlib.sha256(bundle_bytes).hexdigest()
+        _read_sidecar(sha_sidecar, bundle_digest)
+        if bundle.get("evidence_sha256") != evidence_digest:
+            raise Mode1ExecutionError("VIGÍA evidence hash does not match the frozen evidence directory")
+        raw_verdict = bundle.get("agent_verdict")
+        expected_verdict = _EXIT_TO_VERDICT[result.returncode]
+        if raw_verdict not in _KNOWN_VERDICTS or raw_verdict != expected_verdict:
+            raise Mode1ExecutionError("VIGÍA exit code and bundle verdict are inconsistent")
+
+        _reject_symlink_path(output_path)
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+        _reject_symlink_path(output_path)
+        with tempfile.NamedTemporaryFile(dir=output_path.parent, prefix=f".{output_path.name}.", delete=False) as temp:
+            temp.write(bundle_bytes)
+            temp.flush()
+            os.fsync(temp.fileno())
+            temp_path = Path(temp.name)
+        os.replace(temp_path, output_path)
+        sidecar_output = output_path.with_suffix(output_path.suffix + ".sha256")
+        _reject_symlink_path(sidecar_output)
+        with tempfile.NamedTemporaryFile(dir=sidecar_output.parent, prefix=f".{sidecar_output.name}.", mode="w", encoding="utf-8", delete=False) as temp:
+            temp.write(f"{bundle_digest}  {output_path.resolve()}\n")
+            temp.flush()
+            os.fsync(temp.fileno())
+            sidecar_temp = Path(temp.name)
+        os.replace(sidecar_temp, sidecar_output)
+        return bundle
 
 
 def translate_mode1_bundle(case_id: str, bundle: dict[str, Any]) -> ZaynorAuthoritativeResult:
@@ -130,8 +214,8 @@ def translate_mode1_bundle(case_id: str, bundle: dict[str, Any]) -> ZaynorAuthor
     this is a truth claim about the evidence):
     - `engine`: name="vigia_agent", version=`vigia_agent_version`,
       configuration_hash=`runtime_fingerprint`.
-    - `integrity`: `evidence_sha256`, `analysis_timestamp`,
-      `iterations_executed`, `self_corrections_applied`.
+    - `integrity`: verified `evidence_sha256`, `iterations_executed`,
+      `self_corrections_applied`, and the canonical ZAYNOR verdict.
     - `audit_refs`: one reference per `audit_trail` entry's action name —
       the entries themselves stay in VIGÍA's bundle, not duplicated here.
 
@@ -147,6 +231,9 @@ def translate_mode1_bundle(case_id: str, bundle: dict[str, Any]) -> ZaynorAuthor
     raw_case_id = bundle.get("case_id")
     if raw_case_id != case_id:
         raise AdapterError(f"bundle case_id {raw_case_id!r} does not match frozen case {case_id!r}")
+    raw_verdict = bundle.get("agent_verdict")
+    if raw_verdict not in _CANONICAL_VERDICT:
+        raise AdapterError(f"unsupported VIGÍA agent_verdict: {raw_verdict!r}")
 
     engine = {
         "name": "vigia_agent",
@@ -156,10 +243,10 @@ def translate_mode1_bundle(case_id: str, bundle: dict[str, Any]) -> ZaynorAuthor
 
     integrity = {
         "evidence_sha256": bundle.get("evidence_sha256", "UNKNOWN"),
-        "analysis_timestamp": bundle.get("analysis_timestamp", "UNKNOWN"),
         "iterations_executed": bundle.get("iterations_executed", "UNKNOWN"),
         "self_corrections_applied": bundle.get("self_corrections_applied", "UNKNOWN"),
-        "agent_verdict": bundle.get("agent_verdict", "UNKNOWN"),
+        "agent_verdict": _CANONICAL_VERDICT[raw_verdict],
+        "vigia_agent_verdict": raw_verdict,
     }
 
     audit_trail = bundle.get("audit_trail", [])
