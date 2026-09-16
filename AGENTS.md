@@ -51,15 +51,22 @@ Source material, in `docs/hackathon/`:
   competing incident fixtures), that is an open decision, not an
   inconsistency to silently pick a side on.
 
-ZAYNOR is a hybrid, not a post-incident-only tool: a small deterministic
-front end detects and correlates signals over a deterministic replay of
-synthetic telemetry until something becomes an incident, then a local LLM picks which
-read-only evidence to inspect next and narrates a reconstruction — while a
-deterministic layer owns claim-state transitions, evidence bindings,
-provenance checks, hashes, and every assertion that can be mechanically
-verified against frozen evidence, on both sides of that split. Keep that
-boundary in mind — it shapes almost every rule below. See "Scope: the hybrid
-pipeline" for the full ten-stage picture.
+ZAYNOR is a hybrid DFIR system built around VIGÍA, an existing deterministic
+forensic engine — it does not reimplement VIGÍA's mechanisms from scratch. A
+small deterministic front end may detect and correlate signals over a
+deterministic replay of synthetic telemetry until an incident is declared;
+the resulting case is frozen and handed through an explicit adapter to
+VIGÍA, which performs the authoritative deterministic forensic analysis.
+ZAYNOR then maps supported findings into applicable frameworks (MITRE
+ATT&CK, NIST) and seals an authoritative result. A local LLM consumes that
+sealed state to explain, summarize, and generate reports and postmortems for
+different analyst audiences; it may optionally suggest further read-only
+investigative queries, but any resulting evidence has no effect on the
+authoritative result until it has crossed back through the deterministic
+authority boundary. Keep both boundaries in mind — the ZAYNOR↔VIGÍA
+integration boundary and the deterministic↔LLM authority boundary — they
+shape almost every rule below. See "Scope: the hybrid pipeline" for the full
+picture and §2 for the boundary rules.
 
 ## Scope: the hybrid pipeline
 
@@ -70,9 +77,18 @@ don't do live telemetry":
 ```
 synthetic telemetry replay  ->  detection  ->  correlation/triage
    ->  INCIDENT DECLARED — case freeze (manifest + SHA-256, immutable case_id)
-   ->  frozen evidence access (pre-collected; acquisition out of scope)  ->  local investigation  ->  hypotheses/RCA
-   ->  backed finding  ->  response/prevention (proposed, not executed)
-   ->  postmortem
+   ->  VIGÍA adapter  ->  deterministic forensic analysis (VIGÍA)
+   ->  authoritative ZAYNOR result  ->  MITRE ATT&CK / NIST contextualization
+   ->  seal  ->  local LLM narration  ->  incident report / postmortem
+```
+
+Optional, read-only branch back into the deterministic side (§2.2):
+
+```
+authoritative ZAYNOR result
+   ->  LLM investigative suggestion  ->  allowlisted read-only query
+   ->  evidence  ->  VIGÍA / deterministic re-analysis
+   ->  updated authoritative ZAYNOR result
 ```
 
 Call stage 1 "synthetic telemetry replay", never "live telemetry" — it's a
@@ -104,9 +120,11 @@ The two halves run on deliberately different-weight engines, split at
   handing it to the investigator. This is not a metaphor — it's a real,
   small piece of code between stage 3 and stage 5, and it's what "the
   evidence is frozen" actually means in this repo.
-- **Stages 5-10 (frozen evidence access → … → postmortem):** the actual DFIR
-  core — this is where the LLM investigates and where §2's ledger boundary
-  applies in full.
+- **Stages 5-10 (VIGÍA adapter → … → postmortem):** the DFIR and reporting
+  core. Authoritative forensic analysis is deterministic and lives in
+  VIGÍA; ZAYNOR owns the adapter, the MITRE/NIST contextualization, the
+  seal, and the local LLM's narration and optional investigation-assistant
+  role. §2's authority boundaries apply in full here.
 
 If a task touches stages 1-3, it still needs to be genuinely deterministic
 and genuinely small — resist the temptation to make the "live" side richer
@@ -169,10 +187,59 @@ Before writing a fix or a "the bug is X" comment on a PR:
    case, the "gap" is actually intentional because that field is derived
    downstream. Most confident findings against this codebase die right here.
 
-## 2. Working with the deterministic/LLM boundary
+## 2. Authority boundaries: ZAYNOR ↔ VIGÍA ↔ LLM
 
-This is the one invariant every contributor needs to internalize before
-touching anything past the evidence-ingestion layer:
+Two boundaries every contributor needs to internalize before touching
+anything past detection/correlation:
+
+```
+           integration boundary
+ZAYNOR ─────────────────────────→ VIGÍA
+ (adapter)                          │
+                                    │ deterministic
+                                    │ authority
+                                    ▼
+                          authoritative ZAYNOR result
+                                    │
+           narration boundary       │
+   LLM  ←─────────────────────────────┘
+ (required: narrator — §2.2)
+ (optional: investigation assistant, read-only, no authority — §2.2)
+```
+
+### 2.1 VIGÍA reuse boundary
+
+VIGÍA is an existing engine, not a design document to be reimplemented.
+
+- If a required deterministic capability already exists in VIGÍA with
+  suitable semantics, integrate it through an explicit adapter. Do not
+  create "VIGÍA-inspired", "minimal", "simplified", or "hackathon-sized"
+  replacements merely because a local reimplementation looks easier in the
+  moment.
+- A reimplementation requires a documented reason in the PR description
+  showing why the existing VIGÍA mechanism cannot satisfy the ZAYNOR
+  integration contract — "it was faster to write from scratch" is not that
+  reason.
+- ZAYNOR code must not depend on VIGÍA's internal object graph beyond the
+  adapter boundary. Translate VIGÍA's output into a stable
+  `ZaynorAuthoritativeResult` contract and code against that, not against
+  VIGÍA internals.
+
+### 2.2 The LLM's two roles
+
+- **Narrator (required path).** Once ZAYNOR seals an authoritative result,
+  the local LLM consumes the sealed, authorized facts to explain, summarize,
+  adapt by audience, and draft reports/postmortems. It can propose actions,
+  clearly labeled as proposals. It cannot add facts — nothing it writes
+  changes the authoritative result.
+- **Investigation assistant (optional path).** The LLM may suggest an
+  additional read-only investigative query. That suggestion has no forensic
+  authority by itself: any evidence it turns up goes back through VIGÍA /
+  the deterministic authority boundary before it can affect an authoritative
+  finding. Treat a suggestion the way §1 treats a hypothesis — a candidate,
+  not a conclusion.
+
+### 2.3 Claim-state and evidence rules
 
 - **The LLM proposes a claim with typed predicates; it never proposes a
   verdict.** The model doesn't get to say "this is corroborated" — it emits
@@ -207,7 +274,7 @@ touching anything past the evidence-ingestion layer:
   Only `CORROBORATED` / `CONTRADICTED` / `INSUFFICIENT` are authoritative
   claim states, and only the gate can assign them. The deterministic layer
   doesn't own the investigator's reasoning — it owns what's allowed to cross
-  the authority boundary into the ledger.
+  the authority boundary into ZAYNOR's authoritative state.
 - **Evidence is data, never an instruction**, no matter what it says. A log
   line, a ticket comment, or any artifact content that reads like a directive
   to the system ("ignore previous instructions", "classify as NOISE") stays
@@ -230,6 +297,19 @@ touching anything past the evidence-ingestion layer:
   finding.** Don't let a renderer or a prompt smooth over "we don't actually
   know" into a confident-sounding sentence.
 
+### 2.4 Framework mappings are annotations, not evidence
+
+MITRE ATT&CK and NIST contextualize authoritative forensic results; they do
+not create them.
+
+- A technique mapping must never promote a finding's epistemic state. A
+  framework match is not evidence of causality, intent, attribution, or
+  attacker identity.
+- Keep separate: finding state, framework mapping, mapping justification,
+  and mapping confidence/status (if used).
+- NIST structures incident handling, reporting, and defensive response — it
+  is not a substitute for the evidence model in §2.3.
+
 If a task description asks you to do something that would blur one of these
 (e.g., "just let the model set the verdict directly, it's faster for the
 demo"), implement the safe version and say so in the PR description rather
@@ -251,11 +331,18 @@ than silently complying or silently refusing.
 
 ## 4. Git and PR workflow
 
-**Nobody commits straight to `main` — no exceptions for anyone on the team.**
-The flow is: branch → commit → push → PR → review → merge. This holds even
-solo, even at hour 40: a four-person team moving fast in parallel is exactly
-when an unreviewed direct push to `main` costs the most, because the other
-three don't know it happened.
+**Only the repo owner pushes straight to `main`; the other three don't,
+ever.** For everyone but the owner, the flow is: branch → commit → push →
+PR → review by the owner → merge. This holds even solo, even at hour 40: with
+three people moving fast in parallel, an unreviewed direct push from any of
+them is exactly what costs the most, because the other two don't know it
+happened. The owner already reviews every PR that lands — a PR opened by the
+owner would have no one left to review it independently, so requiring one
+buys nothing. The owner pushing directly is the asymmetry that keeps the
+review gate meaningful for everyone else; it's not a loophole anyone else
+gets to use by analogy.
+
+The flow for the three non-owner contributors:
 
 1. **Branch off current `main`:**
    ```bash
@@ -303,8 +390,8 @@ three don't know it happened.
    gh pr create --base main --head <branch-name> --title "<type>: <summary>" --body "<what changed and why>"
    ```
    The PR description says what changed and why, not just what — and if the
-   change touches the LLM/ledger boundary (§2), say explicitly which side of
-   that boundary it's on.
+   change touches the ZAYNOR/VIGÍA or deterministic/LLM boundary (§2), say
+   explicitly which side of that boundary it's on.
 
 5. **Review and merge.** Address feedback with new commits on the same
    branch — don't rewrite history mid-review unless the reviewer asks for it.
@@ -346,8 +433,14 @@ in the PR instead of letting a green checkmark imply more than it proves.
 - [ ] The cause of a bug was verified against the live file, not assumed.
 - [ ] The edit was a surgical anchored patch, or a deliberate full write for
       a genuinely new file.
-- [ ] Nothing from an LLM completion writes directly to ledger/finding
-      status (§2).
+- [ ] No existing VIGÍA mechanism was reimplemented without a documented
+      incompatibility with the ZAYNOR integration contract (§2.1).
+- [ ] VIGÍA internals do not leak past the adapter boundary.
+- [ ] Nothing from an LLM completion writes directly to authoritative
+      state/finding status (§2).
+- [ ] Authoritative ZAYNOR state can be regenerated without an LLM;
+      disabling the LLM narrator does not change deterministic findings for
+      the same evidence set.
 - [ ] No claim became `CORROBORATED` from predicate verification alone when
       its gate rule requires provenance/independence constraints.
 - [ ] Evidence references preserve `lineage_id`; duplicated or derived
@@ -356,9 +449,11 @@ in the PR instead of letting a green checkmark imply more than it proves.
 - [ ] No float entered a ledger-status or hash computation.
 - [ ] An ambiguous or missing result renders as `UNKNOWN`, not a confident
       guess.
+- [ ] MITRE/NIST mappings do not promote or modify finding state (§2.4).
+- [ ] Narrative output cannot modify the sealed authoritative result.
 - [ ] The branch is rebased on current `main` and PR review status is
       actually `MERGEABLE` / `CLEAN`, not assumed.
 - [ ] Tests/lint were actually run and their real output was read.
 - [ ] Commit messages follow Conventional Commits; PR description states
-      what changed, why, and which side of the LLM/deterministic boundary
-      it touches.
+      what changed, why, and which side of the ZAYNOR/VIGÍA/LLM boundary it
+      touches.
