@@ -165,12 +165,26 @@ def run_vigia_mode1(
         stdout_path = Path(run_dir) / "stdout.log"
         stderr_path = Path(run_dir) / "stderr.log"
 
+        # vigia/sift/registry_timeline_reconstructor.py and memory_forensics.py
+        # each keep their OWN allowlist of readable paths, separate from
+        # VIGIA_EVIDENCE_DIR — confirmed by running a real Digital Corpora
+        # image (2019-OWL) through Mode 1: every registry hive was rejected
+        # with "Hive outside configured allowlist" even though it sat inside
+        # VIGIA_EVIDENCE_DIR, because neither module reads that variable.
+        # Their own env vars default to hardcoded system paths (/cases,
+        # /evidence, /var/vigia/registry) that don't cover an arbitrary
+        # ZAYNOR case directory, so both are pointed at the evidence root.
+        evidence_root = str(evidence_path if evidence_path.is_dir() else evidence_path.parent)
+        subprocess_env = dict(os.environ)
+        subprocess_env["VIGIA_ALLOWED_REGISTRY_PATHS"] = evidence_root
+        subprocess_env["VIGIA_ALLOWED_DUMP_PATHS"] = evidence_root
+
         try:
             with stdout_path.open("wb") as stdout, stderr_path.open("wb") as stderr:
                 result = subprocess.run(
                     [python_executable, str(agent_path), "--evidence", str(evidence_path),
                      "--case-id", case_id, "--output", str(internal_output)],
-                    cwd=str(vigia_repo_path), stdout=stdout, stderr=stderr,
+                    cwd=str(vigia_repo_path), env=subprocess_env, stdout=stdout, stderr=stderr,
                     timeout=timeout_seconds,
                 )
         except subprocess.TimeoutExpired as exc:
@@ -226,6 +240,54 @@ def run_vigia_mode1(
             sidecar_temp = Path(temp.name)
         os.replace(sidecar_temp, sidecar_output)
         return bundle
+
+
+def _signal_evidence_ref(signal: dict) -> EvidenceRef | None:
+    """Extract an `EvidenceRef` from one `pipeline_results.signals[]` entry,
+    covering the two real signal shapes confirmed by running actual
+    evidence through Mode 1:
+
+    1. **EBS-JSON ingestion** (`ebs_artifact_scorer.py`'s path): a top-level
+       `artifact_id` string identifies the artifact directly.
+    2. **Real forensic-image ingestion** (confirmed against a real Digital
+       Corpora image, `2019-OWL`): no `artifact_id` at all. The identifying
+       field varies per analyzer — `metadata.hive_sha256` (registry),
+       `metadata.source_path` (prefetch), `metadata.source_profile`
+       (browser) were each observed on a real bundle — so the most specific
+       one present is used, falling back to `metadata.artifact_type` alone
+       if none of them are.
+
+    `lineage_id` is `artifact_type` in both shapes, not the more specific
+    per-artifact identifier: multiple registry hives (SAM, SYSTEM, ...) are
+    genuinely distinct files, but they are not independent *analysis*
+    lineages — they were parsed by the same registry pipeline from the same
+    disk acquisition. Treating each hive as an independently-corroborating
+    source would overclaim; AGENTS.md's `distinct_lineages` bar is meant to
+    be hard to clear, not easy.
+
+    Returns `None` for a signal VIGÍA itself marked as not a real
+    observation (`metadata.unanalyzed`), or one with no identifying field
+    at all.
+    """
+    if not isinstance(signal, dict):
+        return None
+    metadata = signal.get("metadata")
+    if isinstance(metadata, dict) and metadata.get("unanalyzed"):
+        return None
+
+    artifact_id = signal.get("artifact_id")
+    if isinstance(artifact_id, str) and artifact_id:
+        return EvidenceRef(artifact=artifact_id, lineage_id=artifact_id)
+
+    if not isinstance(metadata, dict):
+        return None
+    artifact_type = metadata.get("artifact_type")
+    if not isinstance(artifact_type, str) or not artifact_type:
+        return None
+
+    specific = metadata.get("hive_sha256") or metadata.get("source_path") or metadata.get("source_profile") or metadata.get("path")
+    identifier = f"{artifact_type}:{specific}" if isinstance(specific, str) and specific else artifact_type
+    return EvidenceRef(artifact=identifier, lineage_id=artifact_type)
 
 
 def translate_mode1_bundle(case_id: str, bundle: dict[str, Any]) -> ZaynorAuthoritativeResult:
@@ -290,12 +352,7 @@ def translate_mode1_bundle(case_id: str, bundle: dict[str, Any]) -> ZaynorAuthor
 
     raw_signals = bundle.get("pipeline_results", {}).get("signals", [])
     evidence_refs = tuple(
-        EvidenceRef(artifact=signal["artifact_id"], lineage_id=signal["artifact_id"])
-        for signal in raw_signals
-        if isinstance(signal, dict)
-        and isinstance(signal.get("artifact_id"), str)
-        and signal.get("artifact_id")
-        and not (isinstance(signal.get("metadata"), dict) and signal["metadata"].get("unanalyzed"))
+        ref for ref in (_signal_evidence_ref(signal) for signal in raw_signals) if ref is not None
     )
 
     if evidence_refs:
