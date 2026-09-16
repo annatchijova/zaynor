@@ -1,0 +1,14 @@
+[project]
+name = "zaynor"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    # MCP client SDK — talks to VIGÍA's bridge (vigia_sift_bridge.py) over
+    # stdio. Already used to build src/zaynor/vigia_mcp_client.py; no
+    # ZAYNOR-local reimplementation of the MCP protocol was considered a
+    # reasonable alternative.
+    "mcp>=1.27",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
