@@ -79,3 +79,41 @@ class CaseManifest:
 
     case_id: str
     entries: tuple[ManifestEntry, ...]
+
+
+@dataclass(frozen=True)
+class EvidenceRef:
+    """Stable reference to frozen evidence, including its lineage."""
+
+    artifact: str
+    lineage_id: str
+
+
+@dataclass(frozen=True)
+class AuthoritativeFinding:
+    """ZAYNOR-owned finding contract translated from VIGÍA output."""
+
+    finding_id: str
+    state: str
+    evidence_refs: tuple[EvidenceRef, ...] = ()
+    lineage_ids: tuple[str, ...] = ()
+    rationale: str = ""
+    mitre: dict[str, Any] | None = None
+    nist: dict[str, Any] | None = None
+
+
+@dataclass(frozen=True)
+class ZaynorAuthoritativeResult:
+    """Stable authority-boundary contract; no VIGÍA object crosses it."""
+
+    case_id: str
+    engine: dict[str, str]
+    observations: tuple[dict[str, Any], ...] = ()
+    timeline: tuple[dict[str, Any], ...] = ()
+    fractures: tuple[dict[str, Any], ...] = ()
+    hypotheses: tuple[dict[str, Any], ...] = ()
+    findings: tuple[AuthoritativeFinding, ...] = ()
+    unknowns: tuple[str, ...] = ()
+    provenance: tuple[dict[str, Any], ...] = ()
+    integrity: dict[str, Any] = field(default_factory=dict)
+    audit_refs: tuple[str, ...] = ()
