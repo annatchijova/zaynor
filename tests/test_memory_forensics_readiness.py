@@ -1,23 +1,29 @@
-"""Confirms the memory/Volatility3 path is operationally ready, without a
-real memory dump (sourcing one from Digital Corpora is separate, deferred
-work — see docs/implementation-plan.en.md).
+"""Confirms the memory/Volatility3 path Mode 1 actually uses is
+operationally ready, without a real memory dump (sourcing one from Digital
+Corpora is separate, deferred work — see docs/implementation-plan.en.md).
 
-No new ZAYNOR code exists for this path on purpose (AGENTS.md §2.1): once
-a `.raw`/`.vmem`/`.mem`/`.dmp` file sits in a case's evidence directory,
-`zaynor_mode1_executor.run_vigia_mode1` already routes it through the same
-mechanism confirmed for registry/prefetch/browser/event-log — it just sets
-`VIGIA_ALLOWED_DUMP_PATHS` to the evidence root the same way it does
-`VIGIA_ALLOWED_REGISTRY_PATHS`. This test only confirms the external
-dependency (the `vol` binary) that mechanism relies on is actually present
-and runnable — not that a real analysis succeeds, which needs real data.
+Corrects a claim from an earlier pass (red-team round 5, 2026-09-16): this
+used to check `vigia.sift.memory_forensics.Volatility3Interface`, but that
+module is never actually invoked by Mode 1. The root `sift_orchestrator.py`
+shim `vigia_agent.py` imports does its own direct Volatility3 subprocess
+call (`_analyze_memory_vol3`/`_vol3_run`, `vol -f <path> <plugin>`) for
+memory, in every evidence combination — confirmed by reading its
+`analyze()`. This test exercises that real mechanism instead: the binary
+resolution gap it has (`vol` vs the fallback name `"vol3"`) and ZAYNOR's
+fix for it (`ensure_vol3_alias_on_path` in `zaynor_mode1_executor.py`).
 """
 
 from __future__ import annotations
 
-import sys
+import os
+import shutil
+import subprocess
+import tempfile
 from pathlib import Path
 
 import pytest
+
+from zaynor.zaynor_mode1_executor import ensure_vol3_alias_on_path
 
 VIGIA_REPO_PATH = Path("/home/labestiadevigia/vigia-repo")
 
@@ -27,26 +33,48 @@ pytestmark = pytest.mark.skipif(
 )
 
 
-def test_volatility3_binary_is_installed_and_runnable():
-    """`Volatility3Interface()`'s constructor itself runs `vol --version`
-    and would raise `RuntimeError` if the binary were missing or timed out
-    — constructing it without raising is the real, meaningful check here.
-
-    `interface.version` legitimately comes back "unknown" in this
-    environment: `vol --version` exits 2 ("unrecognized arguments:
-    --version") on the installed Volatility3 2.28.0 (confirmed via
-    `pip show volatility3`) — this specific CLI build doesn't support that
-    flag, so the regex in `_detect_version()` has nothing to match. That's
-    VIGÍA's own graceful degradation (catches only TimeoutExpired/
-    FileNotFoundError, returns "unknown" otherwise), not a bug being
-    reported here — real plugin invocation (`vol -f <dump> <plugin>`, what
-    `_run_plugin` actually uses) doesn't depend on `--version` at all.
+def test_real_vol_binary_is_installed():
+    """The binary VIGÍA's Mode-1 memory path ultimately needs — regardless
+    of which name it resolves it under — must actually be present.
     """
-    sys.path.insert(0, str(VIGIA_REPO_PATH))
-    try:
-        from vigia.sift.memory_forensics import Volatility3Interface
-    finally:
-        sys.path.remove(str(VIGIA_REPO_PATH))
+    assert shutil.which("vol") is not None
 
-    interface = Volatility3Interface()  # would raise if `vol` were missing
-    assert interface.version == "unknown"  # documents the known CLI-flag gap above
+
+def test_vol3_alias_makes_vigias_fallback_name_resolve_and_run():
+    """Reproduces the real gap and confirms the fix, by induction, not by
+    reading code: `sift_orchestrator.py::_vol3_run` invokes the bare name
+    `"vol3"` when its sibling-of-interpreter check fails (the case in this
+    environment, since `pip install --user volatility3` puts the `vol`
+    console script in the user site's bin, not next to `sys.executable`).
+    Before the fix, `subprocess.run(["vol3", ...])` raises
+    `FileNotFoundError` — VIGÍA catches it generically and returns a silent
+    zero-signal result. After `ensure_vol3_alias_on_path`, the same
+    subprocess call must actually run the real `vol` binary.
+    """
+    env = dict(os.environ)
+    with tempfile.TemporaryDirectory() as shim_parent:
+        ensure_vol3_alias_on_path(env, Path(shim_parent))
+        result = subprocess.run(
+            ["vol3", "-h"], env=env, capture_output=True, text=True, timeout=30
+        )
+    assert result.returncode == 0
+    assert "usage" in result.stdout.lower()
+
+
+def test_vol3_alias_is_a_noop_when_vol3_already_resolves(tmp_path):
+    """If a real `vol3` were ever on PATH, the shim must not shadow it with
+    a `vol`-pointing alias — `ensure_vol3_alias_on_path` checks
+    `shutil.which("vol3")` before creating anything.
+    """
+    real_vol3 = tmp_path / "vol3"
+    real_vol3.write_text("#!/bin/sh\necho REAL_VOL3\n")
+    real_vol3.chmod(0o755)
+
+    env = dict(os.environ)
+    env["PATH"] = f"{tmp_path}{os.pathsep}{env.get('PATH', '')}"
+    with tempfile.TemporaryDirectory() as shim_parent:
+        ensure_vol3_alias_on_path(env, Path(shim_parent))
+        result = subprocess.run(
+            ["vol3"], env=env, capture_output=True, text=True, timeout=30
+        )
+    assert result.stdout.strip() == "REAL_VOL3"

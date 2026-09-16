@@ -43,6 +43,7 @@ import hashlib
 import json
 import os
 import re
+import shutil
 import subprocess
 import tempfile
 from pathlib import Path
@@ -140,6 +141,41 @@ def _read_sidecar(sidecar: Path, bundle_digest: str) -> None:
         raise Mode1ExecutionError("VIGÍA bundle digest sidecar does not match bundle bytes")
 
 
+def ensure_vol3_alias_on_path(subprocess_env: dict[str, str], shim_parent_dir: Path) -> None:
+    """Make the bare name `vol3` resolve to the real `vol` binary, scoped to
+    `subprocess_env["PATH"]` only — never touches the real environment.
+
+    `sift_orchestrator.py`'s own binary resolution (`_VOL3 = Path(sys.
+    executable).parent / "vol"`, falling back to the bare name `"vol3"` on
+    PATH) does not find a real binary whenever the interpreter running
+    `vigia_agent.py` has no `vol` sibling — the common case for a
+    `pip install --user volatility3` layout, which installs the `vol`
+    console script into the user site's bin directory, not next to
+    `sys.executable`. Confirmed by induction (red-team round 5): with the
+    default `python3`, `sys.executable` resolves to `/usr/bin/python3`,
+    `/usr/bin/vol` does not exist, and the fallback name `"vol3"` is also
+    not on PATH (only `vol` is). Left unfixed, every memory-analysis
+    subprocess call raises `FileNotFoundError`, caught generically inside
+    VIGÍA's own `_vol3_run` and turned into a silent zero-signal result —
+    indistinguishable from "the dump was clean" without reading logs.
+
+    This is VIGÍA's own binary-name mismatch, not something to patch inside
+    vigia-repo (AGENTS.md §2.1: integrate, never modify/reimplement VIGÍA)
+    — the fix lives entirely on ZAYNOR's side of the subprocess boundary: a
+    `vol3` symlink to the real `vol` binary, in a private directory
+    prepended to this one subprocess's PATH.
+    """
+    env_path = subprocess_env.get("PATH")
+    real_vol_binary = shutil.which("vol", path=env_path)
+    if real_vol_binary and not shutil.which("vol3", path=env_path):
+        shim_dir = shim_parent_dir / ".vol3-shim"
+        shim_dir.mkdir(exist_ok=True)
+        alias = shim_dir / "vol3"
+        if not alias.exists():
+            alias.symlink_to(real_vol_binary)
+        subprocess_env["PATH"] = f"{shim_dir}{os.pathsep}{subprocess_env.get('PATH', '')}"
+
+
 def run_vigia_mode1(
     vigia_repo_path: Path,
     evidence_path: Path,
@@ -189,22 +225,29 @@ def run_vigia_mode1(
         # /evidence, /var/vigia/registry) that don't cover an arbitrary
         # ZAYNOR case directory, so both are pointed at the evidence root.
         #
-        # This is also the memory/Volatility path (VIGIA_ALLOWED_DUMP_PATHS
-        # is memory_forensics.py's allowlist): _build_orchestrator_kwargs
-        # auto-detects `.raw`/`.vmem`/`.mem`/`.dmp` in the evidence directory
-        # into `memory_path`, and `sift_orchestrator.py` calls
-        # `MemoryForensicsEngine.analyze()` (real Volatility3 plugins:
-        # pslist, malfind, netscan, cmdline) on it — no separate ZAYNOR code
-        # needed, per AGENTS.md §2.1 (call the existing mechanism, don't
-        # reimplement it). Confirmed operational (the `vol` binary is
-        # installed and runnable on this machine) but NOT yet exercised
-        # end-to-end here: no real memory dump was available locally when
-        # this was checked (Digital Corpora's memory scenarios run into the
-        # gigabytes) — sourcing one is separate, deferred work.
+        # This is also the memory/Volatility path. Correcting an earlier,
+        # unverified claim in this comment (audited in red-team round 5):
+        # `_build_orchestrator_kwargs` auto-detects `.raw`/`.vmem`/`.mem`/
+        # `.dmp` in the evidence directory into `memory_path`, but the root
+        # `sift_orchestrator.py` shim `vigia_agent.py` actually imports
+        # (`from sift_orchestrator import SIFTOrchestrator`, NOT
+        # `vigia.sift.sift_orchestrator`) NEVER calls
+        # `vigia.sift.memory_forensics.MemoryForensicsEngine` — confirmed by
+        # reading its `analyze()`: memory always goes through its own direct
+        # `_analyze_memory_vol3`/`_vol3_run` (`vol -f <path> <plugin>`
+        # subprocess), even in the mixed-evidence branch, explicitly to
+        # avoid double-counting memory signals if `MemoryForensicsEngine`
+        # also ran. `VIGIA_ALLOWED_DUMP_PATHS` therefore gates a module Mode
+        # 1 never reaches for memory — it is set anyway for forward
+        # compatibility (harmless) and because it *is* the real allowlist
+        # for `registry_timeline_reconstructor.py`, which does share this
+        # env var name's sibling. See `ensure_vol3_alias_on_path` for the
+        # separate `vol` vs `vol3` binary-name gap in that same path.
         evidence_root = str(evidence_path if evidence_path.is_dir() else evidence_path.parent)
         subprocess_env = dict(os.environ)
         subprocess_env["VIGIA_ALLOWED_REGISTRY_PATHS"] = evidence_root
         subprocess_env["VIGIA_ALLOWED_DUMP_PATHS"] = evidence_root
+        ensure_vol3_alias_on_path(subprocess_env, Path(run_dir))
 
         try:
             with stdout_path.open("wb") as stdout, stderr_path.open("wb") as stderr:
