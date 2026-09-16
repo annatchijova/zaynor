@@ -48,7 +48,7 @@ def test_mode1_runs_against_a_real_frozen_case(tmp_path):
     result = translate_mode1_bundle(manifest.case_id, bundle)
     assert result.case_id == manifest.case_id
     assert result.engine["name"] == "vigia_agent"
-    assert result.integrity["agent_verdict"] in {"MALICE", "ABSTAIN", "UNKNOWN", "BENIGN", "SUSPICION"}
+    assert result.verdict in {"MALICE", "ABSTAIN", "UNKNOWN", "BENIGN", "SUSPICION"}
     # This fixture's raw JSONL evidence matches none of VIGÍA's recognized
     # artifact patterns (see docs/implementation-plan.en.md Phase 0) — 0
     # signals, so no finding is fabricated from an uninformative verdict.

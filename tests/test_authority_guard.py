@@ -21,7 +21,8 @@ def _result() -> ZaynorAuthoritativeResult:
             mitre={"technique": "T1070.006"},
         ),),
         unknowns=("credential origin",),
-        integrity={"agent_verdict": "ABSTAIN", "confidence": Fraction(1, 2)},
+        verdict="ABSTAIN",
+        integrity={"confidence": Fraction(1, 2)},
     )
 
 

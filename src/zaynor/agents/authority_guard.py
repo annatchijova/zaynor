@@ -38,19 +38,21 @@ def _as_result_dict(result: ZaynorAuthoritativeResult) -> dict[str, Any]:
 
 
 def _techniques(result: dict[str, Any]) -> set[str]:
+    """Read the specific authorized ATT&CK field, not string shape.
+
+    A structural guard must not infer ATT&CK semantics from a value merely
+    *looking like* a technique id (`T####`) — that authorizes any string of
+    the right shape, regardless of where it came from. Authorization comes
+    only from `finding.mitre["technique"]`, the field VIGÍA/the adapter
+    actually populates (see `AuthoritativeFinding.mitre` in schemas.py).
+    """
     found: set[str] = set()
-
-    def walk(value: Any) -> None:
-        if isinstance(value, str) and value.startswith("T") and value[1:5].isdigit():
-            found.add(value.upper())
-        elif isinstance(value, Mapping):
-            for item in value.values():
-                walk(item)
-        elif isinstance(value, (list, tuple)):
-            for item in value:
-                walk(item)
-
-    walk([finding.get("mitre") for finding in result["findings"]])
+    for finding in result["findings"]:
+        mitre = finding.get("mitre")
+        if isinstance(mitre, Mapping):
+            technique = mitre.get("technique")
+            if isinstance(technique, str):
+                found.add(technique.upper())
     return found
 
 
@@ -84,7 +86,7 @@ def check_structured_output(
         raise AuthorityGuardError("presented result hash does not match seal")
 
     presented_verdict = presented.get("verdict")
-    authorized_verdict = result.integrity.get("agent_verdict")
+    authorized_verdict = result.verdict
     if presented_verdict is not None and presented_verdict != authorized_verdict:
         raise AuthorityGuardError("presented verdict does not match authority")
 
@@ -131,7 +133,6 @@ def check_narrative(result: ZaynorAuthoritativeResult, narration: str):
     facts = set(extract_authorized_facts(data))
     for finding in result.findings:
         facts.add(AuthorizedFact("verdict", f"findings[{finding.finding_id}].state", finding.state, "exact"))
-    verdict = result.integrity.get("agent_verdict")
-    if isinstance(verdict, str):
-        facts.add(AuthorizedFact("verdict", "integrity.agent_verdict", verdict, "exact"))
+    if isinstance(result.verdict, str):
+        facts.add(AuthorizedFact("verdict", "verdict", result.verdict, "exact"))
     return HallucinationGuard(frozenset(facts)).check(narration)

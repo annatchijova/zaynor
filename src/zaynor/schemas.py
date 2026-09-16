@@ -129,6 +129,7 @@ class ZaynorAuthoritativeResult:
 
     case_id: str
     engine: dict[str, str]
+    verdict: str = "UNKNOWN"
     observations: tuple[dict[str, Any], ...] = ()
     timeline: tuple[dict[str, Any], ...] = ()
     fractures: tuple[dict[str, Any], ...] = ()

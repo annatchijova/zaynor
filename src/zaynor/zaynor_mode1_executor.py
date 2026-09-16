@@ -339,8 +339,13 @@ def translate_mode1_bundle(case_id: str, bundle: dict[str, Any]) -> ZaynorAuthor
     this is a truth claim about the evidence):
     - `engine`: name="vigia_agent", version=`vigia_agent_version`,
       configuration_hash=`runtime_fingerprint`.
+    - `verdict`: the canonical ZAYNOR verdict, top-level and authoritative —
+      never nested under `integrity`, so a reader cannot mistake it for an
+      "agent's opinion" folded into a bag of health-check fields.
     - `integrity`: verified `evidence_sha256`, `iterations_executed`,
-      `self_corrections_applied`, and the canonical ZAYNOR verdict.
+      `self_corrections_applied`, and `vigia_agent_verdict` (VIGÍA's own raw
+      domain vocabulary, kept for provenance — distinct from `verdict`,
+      which is ZAYNOR's canonical translation of it).
     - `audit_refs`: one reference per `audit_trail` entry's action name —
       the entries themselves stay in VIGÍA's bundle, not duplicated here.
 
@@ -380,7 +385,6 @@ def translate_mode1_bundle(case_id: str, bundle: dict[str, Any]) -> ZaynorAuthor
         "evidence_sha256": bundle.get("evidence_sha256", "UNKNOWN"),
         "iterations_executed": bundle.get("iterations_executed", "UNKNOWN"),
         "self_corrections_applied": bundle.get("self_corrections_applied", "UNKNOWN"),
-        "agent_verdict": _CANONICAL_VERDICT[raw_verdict],
         "vigia_agent_verdict": raw_verdict,
     }
 
@@ -430,6 +434,7 @@ def translate_mode1_bundle(case_id: str, bundle: dict[str, Any]) -> ZaynorAuthor
     return ZaynorAuthoritativeResult(
         case_id=case_id,
         engine=engine,
+        verdict=_CANONICAL_VERDICT[raw_verdict],
         findings=findings,
         unknowns=unknowns,
         integrity=integrity,

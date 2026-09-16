@@ -103,9 +103,14 @@ def translate_result(case_id: str, raw: Mapping[str, Any]) -> ZaynorAuthoritativ
     if not isinstance(findings_raw, list):
         raise AdapterError("findings must be a list")
 
+    verdict = raw.get("verdict", "UNKNOWN")
+    if not isinstance(verdict, str):
+        raise AdapterError("verdict must be a string")
+
     return ZaynorAuthoritativeResult(
         case_id=case_id,
         engine=engine,
+        verdict=verdict,
         observations=_as_records(raw.get("observations")),
         timeline=_as_records(raw.get("timeline")),
         fractures=_as_records(raw.get("fractures")),
@@ -196,6 +201,7 @@ class ZaynorMode1Adapter:
                 return ZaynorAuthoritativeResult(
                     case_id=result.case_id,
                     engine=result.engine,
+                    verdict=result.verdict,
                     observations=result.observations,
                     timeline=result.timeline,
                     fractures=result.fractures,

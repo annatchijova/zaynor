@@ -21,7 +21,7 @@ _TOOL_EFFECTS = {
     "verify_custody": (CapabilityEffect.READ, "custody"),
     "read_mission": (CapabilityEffect.READ, "case_memory"),
     "task_specialist": (CapabilityEffect.DERIVE, "investigation_plan"),
-    "record_hypothesis": (CapabilityEffect.DERIVE, "investigation_plan"),
+    "record_hypothesis_proposal": (CapabilityEffect.DERIVE, "investigation_plan"),
     "schedule_review": (CapabilityEffect.DERIVE, "investigation_plan"),
     "escalate_human": (CapabilityEffect.DERIVE, "investigation_plan"),
     "stand_down": (CapabilityEffect.DERIVE, "investigation_plan"),

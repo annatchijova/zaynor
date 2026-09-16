@@ -27,7 +27,7 @@ _SPECS = (
     AgentSpec(AgentRole.THREAT_INTEL, REGISTRY_VERSION, ("enrich_indicators",), ("external_enrichment",), capabilities=(_DERIVE("threat_intel"),)),
     AgentSpec(AgentRole.DETECTION_ENGINEER, REGISTRY_VERSION, ("draft_sigma_rule",), ("sealed_results", "telemetry"), capabilities=(_DERIVE("detection_rule"),)),
     AgentSpec(AgentRole.INVESTIGATOR, REGISTRY_VERSION, ("list_hunts", "collect_window", "request_adjudication", "verify_custody"), ("frozen_evidence", "sealed_results"), capabilities=(_READ("hunt_catalog"), _ACQUIRE("evidence_window"), _READ("sealed_results"), _READ("custody"))),
-    AgentSpec(AgentRole.FLEET_COMMANDER, REGISTRY_VERSION, ("read_mission", "task_specialist", "record_hypothesis", "schedule_review", "escalate_human", "stand_down"), ("case_memory",), capabilities=(_READ("case_memory"), _DERIVE("investigation_plan"))),
+    AgentSpec(AgentRole.FLEET_COMMANDER, REGISTRY_VERSION, ("read_mission", "task_specialist", "record_hypothesis_proposal", "schedule_review", "escalate_human", "stand_down"), ("case_memory",), capabilities=(_READ("case_memory"), _DERIVE("investigation_plan"))),
     AgentSpec(AgentRole.MENTOR, REGISTRY_VERSION, ("explain_result", "explain_framework", "list_hunts"), ("sealed_results", "reference_material"), capabilities=(_READ("sealed_results"), _READ("reference_material"))),
 )
 
