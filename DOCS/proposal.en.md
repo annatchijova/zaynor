@@ -1,207 +1,258 @@
-# Improved proposal — Zaynor: hybrid DFIR with a verifiable postmortem
+# Proposal — Zaynor: post-incident DFIR on top of VIGÍA's deterministic engine
 
 *[Leer en español](./propuesta.md)*
 
-> This document replaces and extends the initial reconnaissance
-> (`hackathon_dfir_recon_2026-09-15.md`) in light of two signals from the
-> judges: they want to see a **postmortem** as an explicit deliverable, not
-> something implicit in the incident report; and the **VIGÍA** mechanism
-> (read-only sandbox + sealing a deterministic result before any narration)
-> was the point that convinced them the most. Both signals change where we
-> put effort, not the underlying architecture — the deterministic/LLM
-> boundary from `AGENTS.md` §2 remains the backbone.
+> This is the second revision of the proposal (replaces the previous
+> version, which still assumed Zaynor would reimplement miniature versions
+> of VIGÍA's mechanisms). The substantive change, after judge/mentor
+> feedback: **VIGÍA is a pre-existing deterministic forensic engine, and
+> Zaynor does not rewrite it — it consumes it behind a narrow boundary.**
+> See `DOCS/implementation-plan.en.md` for the layer-by-layer breakdown of
+> how this gets built.
 
-## 0. What changes relative to the initial recon
+## 0. Why the architecture changes (and what doesn't)
 
-1. **Postmortem moves from "mentioned" to a first-class component.** The
-   original recon ended at an "incident report renderer" (§I) that already
-   included proposed actions, but not a structured, separate postmortem. It
-   is now stage 10 of the pipeline (see `AGENTS.md`), with its own content
-   contract (§5 below).
-2. **VIGÍA moves from "design reference" to "adapted mechanism" in three
-   places that used to sit at the margin:** the audit hash-chain
-   (`tool_log_chain.py`) moves from P1/optional to P0 — it is exactly what
-   made the demo credible to the judges, so it doesn't get cut under time
-   pressure; the seal-before-narrating separation (`bundle_builder.py`)
-   stops being "reference only" and is adapted directly for the postmortem
-   renderer; CAIE (`caie.py`) stays a design reference — it is still not
-   needed for one incident with one designed fracture, and forcing it in now
-   would be the easiest way to burn the remaining time (see §K of the
-   original recon, still valid).
-3. **Terminology aligned with the contract already in force in the repo**
-   (`AGENTS.md` §2): this no longer talks about a generic "hypothesis
-   ledger" or "corroboration count ≥2" — the deterministic gate works over
-   typed *claims* with typed *predicates* (`{event_id, field, op, value}`),
-   each predicate is verified by re-reading the frozen evidence, and a claim
-   only reaches `CORROBORATED` if it additionally satisfies the provenance
-   and lineage-independence requirements (`lineage_id`, `distinct_lineages`)
-   declared by the gate rule. The postmortem inherits that same discipline:
-   it cannot cite anything that isn't in the ledger as `CORROBORATED` or
-   explicitly flagged `UNKNOWN`.
+What does **not** change: the guiding principle is the same as in the first
+proposal —
+
+> The AI decides what to investigate. The AI does not decide what is true.
+
+What changes is *who* implements the deterministic epistemic authority. The
+previous proposal had Zaynor rebuilding, at hackathon scale, small versions
+of mechanisms VIGÍA already has solved and tested: a corroboration gate, a
+fracture detector, an audit chain, a hallucination guard. Rewriting that in
+48 hours produces a worse version of something that already exists, and
+hands the judges — who already saw and valued VIGÍA — the worst possible
+story: "we had 100k lines and rewrote 1,800 of them so we could say we built
+them ourselves." The fix is to treat VIGÍA as an **engine/backend** behind
+an adapter, not as a design reference to reimplement.
+
+This forces a distinction the previous proposal collapsed into one:
+
+- **Investigative agency** — deciding what evidence to inspect next, given a
+  question that discriminates between competing hypotheses. The LLM can
+  have this.
+- **Epistemic authority** — deciding what state (`OBSERVED`, `CORROBORATED`,
+  `CONTRADICTED`, `UNKNOWN`) a claim about the evidence holds. Only the
+  deterministic engine (VIGÍA) has this, never the LLM.
+
+`investigative authority ≠ epistemic authority`: the LLM can guide an
+adaptive investigation without that implying it decides the truth. That
+distinction is what lets Zaynor run in two modes without contradicting
+itself:
+
+```
+Basic mode (no LLM investigator):
+  evidence -> VIGÍA (deterministic engine) -> findings -> LLM narrates
+
+Assisted mode (with LLM investigator):
+  evidence -> VIGÍA (initial analysis)
+      -> LLM: "I want to check X"
+      -> read-only deterministic tool
+      -> observation
+      -> VIGÍA (re-verifies, updates authoritative state)
+      -> finding
+```
 
 ## 1. Product thesis (updated)
 
-Zaynor covers the incident end to end. A light, deterministic front end
-(stages 1-3) detects and correlates over a deterministic replay of
-synthetic telemetry until an incident is declared; at that point the
-evidence is frozen (case freeze: manifest + SHA-256 + immutable
-`incident_key`) and the deep investigation starts (stages 5-9): a local LLM
-chooses which evidence to inspect, proposes *claims* with verifiable
-predicates, and a deterministic gate re-verifies them against the frozen
-evidence before letting them enter the ledger as `CORROBORATED`,
-`CONTRADICTED`, or `INSUFFICIENT` (rendered as `UNKNOWN`). The final stage
-(10) is the **postmortem**: a bilingual document, produced by a
-deterministic template plus LLM prose, that can only narrate over facts
-already authorized by the ledger — never invent a new one (ANNACONDA's
-`hallucination_guard` pattern).
+> Zaynor is a post-incident DFIR system built around a deterministic
+> forensic authority boundary. Existing VIGÍA mechanisms provide
+> reproducible evidence analysis, epistemic state, provenance, fracture
+> detection, and auditability — rather than being rewritten for the
+> hackathon. Zaynor adds the incident-oriented integration layer, MITRE
+> ATT&CK/NIST contextualization, the postmortem workflow, and a local LLM
+> interface. The LLM may explain deterministic findings and, optionally,
+> guide further read-only investigation, but it can never promote its own
+> conclusions into authoritative forensic state.
 
-## 2. Differentiator (unchanged in substance, focused on what the judges valued)
+## 2. Differentiator
 
-The contribution is not operational (it doesn't compete with a SIEM or a
-live-alert assistant): it's architectural. The LLM can only *choose what to
-investigate* over a read-only toolset and *propose claims with predicates*;
-it never writes a finding's status directly. The demo proves that boundary
-live with an adversarial evidence item that tries and fails to seize
-authority over the verdict — and now it also proves that the **final
-postmortem** inherits the same discipline: every statement in the
-postmortem is traceable to a `CORROBORATED` ledger entry, with its evidence
-citation and its `lineage_id`.
+Zaynor's contribution isn't "another forensic engine" — it's the
+integration layer that turns a general-purpose deterministic engine (VIGÍA)
+into a cyberdefense-oriented post-incident investigation application:
+declare the incident, freeze the case, invoke VIGÍA through a typed
+adapter, enrich the result with MITRE ATT&CK/NIST, and generate an incident
+report and a postmortem whose prose can never exceed what VIGÍA's ledger
+actually corroborated. The demo proves that boundary live with an
+adversarial evidence item that tries and fails to seize authority — and it
+also proves that **Zaynor never duplicates logic VIGÍA already solves**: if
+something has an equivalent in VIGÍA, it gets called, not reimplemented
+"small" just so Zaynor can claim it built it from scratch.
 
-## 3. Minimal architecture (updated)
+## 3. Architecture
 
 ```
- [1] Deterministic replay     [2] Detection/Correlation    [3] Case Freezer
-  of synthetic telemetry  --> (rule + correlation rule) --> manifest + SHA-256
-                                                              immutable incident_key
-                                                                    |
-                                                                    v
-                                                      [4] Frozen evidence +
-                                                          read-only tool layer
-                                                      (list_events, read_artifact,
-                                                       grep_pattern, get_timeline_window)
-                                                                    |
-                                                                    v
-                                                      [5] Local LLM investigator
-                                                      (Ollama, tool-calling loop)
-                                                      proposes CLAIMS with
-                                                      predicates, never a verdict
-                                                                    |
-                                                                    v
-                                          [6] Deterministic gate (predicate re-check)
-                                          VERIFIED by re-reading evidence directly;
-                                          CORROBORATED only if it also satisfies
-                                          provenance + lineage-independence
-                                                                    |
-                                                                    v
-                                          [7] Claim ledger (sole authority)
-                                          CORROBORATED / CONTRADICTED / INSUFFICIENT
-                                                                    |
-                                            +-----------------------+-----------------------+
-                                            v                                               v
-                                  [8] Incident report renderer                   [9] POSTMORTEM renderer
-                                  (bilingual)                                    (bilingual, stage 10)
-                                  narrative sealed alongside,                    deterministic template +
-                                  never inside the verdict                       LLM prose validated by
-                                                                                  hallucination_guard;
-                                                                                  audit hash-chain
-                                                                                  (VIGÍA) cited as evidence
-                                                                                  of process integrity
+                              ZAYNOR
+                                │
+                         INCIDENT / CASE
+                                │
+                                ▼
+                      FROZEN EVIDENCE
+              manifest + hashes + lineage (Zaynor-owned)
+                                │
+               ┌────────────────┴────────────────┐
+               │                                  │
+               ▼                                  ▼
+     VIGÍA — DETERMINISTIC ENGINE          AI-ASSISTED PATH (optional)
+     (existing, via adapter,                       │
+      NOT reimplemented)                    LLM decides what to
+               │                            investigate
+               │                                    │
+               │                            read-only tools
+               │                                    │
+               │                            candidate claims (predicates)
+               │                                    │
+               └────────────────┬─────────────────┘
+                                 ▼
+                       AUTHORITY BOUNDARY
+                    (inside VIGÍA: provenance/
+                     independence verification,
+                     fractures, contradictions)
+                                 │
+                                 ▼
+                    AUTHORITATIVE STATE (VIGÍA)
+              OBSERVED / CORROBORATED / CONTRADICTED / UNKNOWN
+                                 │
+                                 ▼
+                    ADAPTER: ZaynorAuthoritativeResult
+              (Zaynor does NOT know VIGÍA's internals —
+               only this stable typed contract)
+                                 │
+                                 ▼
+                    FRAMEWORK ENRICHMENT
+            MITRE ATT&CK (which technique) · NIST (how it
+            fits into investigation/response) — never raises
+            a finding's certainty, only contextualizes it
+                                 │
+                                 ▼
+                          SEALED RESULT
+                                 │
+                                 ▼
+                          LOCAL LLM
+              (narrates; hallucination guard validates every
+               citation against the sealed result)
+                                 │
+              ┌──────────────────┼──────────────────┐
+              ▼                  ▼                   ▼
+       incident report      postmortem        audience-specific
+       (what happened,      (what we learned,  summary/guidance
+        with what backing)   what changes)     (analyst/junior/exec)
 ```
 
-The postmortem (component 9) is deliberately a separate renderer from the
-incident report (component 8), not an extra section of the same document:
-the incident report answers "what happened, and with what confidence?" for
-whoever is responding now; the postmortem answers "what did we learn and
-what changes?" for whoever audits it later — different audiences and
-different moments, and separating them is what lets the judges see exactly
-what they asked for without having to extract it from a larger document.
+`VigiaAnalysisResult` (provisional name, confirmed against `vigia_agent.py`'s
+actual call signature when the adapter is built, per the corresponding
+layer in the implementation plan) is treated as a box with a stable
+contract: observations, timeline, fractures, competing hypotheses, findings
+with state/evidence_refs/provenance/rationale, `UNKNOWN` items, audit/
+integrity metadata, and engine version. If VIGÍA has fifteen different
+internal objects, Zaynor doesn't need to know — the adapter is exactly the
+point where that complexity gets absorbed.
 
-## 4. Repository reconnaissance (updated table)
+## 4. Repository reconnaissance — reuse decision
 
-| Mechanism | Repo | Previous decision | Decision now | Why it changed |
-|---|---|---|---|---|
-| Read-only evidence sandbox | VIGÍA (`vigia_sift_bridge.py`) | ADAPT | ADAPT (unchanged) | already P0 |
-| Canonicalizer | VIGÍA (`canonicalize.py`) | REUSE | REUSE (unchanged) | already P0 |
-| **Audit hash-chain** | VIGÍA (`tool_log_chain.py`, `hash_chain.py`) | ADAPT, **P1/optional** | ADAPT, **P0** | the judges explicitly valued VIGÍA's integrity chain; the postmortem cites this chain as evidence that the investigation process was not tampered with |
-| Deterministic gate (shape) | VIGÍA (`collapse_decision.py`) | ADAPT | ADAPT (unchanged, now expressed as the predicate/claim gate per `AGENTS.md` §2) | terminology aligned, mechanism unchanged |
-| **Seal-before-narrate** | VIGÍA (`bundle_builder.py`) | design reference | **adapt directly** for the postmortem renderer | exactly the pattern component 9 needs |
-| CAIE cross-artifact scoring | VIGÍA (`caie.py`) | design reference | design reference (unchanged) | still not needed for one incident with one designed fracture |
-| Hallucination guard | ANNACONDA (`hallucination_guard.py`) | REUSE | REUSE (unchanged) | validates both the incident report and the postmortem |
-| Chain of custody | ANNACONDA (`chain_of_custody.py`) | REUSE | REUSE (unchanged) | — |
-| OpenHands (agent loop, sandboxing, self-reported risk) | — | IGNORE | IGNORE (unchanged) | the original recon's cost/benefit analysis still holds: a Python ≥3.12 pin, a LiteLLM dependency, and either Docker or an unsandboxed `LocalWorkspace`, for capabilities this project doesn't need |
+The previous category ("ADAPT / design reference") is replaced with one
+that explicitly distinguishes calling something live from reimplementing
+it:
 
-## 5. Postmortem — content contract
+> **`REUSE/CALL`** — the existing VIGÍA module/engine is invoked through an
+> adapter; Zaynor does not reimplement its logic.
+> **`ADAPT`** — a narrow contract/signature is copied (not the whole file),
+> because VIGÍA embeds it in a component with too much of its own coupling
+> to call directly.
+> **`NEW ZAYNOR CODE`** — integration-specific logic (incident→case, MITRE/
+> NIST enrichment, postmortem) that doesn't exist in VIGÍA because it isn't
+> VIGÍA's domain.
 
-The postmortem is a generated document, not hand-written, with this fixed
-structure (deterministic template; the LLM only fills the marked prose
-sections, and only with `CORROBORATED` facts):
+Every path below was confirmed against the live VIGÍA repository
+(`/home/labestiadevigia/vigia-repo`) before writing this table:
 
-1. **Executive summary** (LLM prose, validated) — one to three sentences.
-2. **Reconstructed timeline** (ledger data, no prose) — every event with its
-   `event_id`, timestamp, and the status of the claim backing it.
-3. **Root cause** (LLM prose over the corresponding `CORROBORATED` claim,
-   citing its `lineage_id` and the independent sources that corroborate it).
-4. **Discarded hypotheses** — each with the specific `CONTRADICTED`
-   evidence that refuted it, never "discarded" without a citation.
-5. **`UNKNOWN` items** — explicit, not omitted. This is what separates an
-   honest postmortem from one that overclaims certainty (see
-   `daubert-defensible-writing`: a documented `UNKNOWN` is worth more than a
-   forced `CORROBORATED`).
-6. **Proposed prevention actions** (not executed) — tied to the corroborated
-   root cause, not to the full list of hypotheses.
-7. **Audit trail** — hash of the investigation's tool-call chain (adapted
-   VIGÍA mechanism), so the postmortem itself is independently verifiable by
-   whoever reads it.
+| Mechanism | Confirmed path in VIGÍA | Decision | Note |
+|---|---|---|---|
+| Analysis engine / entry point | `vigia_agent.py` | **REUSE/CALL** | exact call signature to confirm when building the adapter |
+| Read-only evidence sandbox | `vigia/core/path_guard.py` (`PathGuard`) | **ADAPT** | the path-confinement contract is copied, not the full module — VIGÍA couples it to its own MCP bridge |
+| Canonicalizer | `vigia/core/canonicalize.py` | **REUSE/CALL** | stdlib-only module, no coupling — imported directly |
+| Audit hash-chain | `vigia/core/tool_log_chain.py`, `vigia/core/hash_chain.py` | **REUSE/CALL** | this was what most convinced the judges — no small rewrite of it |
+| Deterministic corroboration gate | `vigia/collapse_decision.py` | **REUSE/CALL** | Zaynor does not reimplement its own gate |
+| Seal-before-narrate | `vigia/core/bundle_builder.py` (a second variant also exists at `forensics/bundle_builder.py` — which one applies is resolved when building the adapter) | **ADAPT** | the sequencing contract (seal before narrate) is adapted; the sealing implementation itself is called, not copied |
+| CAIE (cross-artifact scoring) | `vigia/tools/caie.py` | **out of scope** | still not needed for one incident with one designed fracture; neither called nor reimplemented |
+| MITRE ATT&CK mapping | TTP references as comments in `vigia_scorer.py`'s detection rules | **confirmed: no dedicated mapping engine exists** | this is a real gap relative to what the whiteboard assumed — MITRE/NIST enrichment is built as a new Zaynor layer (§5), not "reused," because there's no equivalent module to call |
+| OpenHands (agent loop, sandboxing, self-reported risk) | — | **IGNORE** | unchanged from the original recon: a Python ≥3.12 pin, a LiteLLM dependency, and either Docker or an unsandboxed `LocalWorkspace`, for capabilities this project doesn't need |
 
-Every prose section passes through the same `hallucination_guard` before
-rendering: if the LLM cites a fact that doesn't match the sealed ledger,
-that section is flagged as failed and rendered with the raw ledger data in
-its place — an unverified citation is never let through by default.
+The MITRE row is the most important correction in this revision relative to
+the whiteboard sketch: there's no VIGÍA module to call there, so labeling it
+"reused" would be exactly the false reuse this table is otherwise trying to
+avoid. It's built as a new layer, explicitly marked as such.
 
-## 6. Simulated incident, AI-necessity test, 3-minute demo
+## 5. MITRE ATT&CK / NIST enrichment
 
-Unchanged in substance from the original recon (`INC-2026-DEMO-001`, a
+A new Zaynor layer (no dedicated engine exists in VIGÍA for this), inserted
+between VIGÍA's authoritative state and the final sealing step — never
+before it:
+
+- **MITRE ATT&CK** describes which technique/behavior a `CORROBORATED`
+  finding corresponds to. It's contextualization, not additional evidence:
+  an ATT&CK mapping cannot move a finding from `INSUFFICIENT` to
+  `CORROBORATED`.
+- **NIST** (incident-response framework) structures how that finding fits
+  into the investigation/response/postmortem cycle — it's the taxonomy that
+  organizes the final document, not a source of truth about the facts.
+
+Neither framework has epistemic authority. If a MITRE mapping ever ends up
+treated as raising a finding's certainty, that's exactly the kind of
+authority leak `AGENTS.md` §2 prohibits — it gets treated the same as LLM
+prose: it contextualizes, it doesn't decide.
+
+## 6. Postmortem — content contract (corrected)
+
+The structure from the previous proposal stays nearly intact, with one
+epistemological correction: the template **cannot assume a corroborated
+root cause always exists.**
+
+1. Executive summary (validated LLM prose, 1-3 sentences).
+2. Reconstructed timeline (sealed-result data, no prose).
+3. **Root cause** — if a `CORROBORATED` claim supports it, it's narrated
+   citing its provenance and independent sources. **If none exists, the
+   section explicitly says `ROOT CAUSE: UNKNOWN` or lists the supported
+   contributing factors without forcing a single root cause.** The template
+   never invents a root cause just to fill a section.
+4. Discarded hypotheses, each with the specific `CONTRADICTED` evidence
+   that refuted it.
+5. Explicit `UNKNOWN` items — never omitted.
+6. Proposed defensive actions, **tied to corroborated findings and/or
+   observed risks, explicitly noting when the root cause remains
+   `UNKNOWN`** — not tied to a root cause that may not exist.
+7. Audit trail — hash of the investigation's tool-call chain (VIGÍA
+   mechanism, called via `REUSE/CALL`, not reimplemented).
+
+A global `MALICE`/`BENIGN`/`SUSPICIOUS` verdict per section is also not
+forced: the postmortem's main object can perfectly well end up as a list of
+findings with individual state (`CORROBORATED`, `CONTRADICTED`) plus
+explicit `UNKNOWN` fields (attribution, initial access vector, intent)
+without needing a single verdict label. If VIGÍA exposes an equivalent
+state with its own rigorous semantics, that's what gets used; a new one
+isn't invented just to fill a box in the diagram.
+
+## 7. Simulated incident, 3-minute demo
+
+Unchanged in substance from the previous proposal (`INC-2026-DEMO-001`, a
 compromised service account escalating to a stolen admin credential, the
-adversarial item in `ticket_comment.txt`, the deliberate `UNKNOWN` item
-about the intent behind the final pivot). The only adjustment is to the
-script: the final stretch of the demo (previously "2:30–2:50 final report")
-now shows **postmortem generation** explicitly as a separate step, with the
-audit chain visible on screen:
-
-- **2:10–2:30** — the adversarial ticket comment; the system logs it as
-  evidence and continues unaffected (unchanged).
-- **2:30–2:50** — the **postmortem** is generated: corroborated root cause,
-  discarded hypotheses with their evidence, one explicit `UNKNOWN` item, and
-  the investigation's audit chain visible as proof of integrity.
-- **2:50–3:00** — two proposed prevention actions + close.
-
-## 7. Build plan (updated)
-
-**P0 (previously P1, now required):**
-- Audit hash-chain over the investigation's tool calls (adapted VIGÍA
-  `tool_log_chain.py`) — no longer "valuable if time allows"; it's what the
-  postmortem cites as proof of integrity.
-- Postmortem renderer (deterministic template + validated LLM prose,
-  `bundle_builder.py`'s seal-before-narrate pattern).
-
-**P0 (unchanged from the original recon):** incident fixture,
-normalizer/timeline, fracture detector, read-only tool layer, Ollama
-tool-calling loop, predicate/claim gate, hallucination guard, incident
-report renderer, the adversarial item.
-
-**P1:** simple CLI or web view for the demo; an explicit "what would
-confirm/refute each hypothesis" trace in the UI.
-
-**P2 (do not touch until everything else works):** Docker/sandboxing
-beyond path confinement; multi-incident support; CAIE-style cross-artifact
-fusion.
+adversarial item in `ticket_comment.txt`). The demo script now includes
+MITRE/NIST enrichment as a visible step between VIGÍA's sealed result and
+the LLM's narration, and the final postmortem must show at least one
+explicit `UNKNOWN` item — including, potentially, the root cause itself,
+without that reading as a demo failure but as proof the system doesn't
+overclaim certainty.
 
 ## 8. Verdict
 
-The original recon's architecture doesn't change — the postmortem and
-VIGÍA's increased weight slot into places where room was already reserved
-(the report renderer, the optional hash-chain); they don't require a new
-component outside what was already mapped. The main risk is the same one
-from the original recon (§K): don't let building a general timeline/fracture
-engine (or now, a general postmortem engine) consume time that one incident
-with one designed fracture doesn't need.
+The underlying architecture (no epistemic authority for the LLM, a
+deterministic gate, a postmortem separate from the incident report, an
+audit hash-chain) doesn't change between this revision and the previous
+one. What changes is where the implementation of that deterministic
+authority lives: inside VIGÍA, invoked via an adapter, not rewritten in
+miniature inside Zaynor. The main risk shifts from "running out of time
+reimplementing mechanisms that already exist" to "building a
+badly-specified adapter that hides too much or too little of VIGÍA's
+internals" — see `DOCS/implementation-plan.en.md` for how that risk is
+bounded layer by layer.
