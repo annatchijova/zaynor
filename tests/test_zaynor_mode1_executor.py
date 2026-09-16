@@ -38,6 +38,7 @@ def test_mode1_runs_against_a_real_frozen_case(tmp_path):
         evidence_path=evidence_dir,
         case_id=manifest.case_id,
         output_path=tmp_path / "bundle.json",
+        allowed_evidence_root=tmp_path,
     )
 
     assert bundle["case_id"] == manifest.case_id
@@ -64,8 +65,8 @@ def test_mode1_is_reproducible_on_the_same_frozen_case(tmp_path):
         cases_root=tmp_path,
     )
 
-    bundle_a = run_vigia_mode1(VIGIA_REPO_PATH, evidence_dir, manifest.case_id, tmp_path / "a.json")
-    bundle_b = run_vigia_mode1(VIGIA_REPO_PATH, evidence_dir, manifest.case_id, tmp_path / "b.json")
+    bundle_a = run_vigia_mode1(VIGIA_REPO_PATH, evidence_dir, manifest.case_id, tmp_path / "a.json", allowed_evidence_root=tmp_path)
+    bundle_b = run_vigia_mode1(VIGIA_REPO_PATH, evidence_dir, manifest.case_id, tmp_path / "b.json", allowed_evidence_root=tmp_path)
 
     assert bundle_a["evidence_sha256"] == bundle_b["evidence_sha256"]
     assert bundle_a["agent_verdict"] == bundle_b["agent_verdict"]
@@ -73,4 +74,4 @@ def test_mode1_is_reproducible_on_the_same_frozen_case(tmp_path):
 
 def test_mode1_rejects_nonexistent_evidence_dir(tmp_path):
     with pytest.raises(Mode1ExecutionError):
-        run_vigia_mode1(VIGIA_REPO_PATH, tmp_path / "does-not-exist", "X", tmp_path / "out.json")
+        run_vigia_mode1(VIGIA_REPO_PATH, tmp_path / "does-not-exist", "X", tmp_path / "out.json", allowed_evidence_root=tmp_path)

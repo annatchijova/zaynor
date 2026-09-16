@@ -55,7 +55,7 @@ def test_rejects_bad_sidecar_and_evidence_hash(tmp_path):
     repo, evidence = _case(tmp_path)
     _agent(repo, sidecar="bad")
     with pytest.raises(Mode1ExecutionError, match="sidecar"):
-        run_vigia_mode1(repo, evidence, "CASE", tmp_path / "out.json", sys.executable)
+        run_vigia_mode1(repo, evidence, "CASE", tmp_path / "out.json", sys.executable, allowed_evidence_root=tmp_path)
 
 
 def test_rejects_output_symlink(tmp_path):
@@ -66,8 +66,34 @@ def test_rejects_output_symlink(tmp_path):
     output = tmp_path / "out.json"
     output.symlink_to(target)
     with pytest.raises(Mode1ExecutionError, match="symlink"):
-        run_vigia_mode1(repo, evidence, "CASE", output, sys.executable)
+        run_vigia_mode1(repo, evidence, "CASE", output, sys.executable, allowed_evidence_root=tmp_path)
     assert target.read_text() == "untouched"
+
+
+def test_rejects_evidence_outside_explicit_root(tmp_path):
+    repo, evidence = _case(tmp_path)
+    _agent(repo)
+    allowed = tmp_path / "allowed"
+    allowed.mkdir()
+    with pytest.raises(Mode1ExecutionError, match="escapes allowed root"):
+        run_vigia_mode1(repo, evidence, "CASE", tmp_path / "out.json", sys.executable, allowed_evidence_root=allowed)
+
+
+def test_rejects_evidence_changed_during_execution(tmp_path):
+    repo, evidence = _case(tmp_path)
+    (repo / "vigia_agent.py").write_text(textwrap.dedent("""
+        import hashlib, json, pathlib, sys
+        evidence = pathlib.Path(sys.argv[sys.argv.index('--evidence') + 1])
+        output = pathlib.Path(sys.argv[sys.argv.index('--output') + 1])
+        old = hashlib.sha256(evidence.joinpath('event.log').read_bytes()).hexdigest()
+        evidence.joinpath('event.log').write_text('changed while running')
+        bundle = {'case_id': 'CASE', 'evidence_sha256': old, 'agent_verdict': 'NOISE', 'audit_trail': []}
+        raw = json.dumps(bundle).encode()
+        output.write_bytes(raw)
+        (output.parent / (output.name + '.sha256')).write_text(hashlib.sha256(raw).hexdigest() + '  ' + str(output) + '\\n')
+        """))
+    with pytest.raises(Mode1ExecutionError, match="changed while"):
+        run_vigia_mode1(repo, evidence, "CASE", tmp_path / "out.json", sys.executable, allowed_evidence_root=tmp_path)
 
 
 def test_rejects_exit_verdict_mismatch(tmp_path):
@@ -77,13 +103,13 @@ def test_rejects_exit_verdict_mismatch(tmp_path):
     path = repo / "vigia_agent.py"
     path.write_text(path.read_text().replace("sys.exit({'NOISE': 0, 'MALICE': 1", "sys.exit({'NOISE': 0, 'MALICE': 0"))
     with pytest.raises(Mode1ExecutionError, match="inconsistent"):
-        run_vigia_mode1(repo, evidence, "CASE", tmp_path / "out.json", sys.executable)
+        run_vigia_mode1(repo, evidence, "CASE", tmp_path / "out.json", sys.executable, allowed_evidence_root=tmp_path)
 
 
 def test_normalizes_verdict_and_excludes_volatile_timestamp(tmp_path):
     repo, evidence = _case(tmp_path)
     _agent(repo, verdict="NOISE")
-    bundle = run_vigia_mode1(repo, evidence, "CASE", tmp_path / "out.json", sys.executable)
+    bundle = run_vigia_mode1(repo, evidence, "CASE", tmp_path / "out.json", sys.executable, allowed_evidence_root=tmp_path)
     first = translate_mode1_bundle("CASE", bundle)
     bundle["analysis_timestamp"] = "different"
     second = translate_mode1_bundle("CASE", bundle)
@@ -95,10 +121,10 @@ def test_rejects_unbounded_subprocess_output_and_timeout(tmp_path):
     repo, evidence = _case(tmp_path)
     _agent(repo, stdout=2_000_000)
     with pytest.raises(Mode1ExecutionError, match="output limit"):
-        run_vigia_mode1(repo, evidence, "CASE", tmp_path / "out.json", sys.executable)
+        run_vigia_mode1(repo, evidence, "CASE", tmp_path / "out.json", sys.executable, allowed_evidence_root=tmp_path)
     (repo / "vigia_agent.py").write_text("import time; time.sleep(2)")
     with pytest.raises(Mode1ExecutionError, match="timed out"):
-        run_vigia_mode1(repo, evidence, "CASE", tmp_path / "out.json", sys.executable, timeout_seconds=1)
+        run_vigia_mode1(repo, evidence, "CASE", tmp_path / "out.json", sys.executable, timeout_seconds=1, allowed_evidence_root=tmp_path)
 
 
 def test_rejects_unknown_verdict_at_translation_boundary():

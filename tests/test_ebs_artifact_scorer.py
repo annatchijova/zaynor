@@ -72,6 +72,7 @@ def test_end_to_end_scored_evidence_produces_traceable_findings(frozen_evidence_
         evidence_path=ebs_path,
         case_id="INC-EBS-E2E",
         output_path=tmp_path / "bundle.json",
+        allowed_evidence_root=tmp_path,
     )
     assert len(bundle["pipeline_results"]["signals"]) == 3
 

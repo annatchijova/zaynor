@@ -103,6 +103,17 @@ def _hash_evidence_path(evidence_path: Path) -> str:
     return hashlib.sha256(evidence_path.read_bytes()).hexdigest()
 
 
+def _confine_evidence_path(evidence_path: Path, allowed_root: Path) -> None:
+    if allowed_root.is_symlink() or not allowed_root.is_dir():
+        raise Mode1ExecutionError(f"allowed evidence root is not a safe directory: {allowed_root}")
+    if evidence_path.is_symlink():
+        raise Mode1ExecutionError(f"evidence path is a symlink: {evidence_path}")
+    root = allowed_root.resolve(strict=True)
+    candidate = evidence_path.resolve(strict=False)
+    if candidate != root and root not in candidate.parents:
+        raise Mode1ExecutionError(f"evidence path escapes allowed root: {evidence_path}")
+
+
 def _reject_symlink_path(path: Path) -> None:
     """Reject an output path whose existing components are symlinks."""
     current = path
@@ -137,6 +148,8 @@ def run_vigia_mode1(
     python_executable: str = "python3",
     timeout_seconds: int = 300,
     max_output_bytes: int = _MAX_SUBPROCESS_OUTPUT,
+    *,
+    allowed_evidence_root: Path,
 ) -> dict[str, Any]:
     """Run `vigia_agent.py` against `evidence_path` and return its parsed
     bundle. `evidence_path` may be a directory (VIGÍA's real-artifact
@@ -152,6 +165,7 @@ def run_vigia_mode1(
         raise Mode1ExecutionError(f"vigia_agent.py not found at {agent_path}")
     if not evidence_path.exists():
         raise Mode1ExecutionError(f"evidence_path does not exist: {evidence_path}")
+    _confine_evidence_path(evidence_path, allowed_evidence_root)
 
     # vigia_agent.py's --output must resolve under its own CWD (see module
     # docstring); write there first, in a private run-scoped subdirectory,
@@ -189,6 +203,10 @@ def run_vigia_mode1(
                 )
         except subprocess.TimeoutExpired as exc:
             raise Mode1ExecutionError(f"vigia_agent.py timed out after {timeout_seconds}s") from exc
+
+        post_evidence_digest = _hash_evidence_path(evidence_path)
+        if post_evidence_digest != evidence_digest:
+            raise Mode1ExecutionError("evidence changed while Mode 1 was running")
 
         if result.returncode == _EXIT_ERROR:
             raise Mode1ExecutionError(

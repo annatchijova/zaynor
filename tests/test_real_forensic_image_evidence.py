@@ -42,6 +42,7 @@ def test_registry_hives_are_readable_once_allowlisted(tmp_path):
         case_id="INC-OWL-2019-REGRESSION",
         output_path=tmp_path / "bundle.json",
         timeout_seconds=180,
+        allowed_evidence_root=VIGIA_REPO_PATH / "evidence",
     )
     registry_signals = [
         s for s in bundle["pipeline_results"]["signals"]
@@ -65,6 +66,7 @@ def test_real_image_produces_traceable_findings_across_artifact_types(tmp_path):
         case_id="INC-OWL-2019-FINDINGS",
         output_path=tmp_path / "bundle.json",
         timeout_seconds=180,
+        allowed_evidence_root=VIGIA_REPO_PATH / "evidence",
     )
     result = translate_mode1_bundle("INC-OWL-2019-FINDINGS", bundle)
 
