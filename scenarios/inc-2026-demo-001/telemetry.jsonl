@@ -1,0 +1,5 @@
+{"logical_time": 0, "event_type": "vpn_login", "fields": {"account": "admin.rojas", "account_role": "privileged", "device": "DEV-UNKNOWN-17", "success": true}}
+{"logical_time": 60, "event_type": "ssh_session_start", "fields": {"session": "S-884", "host": "srv-files-01", "account": "admin.rojas"}}
+{"logical_time": 180, "event_type": "process_start", "fields": {"pid": "P-442", "session": "S-884", "host": "srv-files-01", "parent": "sshd", "command": "archive collection.zip"}}
+{"logical_time": 300, "event_type": "file_timestamp_change", "fields": {"pid": "P-442", "path": "collection.zip", "host": "srv-files-01", "new_mtime_logical": -900}}
+{"logical_time": 360, "event_type": "network_egress", "fields": {"pid": "P-442", "host": "srv-files-01", "destination": "203.0.113.44", "bytes_observed": 41302}}

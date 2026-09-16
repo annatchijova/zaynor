@@ -1,0 +1,2 @@
+{"ref": "auth:E001", "event": "vpn_login", "account": "admin.rojas", "account_role": "privileged", "device": "DEV-UNKNOWN-17", "success": true, "logical_time": 0}
+{"ref": "auth:E002", "event": "ssh_session_start", "session": "S-884", "host": "srv-files-01", "account": "admin.rojas", "logical_time": 60}

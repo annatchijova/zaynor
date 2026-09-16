@@ -1,0 +1,1 @@
+{"ref": "net:E005", "event": "network_egress", "pid": "P-442", "host": "srv-files-01", "destination": "203.0.113.44", "bytes_observed": 41302, "logical_time": 360}
