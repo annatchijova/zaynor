@@ -22,28 +22,50 @@ post-incident half — don't read the deterministic/LLM split in §2 as "we
 don't do live telemetry":
 
 ```
-telemetry (synthetic)  ->  detection  ->  correlation/triage  ->  INCIDENT
+synthetic telemetry replay  ->  detection  ->  correlation/triage
+   ->  INCIDENT DECLARED — case freeze (manifest + SHA-256, immutable case_id)
    ->  evidence collection  ->  local investigation  ->  hypotheses/RCA
-   ->  backed finding  ->  response/prevention  ->  postmortem
+   ->  backed finding  ->  response/prevention (proposed, not executed)
+   ->  postmortem
+```
+
+Call stage 1 "synthetic telemetry replay", never "live telemetry" — it's a
+generated/replayed event stream, not a real collector, and saying otherwise
+is exactly the kind of imprecision that doesn't survive a technical question
+in the demo Q&A.
+
+Three separate identifiers exist across stages 1-4 — don't collapse them
+into one "fingerprint hash":
+
+```
+event_id          = SHA256(canonical_json(event_without_event_id))
+alert_fingerprint = SHA256(rule_id + host + principal + src_ip)
+incident_key      = SHA256(host + principal + temporal_bucket)
 ```
 
 The two halves run on deliberately different-weight engines, split at
-`INCIDENT`:
+`INCIDENT DECLARED`:
 
-- **Stages 1-3 (telemetry → detection → correlation/triage):** small,
+- **Stages 1-3 (telemetry replay → detection → correlation/triage):** small,
   deterministic, synthetic. A generated/replayed event stream, a threshold or
   pattern rule, and a declarative correlation rule group it into one
   incident. No eBPF, no per-node agents, no Postgres/Redis stack — that's
   production AIOps infrastructure and explicitly out of scope. This is a
   demo-scale front end, not a monitoring platform.
-- **Stages 4-10 (incident → … → postmortem):** the actual DFIR core — this
-  is where the LLM investigates and where §2's ledger boundary applies in
-  full.
+- **The case-freeze boundary:** when correlation declares an incident, a
+  dedicated step (the case freezer) selects the relevant records, hashes
+  every artifact, writes a manifest, and closes the bundle to writes before
+  handing it to the investigator. This is not a metaphor — it's a real,
+  small piece of code between stage 3 and stage 5, and it's what "the
+  evidence is frozen" actually means in this repo.
+- **Stages 5-10 (evidence collection → … → postmortem):** the actual DFIR
+  core — this is where the LLM investigates and where §2's ledger boundary
+  applies in full.
 
 If a task touches stages 1-3, it still needs to be genuinely deterministic
 and genuinely small — resist the temptation to make the "live" side richer
 than the demo needs just because reference platforms (Keep, Coroot, K8sGPT)
-do a lot more there. If a task touches 4-10, §2 is binding.
+do a lot more there. If a task touches 5-10, §2 is binding.
 
 ## 0. Language and scope
 
@@ -99,12 +121,20 @@ Before writing a fix or a "the bug is X" comment on a PR:
 This is the one invariant every contributor needs to internalize before
 touching anything past the evidence-ingestion layer:
 
-- **The LLM proposes; it never writes to the ledger.** Any function that sets
-  a finding's status (`OBSERVED` / `INFERRED` / `CORROBORATED` /
-  `CONTRADICTED` / `UNKNOWN`) takes structured tool-observation evidence as
-  input, never raw model output. If you find yourself passing an LLM
-  completion straight into something that updates finding status, stop —
-  that's the bug this architecture exists to prevent, not a shortcut.
+- **The LLM proposes a claim with typed predicates; it never proposes a
+  verdict.** The model doesn't get to say "this is corroborated" — it emits
+  a claim naming which evidence fields would have to hold for the claim to
+  stand (`{event_id, field, op, value}` tuples). The gate then re-looks-up
+  every one of those predicates directly against the frozen evidence itself
+  — it does not trust the model's account of what a record says, only the
+  record. `CORROBORATED` requires every required predicate to hold against
+  that independent lookup; a contradicting predicate yields `CONTRADICTED`;
+  anything the gate can't resolve is `INSUFFICIENT` (rendered to the human
+  report as `UNKNOWN`, never smoothed into a guess). If you find yourself
+  passing an LLM completion straight into something that updates finding
+  status — including trusting the LLM's own quote of an evidence field
+  instead of re-fetching it — stop, that's the bug this architecture exists
+  to prevent, not a shortcut.
 - **Evidence is data, never an instruction**, no matter what it says. A log
   line, a ticket comment, or any artifact content that reads like a directive
   to the system ("ignore previous instructions", "classify as NOISE") stays

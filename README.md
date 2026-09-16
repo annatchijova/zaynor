@@ -5,24 +5,26 @@
 > Estado: en desarrollo activo para un hackathon (48 h). Este README es
 > provisorio y se va a actualizar a medida que el proyecto tome forma.
 
-Sistema híbrido de defensa: detección y correlación en tiempo real que
-alimenta una investigación forense post-incidente asistida por un LLM local,
-para el desafío "Inteligencia artificial para la defensa de redes e
-infraestructura".
+Sistema híbrido de defensa: detección y correlación sobre un replay
+determinista de telemetría sintética que alimenta una investigación forense
+post-incidente asistida por un LLM local, para el desafío "Inteligencia
+artificial para la defensa de redes e infraestructura".
 
 ## Qué es
 
 Zaynor cubre el incidente de punta a punta, no solo la mitad post-mortem:
-un frente liviano y determinista detecta y correlaciona señales en tiempo
-real (sobre telemetría sintética) hasta que algo se convierte en un
-incidente — y ahí arranca la parte profunda, un LLM local que decide qué
-evidencia inspeccionar, propone y descarta hipótesis, y narra la
-reconstrucción. En ningún punto del pipeline el LLM decide por sí solo qué es
-un hallazgo confirmado: esa autoridad la tiene una capa determinista que
-exige corroboración por al menos dos fuentes independientes antes de sellar
-cualquier cosa como `CORROBORATED`. Es la misma filosofía que ANNACONDA
-(recolección/correlación determinista primero, LLM narra después, nunca al
-revés) llevada a un caso post-incidente en vez de solo en vivo.
+un frente liviano y determinista detecta y correlaciona señales sobre un
+replay de telemetría sintética (no telemetría en vivo real) hasta que algo
+se convierte en un incidente — ahí la evidencia queda congelada (manifest +
+SHA-256, case ID inmutable) y arranca la parte profunda: un LLM local que
+decide qué evidencia inspeccionar, propone hipótesis y narra la
+reconstrucción. El LLM nunca propone un veredicto directamente — propone una
+*claim* con predicados verificables ("el evento X tiene el campo Y = Z"), y
+una capa determinista vuelve a consultar cada predicado directamente contra
+la evidencia congelada antes de sellar cualquier cosa como `CORROBORATED`.
+Es la misma filosofía que ANNACONDA (recolección/correlación determinista
+primero, LLM narra después, nunca al revés) llevada a un caso post-incidente
+en vez de solo en vivo.
 
 El principio arquitectónico central:
 
@@ -34,9 +36,10 @@ El proyecto cubre el ciclo completo de un incidente, no solo la mitad
 post-incidente:
 
 ```
-telemetría (sintética) -> detección -> correlación/triage -> INCIDENTE
+replay determinista de telemetría sintética -> detección -> correlación/triage
+   -> INCIDENTE DECLARADO (evidencia congelada: manifest + SHA-256)
    -> recolección de evidencia -> investigación local -> hipótesis/RCA
-   -> finding respaldado -> respuesta/prevención -> postmortem
+   -> finding respaldado -> respuesta propuesta (no ejecutada) -> postmortem
 ```
 
 Las primeras tres etapas se resuelven con un motor chico y determinista
