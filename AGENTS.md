@@ -6,6 +6,51 @@ how agent-assisted work here is expected to look. This file is the contract;
 if a PR doesn't follow it, that's a legitimate reason to ask for changes
 before reviewing the diff itself.
 
+This file is the *operating* manual — product architecture plus agent
+behavior rules. `CLAUDE.md` at the repo root is the separate
+*development-discipline* guide (git hygiene, editing discipline, the
+abduction/refutation reasoning loop, the Definition of Done checklist). Per
+`CLAUDE.md`'s own stated scope, the two are not to be conflated: read
+`CLAUDE.md` for how to work in this repo in general, read this file for what
+ZAYNOR specifically is and how its architecture constrains a change.
+`SYSTEM_PROMPT--ZAYNOR.md` is the single runtime prompt assembled from this
+contract and VIGÍA's Peircean reasoning protocol; it cannot override the
+repository contracts.
+
+## Hackathon context
+
+ZAYNOR is being built for **Hackathon CyberAr 2026** (I Congreso de
+Ciberdefensa, FIE-UNDEF, 16-18 September 2026). The team selected **Eje 2 —
+Inteligencia artificial para la defensa de redes e infraestructura**: build
+AI-based tooling that detects, prioritizes, and responds to attacks, runs
+locally (no external API calls, no data leaves the machine), and
+demonstrates resistance to manipulation attempts. Only simulated or public
+data is allowed; no testing against real systems. Deliverable is source code
++ README, demoed as a 3-minute pitch + functional demo, then 1 minute of
+jury questions — that time budget is why the architecture below is
+deliberately small (§ "Scope: the hybrid pipeline").
+
+Source material, in `docs/hackathon/`:
+
+- `reglamento-hackathon-cyberar-2026.md` — general rules (teams, deliverables,
+  evaluation rubric, IP, conduct).
+- `desafios-cyberar-2026.md` — the three challenge tracks (Ejes) and the
+  common conditions; Eje 2 is the one this repo targets.
+- `brainstorm/` — the research and architecture-exploration documents that
+  produced the design in this file: `deep-research-report.md` and
+  `zaynor-informe-arquitectura.md` (the hybrid front/DFIR-core architecture,
+  component contracts, VIGÍA/ANNACONDA/OpenHands reuse decisions, the
+  `srv-files-01` incident fixture, build plan P0/P1/P2), `dfir-recon-2026-09-15.md`
+  (an independent 7-component recon pass with its own `INC-2026-DEMO-001`
+  fixture — service-account token leak, not the same story as the informe's
+  fixture; the two are alternative fixture proposals, not two parts of one
+  story — the team has not yet frozen which fixture ships), and
+  `repos-reference.md` (reference platforms: Keep, Coroot, K8sGPT, HolmesGPT,
+  plus the team's own VIGÍA/ANNACONDA/SKILLS repos). Treat these as design
+  inputs, not as already-decided fact — where they disagree (e.g. the two
+  competing incident fixtures), that is an open decision, not an
+  inconsistency to silently pick a side on.
+
 ZAYNOR is a hybrid DFIR system built around VIGÍA, an existing deterministic
 forensic engine — it does not reimplement VIGÍA's mechanisms from scratch. A
 small deterministic front end may detect and correlate signals over a
