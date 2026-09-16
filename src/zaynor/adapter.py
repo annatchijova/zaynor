@@ -17,6 +17,7 @@ from zaynor.schemas import (
     EvidenceRef,
     ZaynorAuthoritativeResult,
 )
+from zaynor.frozen_snapshot import FrozenSnapshotError, materialize_frozen_snapshot
 
 
 class AdapterError(ValueError):
@@ -172,18 +173,40 @@ class ZaynorMode1Adapter:
 
         output_path = self._output_root / manifest.case_id / "bundle.json"
         try:
-            bundle = run_vigia_mode1(
-                vigia_repo_path=self._engine_repo_path,
-                evidence_path=evidence_dir,
-                case_id=manifest.case_id,
-                output_path=output_path,
-                python_executable=self._python_executable,
-                timeout_seconds=self._timeout_seconds,
-                max_output_bytes=self._max_output_bytes,
-                allowed_evidence_root=case_root,
-            )
-            return translate_mode1_bundle(manifest.case_id, bundle)
-        except (OSError, RuntimeError, AdapterError) as exc:
+            with materialize_frozen_snapshot(manifest, evidence_dir) as snapshot:
+                bundle = run_vigia_mode1(
+                    vigia_repo_path=self._engine_repo_path,
+                    evidence_path=snapshot.path,
+                    case_id=manifest.case_id,
+                    output_path=output_path,
+                    python_executable=self._python_executable,
+                    timeout_seconds=self._timeout_seconds,
+                    max_output_bytes=self._max_output_bytes,
+                    allowed_evidence_root=snapshot.path.parent,
+                )
+                result = translate_mode1_bundle(manifest.case_id, bundle)
+                integrity = dict(result.integrity)
+                integrity.update(
+                    {
+                        "authorized_case_id": manifest.case_id,
+                        "authorized_manifest_sha256": snapshot.manifest_sha256,
+                        "analyzed_snapshot_sha256": snapshot.snapshot_sha256,
+                    }
+                )
+                return ZaynorAuthoritativeResult(
+                    case_id=result.case_id,
+                    engine=result.engine,
+                    observations=result.observations,
+                    timeline=result.timeline,
+                    fractures=result.fractures,
+                    hypotheses=result.hypotheses,
+                    findings=result.findings,
+                    unknowns=result.unknowns,
+                    provenance=result.provenance,
+                    integrity=integrity,
+                    audit_refs=result.audit_refs,
+                )
+        except (OSError, RuntimeError, AdapterError, FrozenSnapshotError) as exc:
             if isinstance(exc, AdapterError):
                 raise
             raise AdapterError(f"Mode-1 execution failed for {manifest.case_id}: {exc}") from exc

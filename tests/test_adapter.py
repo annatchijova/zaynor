@@ -80,5 +80,6 @@ def test_mode1_adapter_wires_manifest_to_real_executor(monkeypatch, tmp_path):
 
     assert result.case_id == "INC-ADAPTER-001"
     assert result.findings == ()
-    assert captured["allowed_evidence_root"] == case_root
+    assert captured["allowed_evidence_root"].parent == case_root
+    assert captured["evidence_path"].parent == captured["allowed_evidence_root"]
     assert captured["case_id"] == "INC-ADAPTER-001"
