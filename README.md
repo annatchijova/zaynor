@@ -5,18 +5,24 @@
 > Estado: en desarrollo activo para un hackathon (48 h). Este README es
 > provisorio y se va a actualizar a medida que el proyecto tome forma.
 
-Investigador forense post-incidente asistido por un LLM local, para el
-desafío "Inteligencia artificial para la defensa de redes e infraestructura".
+Sistema híbrido de defensa: detección y correlación en tiempo real que
+alimenta una investigación forense post-incidente asistida por un LLM local,
+para el desafío "Inteligencia artificial para la defensa de redes e
+infraestructura".
 
 ## Qué es
 
-Zaynor reconstruye un incidente de seguridad simulado a partir de evidencia
-heterogénea (logs, eventos de autenticación, procesos, red, metadatos de
-archivos). Un LLM que corre localmente decide qué evidencia inspeccionar,
-propone y descarta hipótesis, y narra la reconstrucción — pero **nunca
-decide por sí solo qué es un hallazgo confirmado**. Esa autoridad la tiene
-una capa determinista que exige corroboración por al menos dos fuentes
-independientes antes de sellar cualquier cosa como `CORROBORATED`.
+Zaynor cubre el incidente de punta a punta, no solo la mitad post-mortem:
+un frente liviano y determinista detecta y correlaciona señales en tiempo
+real (sobre telemetría sintética) hasta que algo se convierte en un
+incidente — y ahí arranca la parte profunda, un LLM local que decide qué
+evidencia inspeccionar, propone y descarta hipótesis, y narra la
+reconstrucción. En ningún punto del pipeline el LLM decide por sí solo qué es
+un hallazgo confirmado: esa autoridad la tiene una capa determinista que
+exige corroboración por al menos dos fuentes independientes antes de sellar
+cualquier cosa como `CORROBORATED`. Es la misma filosofía que ANNACONDA
+(recolección/correlación determinista primero, LLM narra después, nunca al
+revés) llevada a un caso post-incidente en vez de solo en vivo.
 
 El principio arquitectónico central:
 

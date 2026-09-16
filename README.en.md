@@ -5,19 +5,24 @@
 > Status: active development for a 48-hour hackathon. This README is
 > provisional and will be updated as the project takes shape.
 
-A local-LLM-assisted post-incident forensic investigator, built for the
+A hybrid defense system: real-time detection and correlation feeding a
+local-LLM-assisted post-incident forensic investigation, built for the
 "AI for network and infrastructure defense" challenge.
 
 ## What it is
 
-Zaynor reconstructs a simulated security incident from heterogeneous
-evidence (logs, authentication events, process records, network events,
-filesystem metadata). A locally-running LLM decides which evidence to
+Zaynor covers the incident end-to-end, not just the post-mortem half: a
+small, deterministic front end detects and correlates signals in real time
+(over synthetic telemetry) until something becomes an incident — and that's
+where the deep part starts, a local LLM that decides which evidence to
 inspect, proposes and discriminates between hypotheses, and narrates the
-reconstruction — but **it never decides on its own what counts as a
-confirmed finding**. That authority belongs to a deterministic layer that
-requires corroboration from at least two independent sources before
-anything is sealed as `CORROBORATED`.
+reconstruction. Nowhere in the pipeline does the LLM decide on its own what
+counts as a confirmed finding: that authority belongs to a deterministic
+layer that requires corroboration from at least two independent sources
+before anything is sealed as `CORROBORATED`. It's the same philosophy as
+ANNACONDA (deterministic collection/correlation first, LLM narrates after,
+never the other way around) applied to a post-incident case instead of only
+a live one.
 
 The core architectural principle:
 

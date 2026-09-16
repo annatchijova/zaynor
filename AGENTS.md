@@ -6,11 +6,14 @@ how agent-assisted work here is expected to look. This file is the contract;
 if a PR doesn't follow it, that's a legitimate reason to ask for changes
 before reviewing the diff itself.
 
-ZAYNOR investigates a completed, simulated security incident: a local LLM
-picks which read-only evidence to inspect next and narrates a reconstruction,
-while a small deterministic layer owns every claim that can actually be
-verified (hashes, corroboration counts, hypothesis status). Keep that
-boundary in mind — it shapes almost every rule below.
+ZAYNOR is a hybrid, not a post-incident-only tool: a small deterministic
+front end detects and correlates signals in real time over synthetic
+telemetry until something becomes an incident, then a local LLM picks which
+read-only evidence to inspect next and narrates a reconstruction — while a
+deterministic layer owns every claim that can actually be verified (hashes,
+corroboration counts, hypothesis status), on both sides of that split. Keep
+that boundary in mind — it shapes almost every rule below. See "Scope: the
+hybrid pipeline" for the full ten-stage picture.
 
 ## Scope: the hybrid pipeline
 
