@@ -3,11 +3,17 @@ from pathlib import Path
 import pytest
 
 from zaynor.adapter import AdapterError, VigiaAdapter, ZaynorMode1Adapter
+from zaynor.case_freezer import _content_sha256, _sealed_at_sha256
 from zaynor.schemas import CaseManifest, ManifestEntry
 
 
 def _manifest() -> CaseManifest:
-    return CaseManifest(case_id="INC-ADAPTER-001", entries=())
+    content = _content_sha256([])
+    sealed_at = "2026-09-16T00:00:00+00:00"
+    return CaseManifest(
+        case_id="INC-ADAPTER-001", entries=(), content_sha256=content,
+        sealed_at=sealed_at, sealed_at_sha256=_sealed_at_sha256(content, sealed_at),
+    )
 
 
 def test_adapter_translates_external_result_without_leaking_executor_objects(tmp_path):

@@ -1,19 +1,25 @@
 import hashlib
-import sys
 import textwrap
 from pathlib import Path
 
 import pytest
 
 from zaynor.adapter import AdapterError, ZaynorMode1Adapter
+from zaynor.case_freezer import _content_sha256, _sealed_at_sha256
 from zaynor.hash_utils import sha256_file
 from zaynor.schemas import CaseManifest, ManifestEntry
 
 
 def _manifest(case_id: str, path: Path) -> CaseManifest:
+    entry = ManifestEntry(path.name, sha256_file(path), path.stat().st_size)
+    content = _content_sha256([entry])
+    sealed_at = "2026-09-16T00:00:00+00:00"
     return CaseManifest(
         case_id=case_id,
-        entries=(ManifestEntry(path.name, sha256_file(path), path.stat().st_size),),
+        entries=(entry,),
+        content_sha256=content,
+        sealed_at=sealed_at,
+        sealed_at_sha256=_sealed_at_sha256(content, sealed_at),
     )
 
 
@@ -76,9 +82,6 @@ def test_manifest_binds_the_complete_authorized_evidence_set(tmp_path):
 
     with pytest.raises(AdapterError, match="evidence set does not match manifest"):
         ZaynorMode1Adapter(engine, tmp_path / "output").analyze(
-            CaseManifest(
-                case_id="CASE-EXACT",
-                entries=(ManifestEntry(event.name, sha256_file(event), event.stat().st_size),),
-            ),
+            _manifest("CASE-EXACT", event),
             evidence,
         )

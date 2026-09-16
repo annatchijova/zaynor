@@ -26,19 +26,23 @@ class FrozenSnapshot:
 
 
 def _manifest_digest(manifest: CaseManifest) -> str:
-    entries = [
-        {
-            "relative_path": entry.relative_path,
-            "sha256": entry.sha256,
-            "size_bytes": entry.size_bytes,
-        }
-        for entry in manifest.entries
-    ]
-    entries.sort(key=lambda entry: entry["relative_path"])
-    payload = {"case_id": manifest.case_id, "entries": entries}
-    return hashlib.sha256(
-        json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    digest = hashlib.sha256()
+    for relative_path, sha256 in sorted(
+        (entry.relative_path, entry.sha256) for entry in manifest.entries
+    ):
+        digest.update(relative_path.encode("utf-8"))
+        digest.update(b"\x00")
+        digest.update(sha256.encode("utf-8"))
+        digest.update(b"\x00")
+    content_digest = digest.hexdigest()
+    if content_digest != manifest.content_sha256:
+        raise FrozenSnapshotError("manifest content hash is inconsistent with its entries")
+    event_digest = hashlib.sha256(
+        f"{manifest.content_sha256}\x00{manifest.sealed_at}".encode("utf-8")
     ).hexdigest()
+    if event_digest != manifest.sealed_at_sha256:
+        raise FrozenSnapshotError("manifest sealing-event hash is invalid")
+    return content_digest
 
 
 def _inventory(root: Path) -> set[str]:
