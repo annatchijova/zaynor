@@ -81,9 +81,12 @@ so the lineage is on record:
 
 ## Repository structure
 
-Under construction — see `AGENTS.md` for the working contract (git/PR
-workflow, the deterministic/LLM boundary, editing discipline) while the code
-doesn't exist yet.
+The working contracts are in `AGENTS.md`, `docs/SANDBOX.md`, and
+`SYSTEM_PROMPT--ZAYNOR.md`. The first implementation slice is the worker-side
+boundary in `src/zaynor/sandbox.py`; it does not parse or execute artifact content.
+
+The engineering skill catalog lives in `docs/skills/` and is intentionally
+scoped to this project's local DFIR and detection pipeline.
 
 ## License
 
