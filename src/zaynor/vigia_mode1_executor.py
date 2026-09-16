@@ -51,7 +51,7 @@ from typing import Any
 _SAFE_RUN_ID = re.compile(r"[^A-Za-z0-9._-]")
 
 from zaynor.adapter import AdapterError
-from zaynor.schemas import ZaynorAuthoritativeResult
+from zaynor.schemas import AuthoritativeFinding, EvidenceRef, ZaynorAuthoritativeResult
 
 _VERDICT_EXIT_OK = {0, 1, 3, 4, 5}  # NOISE, MALICE, INTENT, ABSTAIN, SUSPICION
 _EXIT_ERROR = 2
@@ -86,6 +86,23 @@ def _hash_evidence_dir(evidence_dir: Path) -> str:
     return digest.hexdigest()
 
 
+def _hash_evidence_path(evidence_path: Path) -> str:
+    """Match VIGÍA's `_hash_evidence`: plain SHA-256 of the bytes for a
+    single evidence FILE (this is how `--evidence <path>.json` — the EBS
+    ingestion route confirmed in Phase 0 — gets hashed), or the Merkle-like
+    directory digest for a directory. VIGÍA picks the file/dir branch by
+    whether `open()` on the path raises `OSError`; this picks the same way
+    `evidence_path.is_dir()` decides up front, which is equivalent for any
+    path that isn't a symlink (rejected either way) or a special file
+    (sockets/FIFOs aren't valid evidence in either implementation).
+    """
+    if evidence_path.is_dir():
+        return _hash_evidence_dir(evidence_path)
+    if evidence_path.is_symlink():
+        raise Mode1ExecutionError(f"evidence path is a symlink: {evidence_path}")
+    return hashlib.sha256(evidence_path.read_bytes()).hexdigest()
+
+
 def _reject_symlink_path(path: Path) -> None:
     """Reject an output path whose existing components are symlinks."""
     current = path
@@ -114,22 +131,27 @@ def _read_sidecar(sidecar: Path, bundle_digest: str) -> None:
 
 def run_vigia_mode1(
     vigia_repo_path: Path,
-    evidence_dir: Path,
+    evidence_path: Path,
     case_id: str,
     output_path: Path,
     python_executable: str = "python3",
     timeout_seconds: int = 300,
     max_output_bytes: int = _MAX_SUBPROCESS_OUTPUT,
 ) -> dict[str, Any]:
-    """Run `vigia_agent.py` against `evidence_dir` and return its parsed
-    bundle. Raises on exit code 2 (ERROR) or a missing/unparseable output
+    """Run `vigia_agent.py` against `evidence_path` and return its parsed
+    bundle. `evidence_path` may be a directory (VIGÍA's real-artifact
+    autodetection: `.evtx`/`.log`/`.pcap`/registry hives/etc.) or a single
+    `.json` file (the EBS ingestion route — confirmed in Phase 0 by reading
+    `_build_orchestrator_kwargs`: a non-directory `--evidence` maps to
+    `log_path`, and `_analyze_ebs_json` handles it when it ends in
+    `.json`). Raises on exit code 2 (ERROR) or a missing/unparseable output
     file — a verdict exit code (0/1/3/4/5) is success, including ABSTAIN.
     """
     agent_path = vigia_repo_path / "vigia_agent.py"
     if not agent_path.is_file():
         raise Mode1ExecutionError(f"vigia_agent.py not found at {agent_path}")
-    if not evidence_dir.is_dir():
-        raise Mode1ExecutionError(f"evidence_dir does not exist: {evidence_dir}")
+    if not evidence_path.exists():
+        raise Mode1ExecutionError(f"evidence_path does not exist: {evidence_path}")
 
     # vigia_agent.py's --output must resolve under its own CWD (see module
     # docstring); write there first, in a private run-scoped subdirectory,
@@ -137,7 +159,7 @@ def run_vigia_mode1(
     safe_run_id = _SAFE_RUN_ID.sub("_", case_id) or "run"
     if timeout_seconds <= 0 or max_output_bytes <= 0:
         raise Mode1ExecutionError("timeout_seconds and max_output_bytes must be positive")
-    evidence_digest = _hash_evidence_dir(evidence_dir)
+    evidence_digest = _hash_evidence_path(evidence_path)
     with tempfile.TemporaryDirectory(dir=str(vigia_repo_path), prefix=f".zaynor_mode1_{safe_run_id}_") as run_dir:
         internal_output = Path(run_dir) / "bundle.json"
         stdout_path = Path(run_dir) / "stdout.log"
@@ -146,7 +168,7 @@ def run_vigia_mode1(
         try:
             with stdout_path.open("wb") as stdout, stderr_path.open("wb") as stderr:
                 result = subprocess.run(
-                    [python_executable, str(agent_path), "--evidence", str(evidence_dir),
+                    [python_executable, str(agent_path), "--evidence", str(evidence_path),
                      "--case-id", case_id, "--output", str(internal_output)],
                     cwd=str(vigia_repo_path), stdout=stdout, stderr=stderr,
                     timeout=timeout_seconds,
@@ -219,14 +241,24 @@ def translate_mode1_bundle(case_id: str, bundle: dict[str, Any]) -> ZaynorAuthor
     - `audit_refs`: one reference per `audit_trail` entry's action name —
       the entries themselves stay in VIGÍA's bundle, not duplicated here.
 
-    Deliberately NOT mapped to `findings[]`: `agent_verdict` and
-    `pipeline_results.abduction` (`best_hypothesis`, `best_posterior`,
-    `devil_advocate`) are real, but turning them into an
-    `AuthoritativeFinding` requires deciding what `evidence_refs`/
-    `lineage_id` values are honest to attach — `pipeline_results.signals`'
-    actual per-signal shape hasn't been inspected deeply enough yet to
-    answer that without guessing. Recorded as an explicit `unknowns` entry
-    instead of inventing a finding with fabricated evidence references.
+    `findings[]`: confirmed by running real EBS-JSON evidence through Mode 1
+    (not guessed) that `pipeline_results.signals[]` entries carry a real
+    `artifact_id` that traces back to the artifact_id assigned when the
+    evidence was scored (see `ebs_artifact_scorer.py`) — that becomes each
+    signal's `EvidenceRef`. VIGÍA computes exactly ONE composite verdict
+    over all signals together (`vigia_scorer._vigia_score`'s ladder), not
+    one verdict per signal — so this maps to exactly ONE
+    `AuthoritativeFinding` per bundle citing every real signal's evidence
+    reference, rather than one finding per signal claiming an
+    independent per-artifact verdict VIGÍA never computed. A signal whose
+    `metadata.unanalyzed` is true (VIGÍA's own marker for an artifact type
+    it dropped, not a real observation) is excluded from evidence_refs. If
+    there are no usable signals at all (confirmed real case: the
+    `INC-2026-DEMO-001` JSONL fixture produces 0 signals and
+    `caie: NO_ARTIFACTS` because its format matches none of VIGÍA's
+    recognized artifact patterns — see Phase 0), `findings` stays empty and
+    `unknowns` says why, rather than fabricating a finding from a verdict
+    with nothing real behind it.
     """
     raw_case_id = bundle.get("case_id")
     if raw_case_id != case_id:
@@ -256,16 +288,42 @@ def translate_mode1_bundle(case_id: str, bundle: dict[str, Any]) -> ZaynorAuthor
         if isinstance(entry, dict)
     )
 
-    unknowns = (
-        "finding-level evidence_refs/lineage_id mapping not yet designed — "
-        "pipeline_results.signals structure not yet inspected deeply enough "
-        "to derive honest per-finding references",
+    raw_signals = bundle.get("pipeline_results", {}).get("signals", [])
+    evidence_refs = tuple(
+        EvidenceRef(artifact=signal["artifact_id"], lineage_id=signal["artifact_id"])
+        for signal in raw_signals
+        if isinstance(signal, dict)
+        and isinstance(signal.get("artifact_id"), str)
+        and signal.get("artifact_id")
+        and not (isinstance(signal.get("metadata"), dict) and signal["metadata"].get("unanalyzed"))
     )
+
+    if evidence_refs:
+        abduction = bundle.get("pipeline_results", {}).get("abduction", {})
+        rationale = str(abduction.get("narrative", ""))[:2000]
+        findings = (
+            AuthoritativeFinding(
+                finding_id=f"F-{case_id}",
+                state=_CANONICAL_VERDICT[raw_verdict],
+                evidence_refs=evidence_refs,
+                lineage_ids=tuple(ref.lineage_id for ref in evidence_refs),
+                rationale=rationale,
+            ),
+        )
+        unknowns: tuple[str, ...] = ()
+    else:
+        findings = ()
+        unknowns = (
+            "no usable signals in this bundle — either VIGÍA's ingestion "
+            "recognized no artifacts in the supplied evidence format, or "
+            "every signal present was VIGÍA's own 'unanalyzed' marker, not "
+            "a real observation",
+        )
 
     return ZaynorAuthoritativeResult(
         case_id=case_id,
         engine=engine,
-        findings=(),
+        findings=findings,
         unknowns=unknowns,
         integrity=integrity,
         audit_refs=audit_refs,

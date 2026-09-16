@@ -35,7 +35,7 @@ def test_mode1_runs_against_a_real_frozen_case(tmp_path):
 
     bundle = run_vigia_mode1(
         vigia_repo_path=VIGIA_REPO_PATH,
-        evidence_dir=evidence_dir,
+        evidence_path=evidence_dir,
         case_id=manifest.case_id,
         output_path=tmp_path / "bundle.json",
     )
@@ -48,8 +48,11 @@ def test_mode1_runs_against_a_real_frozen_case(tmp_path):
     assert result.case_id == manifest.case_id
     assert result.engine["name"] == "vigia_agent"
     assert result.integrity["agent_verdict"] in {"MALICE", "ABSTAIN", "UNKNOWN", "BENIGN", "SUSPICION"}
+    # This fixture's raw JSONL evidence matches none of VIGÍA's recognized
+    # artifact patterns (see docs/implementation-plan.en.md Phase 0) — 0
+    # signals, so no finding is fabricated from an uninformative verdict.
     assert result.findings == ()
-    assert any("evidence_refs/lineage_id mapping not yet designed" in u for u in result.unknowns)
+    assert any("no usable signals" in u for u in result.unknowns)
 
 
 def test_mode1_is_reproducible_on_the_same_frozen_case(tmp_path):
