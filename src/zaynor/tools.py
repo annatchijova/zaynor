@@ -33,14 +33,12 @@ from __future__ import annotations
 
 import hashlib
 import inspect
-import os
 import re
 from dataclasses import dataclass, field
 from functools import wraps
 from typing import Any, Callable
 
 from zaynor.audit_log import AuditLog
-from zaynor.hash_utils import sha256_file
 from zaynor.path_guard import PathGuard
 
 _ARGUMENT_HASH_PREFIX_BYTES = 4096
@@ -215,6 +213,15 @@ def generate_forensic_hash(guard: PathGuard, audit_log: AuditLog, path: str) -> 
         check = guard.validate(path)
         if not check.valid:
             return ToolResult(success=False, error=f"PathGuard REJECT: {check.reason}")
-        return ToolResult(success=True, data={"path": path, "sha256": sha256_file(os.path.abspath(path))})
+        digest = hashlib.sha256()
+        with guard.safe_open(path, "rb") as handle:
+            for block in iter(lambda: handle.read(65536), b""):
+                digest.update(block)
+
+        use = guard.verify_no_toctou(path, check)
+        if not use.valid:
+            return ToolResult(success=False, error=f"TOCTOU REJECT: {use.reason}")
+
+        return ToolResult(success=True, data={"path": path, "sha256": digest.hexdigest()})
 
     return _hash(path)

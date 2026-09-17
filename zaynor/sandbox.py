@@ -11,6 +11,7 @@ from __future__ import annotations
 import hashlib
 import os
 import resource
+import stat
 import subprocess
 import time
 from dataclasses import dataclass
@@ -52,17 +53,34 @@ def _confined_regular_file(evidence_dir: Path, requested: str) -> Path:
     return candidate
 
 
+def _open_confined(path: Path):
+    """Open a validated evidence path without following a replacement symlink."""
+    try:
+        flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+        fd = os.open(str(path), flags)
+    except OSError as exc:
+        raise SandboxError(f"evidence path could not be opened safely: {exc}") from exc
+    try:
+        if not stat.S_ISREG(os.fstat(fd).st_mode):
+            raise SandboxError("evidence path is not a regular file")
+        return os.fdopen(fd, "rb")
+    except Exception:
+        os.close(fd)
+        raise
+
+
 def hash_evidence(evidence_dir: Path, requested: str, config: SandboxConfig = SandboxConfig()) -> tuple[Path, str, int]:
     """Hash one bounded evidence file before any caller receives its bytes."""
     path = _confined_regular_file(evidence_dir, requested)
-    size = path.stat().st_size
-    if size > config.max_read_bytes:
-        raise SandboxError("evidence file exceeds the read limit")
     digest = hashlib.sha256()
-    with path.open("rb") as stream:
+    total = 0
+    with _open_confined(path) as stream:
         for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            total += len(chunk)
+            if total > config.max_read_bytes:
+                raise SandboxError("evidence file exceeds the read limit")
             digest.update(chunk)
-    return path, digest.hexdigest(), size
+    return path, digest.hexdigest(), total
 
 
 def read_evidence(evidence_dir: Path, requested: str, config: SandboxConfig = SandboxConfig()) -> tuple[bytes, str]:
@@ -71,7 +89,7 @@ def read_evidence(evidence_dir: Path, requested: str, config: SandboxConfig = Sa
     digest = hashlib.sha256()
     chunks: list[bytes] = []
     total = 0
-    with path.open("rb") as stream:
+    with _open_confined(path) as stream:
         for chunk in iter(lambda: stream.read(1024 * 1024), b""):
             total += len(chunk)
             if total > config.max_read_bytes:

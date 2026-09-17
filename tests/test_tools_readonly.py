@@ -1,10 +1,11 @@
+import hashlib
 import os
 
 import pytest
 
 from zaynor.audit_log import AuditLog
 from zaynor.path_guard import PathGuard
-from zaynor.tools import ReadOnlyToolRegistry
+from zaynor.tools import ReadOnlyToolRegistry, generate_forensic_hash
 
 
 @pytest.fixture
@@ -63,6 +64,36 @@ def test_read_evidence_rejects_symlink_escape(registry, tmp_path):
     result = reg.read_evidence(str(trap))
     assert not result.success
     assert "SYMLINK" in result.error
+
+
+def test_path_guard_rejects_same_size_content_change_after_hash_window(tmp_path):
+    evidence_dir = tmp_path / "evidence"
+    evidence_dir.mkdir()
+    target = evidence_dir / "large.log"
+    target.write_bytes(b"A" * 8192)
+
+    guard = PathGuard(allowed_base_paths=[evidence_dir])
+    check = guard.validate(str(target))
+    original_stat = target.stat()
+    with target.open("r+b") as handle:
+        handle.seek(5000)
+        handle.write(b"EVIL")
+    os.utime(target, ns=(original_stat.st_atime_ns, original_stat.st_mtime_ns))
+
+    result = guard.verify_no_toctou(str(target), check)
+    assert not result.valid
+    assert result.reason == "TOCTOU_CONTENT_CHANGED"
+
+
+def test_forensic_hash_uses_the_confined_descriptor(registry):
+    reg, evidence_dir, _ = registry
+    result = generate_forensic_hash(
+        reg._guard, reg._audit, str(evidence_dir / "auth.jsonl")
+    )
+    assert result.success
+    assert result.data["sha256"] == hashlib.sha256(
+        (evidence_dir / "auth.jsonl").read_bytes()
+    ).hexdigest()
 
 
 def test_adversarial_evidence_never_gains_instruction_authority(registry):
