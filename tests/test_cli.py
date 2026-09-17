@@ -279,3 +279,46 @@ def test_audit_fails_closed_for_each_stored_artifact_tamper(tmp_path, capsys):
         target.write_bytes(original)
         if name == "evidence":
             target.chmod(0o400)
+
+
+def test_chat_narrates_the_sealed_verdict_and_verifies_it(tmp_path, capsys, monkeypatch):
+    from zaynor.agents.ollama_client import OllamaClient
+
+    _, _, output_root = _analyzed_case(tmp_path, capsys)
+    monkeypatch.setattr(
+        OllamaClient, "generate", lambda self, *, system, prompt: "The verdict is ABSTAIN."
+    )
+    assert main([
+        "chat", "--case-id", "INC-CLI-AUDIT", "--output-root", str(output_root),
+        "--question", "What is the verdict?", "--json",
+    ]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["narration"] == "The verdict is ABSTAIN."
+    assert payload["suspicious"] is False
+    assert payload["claims_total"] >= 1
+
+
+def test_chat_flags_a_claim_the_seal_does_not_support(tmp_path, capsys, monkeypatch):
+    from zaynor.agents.ollama_client import OllamaClient
+
+    _, _, output_root = _analyzed_case(tmp_path, capsys)
+    monkeypatch.setattr(
+        OllamaClient, "generate", lambda self, *, system, prompt: "The verdict is MALICE."
+    )
+    assert main([
+        "chat", "--case-id", "INC-CLI-AUDIT", "--output-root", str(output_root),
+        "--question", "What is the verdict?",
+    ]) == 0
+    out, err = capsys.readouterr()
+    assert "MALICE" not in out
+    assert "unsupported claim" in err
+
+
+def test_chat_rejects_a_case_id_that_was_never_analyzed(tmp_path, capsys):
+    output_root = tmp_path / "outputs"
+    output_root.mkdir()
+    assert main([
+        "chat", "--case-id", "INC-NEVER-ANALYZED", "--output-root", str(output_root),
+        "--question", "What happened?",
+    ]) == 2
+    assert "error de entrada" in capsys.readouterr().err
