@@ -10,6 +10,9 @@ Thumbs.db
 # Local Claude Code settings (not shared skills)
 .claude/settings.local.json
 
+# Local Kilo Code settings 
+.kilo/
+
 # Python
 __pycache__/
 *.py[cod]
