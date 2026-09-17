@@ -1,0 +1,104 @@
+# ZAYNOR AIOps demo lab — local, single-machine observability stack.
+# No external SaaS: every component runs on the demo machine and talks
+# only to services inside this compose network.
+#
+# Evidence flows UP through the collector into the backends; the incident
+# aggregator transforms alert clusters into ZAYNOR evidence bundles.
+# Nothing in this stack assigns scores or verdicts.
+name: zaynor-aiops
+
+services:
+  demo-api:
+    build:
+      context: ..
+      dockerfile: compose/Dockerfile.demo
+    environment:
+      ZAYNOR_DEMO_SERVICE: demo-api
+      ZAYNOR_DEMO_ENV: lab
+      ZAYNOR_LOG_FILE: /var/log/app/demo-api.jsonl
+      ZAYNOR_OTLP_TRACE_URL: http://otel-collector:9411/api/v2/spans
+    volumes:
+      - app-logs:/var/log/app
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3)"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.128.0
+    command: ["--config=/etc/otel/config.yaml"]
+    volumes:
+      - ./otel-config.yaml:/etc/otel/config.yaml:ro
+      - app-logs:/var/log/app:ro
+    ports:
+      - "9411:9411"   # zipkin JSON receiver
+      - "8898:8888"   # prometheus exporter (self-telemetry)
+    depends_on:
+      demo-api:
+        condition: service_healthy
+
+  prometheus:
+    image: prom/prometheus:v3.3.1
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --web.enable-remote-write-receiver
+      - --storage.tsdb.retention.time=1d
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9090:9090"
+
+  loki:
+    image: grafana/loki:3.5.0
+    command: -config.file=/etc/loki/config.yaml
+    volumes:
+      - ./loki-config.yaml:/etc/loki/config.yaml:ro
+    ports:
+      - "3100:3100"
+
+  tempo:
+    image: grafana/tempo:2.7.2
+    command: ["-config.file=/etc/tempo/config.yaml"]
+    volumes:
+      - ./tempo-config.yaml:/etc/tempo/config.yaml:ro
+    ports:
+      - "3200:3200"
+
+  grafana:
+    image: grafana/grafana:11.6.0
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_SECURITY_ADMIN_PASSWORD: ""
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+      - loki
+      - tempo
+
+  aggregator:
+    build:
+      context: ../../..
+      dockerfile: tools/aiops/compose/Dockerfile.aggregator
+    environment:
+      ZAYNOR_PROMETHEUS_URL: http://prometheus:9090
+      ZAYNOR_LOKI_URL: http://loki:3100
+      ZAYNOR_DEMO_ENV: lab
+    volumes:
+      - aiops-staging:/var/lib/zaynor-aiops
+    ports:
+      - "8090:8090"
+    depends_on:
+      - prometheus
+      - loki
+
+volumes:
+  app-logs:
+  aiops-staging:
