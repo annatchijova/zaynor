@@ -3,11 +3,10 @@ name = "zaynor"
 version = "0.1.0"
 requires-python = ">=3.12"
 dependencies = [
-    # MCP client SDK — talks to VIGÍA's bridge (vigia_sift_bridge.py) over
-    # stdio. Already used to build src/zaynor/vigia_mcp_client.py; no
-    # ZAYNOR-local reimplementation of the MCP protocol was considered a
-    # reasonable alternative.
+    # MCP SDK — client support for VIGÍA/auxiliary bridges and the local
+    # ZAYNOR-owned stdio server.
     "mcp>=1.27,<2",
+    "trio>=0.30,<1",
 ]
 
 [project.optional-dependencies]
@@ -22,6 +21,7 @@ telemetry = ["opentelemetry-sdk>=1.20,<2"]
 
 [project.scripts]
 zaynor = "zaynor.cli:main"
+zaynor-mcp = "zaynor.zaynor_mcp_server:main"
 
 [build-system]
 requires = ["setuptools>=68"]
