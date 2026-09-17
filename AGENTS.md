@@ -384,6 +384,21 @@ The flow for the three non-owner contributors:
    Prefer squash merge so `main` gets one clean commit per PR. Delete the
    branch after merging.
 
+**Docs-sync gate.** Code changes must update the docs that contract them.
+`scripts/docs_check.py` holds the code-to-docs map (`DOCS_MAP` — the single
+source of truth) and rejects a branch that changes, say, `src/zaynor/cli.py`
+or `src/zaynor/adapter.py` without touching the docs mapped to it (READMEs,
+`AGENTS.md`, ADRs, `docs/mcp-locales.md`, `docs/SANDBOX.md`,
+`docs/architecture-for-frontend.md`, contributing docs — see `DOCS_MAP` for
+the exact map). It is enforced mechanically twice: the `pre-push` hook runs
+it over the range being pushed, and CI runs it on every PR (`docs-sync`
+job). A rule can be waived deliberately with a commit trailer
+`Docs-Waiver: <rule-id> <reason>` — per rule, visible in git history, never
+silent. When you add a code part that has a doc contract, add its rule to
+`DOCS_MAP` in the same change. This applies to agents in particular: if
+your push is blocked by the gate, the fix is to write the missing docs, not
+to reach for `--no-verify`.
+
 **No `git commit` or `git push` without explicit permission.** An agent may
 stage changes and propose a commit message, but `git commit` and `git push`
 only run after the maintainer explicitly authorizes that specific action in
@@ -412,6 +427,8 @@ mypy src/zaynor/          # advisory: 20 pre-existing notes, see pyproject [tool
 git log --format=%s | while IFS= read -r subject; do
   printf '%s\n' "$subject" | python3 scripts/commitlint.py
 done                       # every header on main passes the commit-msg gate
+python3 scripts/docs_check.py --base origin/main
+                           # code changes update the docs that contract them
 ```
 
 A green run is reported with what it actually covers — "the tool-layer
@@ -447,6 +464,9 @@ in the PR instead of letting a green checkmark imply more than it proves.
 - [ ] Narrative output cannot modify the sealed authoritative result.
 - [ ] The branch is rebased on current `main` and PR review status is
       actually `MERGEABLE` / `CLEAN`, not assumed.
+- [ ] Docs synced: every `docs_check` rule triggered by this diff has its
+      docs updated in the same change (or a deliberate `Docs-Waiver`
+      trailer), and `scripts/docs_check.py --base origin/main` passes.
 - [ ] Tests/lint were actually run and their real output was read.
 - [ ] Commit messages follow Conventional Commits; PR description states
       what changed, why, and which side of the ZAYNOR/VIGÍA/LLM boundary it

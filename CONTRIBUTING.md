@@ -40,12 +40,32 @@ should help preserve that usefulness as the project evolves.
 4. Propose tests with every change. Tests should cover intended behavior,
    boundary conditions, negative cases, and relevant adversarial cases. A
    pull request without a test proposal is incomplete.
-5. Set up the local gates once per clone:
+5. Keep the docs in sync with the code. Changing a file that a document
+   contracts (the CLI, the API, the agents, the VIGÍA adapter, the seal,
+   the MCP tools, the frontend, the SDLC tooling) requires updating that
+   document in the same change. Which code parts contract which docs is
+   `DOCS_MAP` in `scripts/docs_check.py` — the single source of truth;
+   extend it when you add a part that has a doc contract. Enforcement is
+   mechanical, at two points:
+   - the `pre-push` hook runs `scripts/docs_check.py` over the range
+     being pushed (installed by `./scripts/install-hooks.sh`);
+   - CI runs the same gate on every PR (`docs-sync` job).
+   A rule can be waived deliberately with a commit trailer
+   `Docs-Waiver: <rule-id> <reason>` — per rule, visible in git history,
+   never silent. Run the gate locally at any time:
+   ```bash
+   python3 scripts/docs_check.py --base origin/main   # branch diff vs main
+   python3 scripts/docs_check.py --staged             # what is staged now
+   ```
+6. Set up the local gates once per clone:
    ```bash
    pip install -e ".[dev]" && pip install pre-commit
-   ./scripts/install-hooks.sh   # commit-msg (commitlint) + pre-push (force-push guard)
+   ./scripts/install-hooks.sh   # commit-msg (commitlint) + pre-push (force-push guard + docs-sync)
    pre-commit install           # whitespace/EOF/YAML/TOML/JSON hygiene
    ```
+   If you cloned before a hook update landed, re-run
+   `./scripts/install-hooks.sh --force` to pick it up (otherwise the old
+   hook keeps running and only the CI gate enforces the new check).
    Then run the verification suite before proposing a change:
    ```bash
    python3 -m pytest tests/ -q
@@ -55,10 +75,10 @@ should help preserve that usefulness as the project evolves.
    are advisory (the tree predates formatting; 20 pre-existing mypy notes
    are tracked in `pyproject.toml [tool.mypy]`). Match surrounding style
    in files you touch, fix new mypy notes there, but neither gates a merge.
-6. If you touch `src/zaynor/report.py`, `audit_log.py`, or anything
+7. If you touch `src/zaynor/report.py`, `audit_log.py`, or anything
    sealed/hashed, add a test that would fail if your change broke
    determinism or tamper-evidence — not just a happy-path test.
-7. No `git rebase`, no `git push --force`, no squashing history. See
+8. No `git rebase`, no `git push --force`, no squashing history. See
    `CLAUDE.md` §2 for the full git discipline this repo follows. (The
    `pre-push` hook enforces the force-push ban mechanically.)
 

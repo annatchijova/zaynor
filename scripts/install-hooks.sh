@@ -3,7 +3,9 @@
 #
 # Installs two hooks into this repo's .git/hooks:
 #   commit-msg — runs scripts/commitlint.py (Conventional Commits gate).
-#   pre-push   — blocks non-fast-forward (force) pushes; the hook body is
+#   pre-push   — blocks non-fast-forward (force) pushes and runs the
+#                docs-sync gate (scripts/docs_check.py) over the range
+#                being pushed; the hook body is
 #                scripts/git-hooks/pre-push (single source of truth, also
 #                installed by docs/skills/git-discipline/scripts/install_guard_hooks.sh).
 #
@@ -42,5 +44,5 @@ install_hook() {
 
 install_hook "commit-msg"
 install_hook "pre-push"
-echo "Done. Hooks run scripts/commitlint.py and the force-push guard."
+echo "Done. Hooks run scripts/commitlint.py, the force-push guard, and the docs-sync gate (scripts/docs_check.py)."
 echo "For lint/format hooks: pip install pre-commit && pre-commit install"

@@ -30,6 +30,12 @@ the git log; this file curates it.
   `.pre-commit-config.yaml` scoped to files this repo owns.
 - SDLC docs: commit, hook, and release workflow in `CONTRIBUTING.md` /
   `CONTRIBUYENDO.md`; verification commands in `AGENTS.md` section 5.
+- SDLC gate: `scripts/docs_check.py` (stdlib-only docs-sync gate). A code
+  change under a `DOCS_MAP` rule must update the docs that contract it in
+  the same branch; enforced by the `pre-push` hook over the pushed range
+  and by a `docs-sync` CI job on PRs. Deliberate per-rule exemptions via
+  the `Docs-Waiver: <rule-id> <reason>` commit trailer; gate semantics
+  tested in `tests/test_docs_check.py`.
 
 ## [0.1.0] - 2026-09-17
 
