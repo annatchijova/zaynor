@@ -2,7 +2,6 @@
 
 import json
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
 
 from tools.aiops.aggregator.app import (
     Aggregator,
