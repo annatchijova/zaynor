@@ -69,10 +69,10 @@ nav.toc a:hover{ background:var(--bg-sunken); }
 <header class="masthead">
 <h1>ZAYNOR Forensic Report — NITROBA</h1>
 <span class="seal-line caution">verdict: SUSPICION — sealed, verify with `zaynor audit`</span>
-<p class="generated-at">Generated 2026-09-17T09:19:48-03:00 (Argentina time)</p>
+<p class="generated-at">Generated 2026-09-17T09:45:08-03:00 (Argentina time)</p>
 <div class="summary-grid">
 <div class="stat-tile"><strong>Confidence</strong><span>UNKNOWN</span></div>
-<div class="stat-tile"><strong>Engine</strong><span>vigia_agent 1.0.0-SANS-2026</span></div>
+<div class="stat-tile"><strong>Engine</strong><span>ZAYNOR deterministic engine (Mode 1) 1.0.0-SANS-2026</span></div>
 <div class="stat-tile"><strong>Findings</strong><span>1</span></div>
 </div>
 <nav class="toc">
@@ -87,8 +87,8 @@ nav.toc a:hover{ background:var(--bg-sunken); }
 <div class="overview-card"><span>Findings / Unknowns</span><strong>1 / 0</strong></div>
 </div>
 </section>
-<section id="agents"><h2>Agents in this pipeline</h2><table class="data-table"><tr><th>Role</th><th>Status</th><th>What it actually does</th></tr><tr><td><code>MENTOR</code></td><td>conectado</td><td>Explains an already-sealed result; never re-invokes VIGIA.</td></tr><tr><td><code>INVESTIGATOR</code></td><td>conectado</td><td>collect_window/verify_custody call VIGIA's MCP bridge for real.</td></tr><tr><td><code>FLEET_COMMANDER</code></td><td>conectado</td><td>Writes to the investigation log; never produces a verdict.</td></tr><tr><td><code>DETECTION_ENGINEER</code></td><td>conectado</td><td>draft_sigma_rule anchors candidates to a real sealed finding.</td></tr><tr><td><code>DISPATCHER</code></td><td>conectado</td><td>Catalog of evidence types Mode 1 can actually analyze.</td></tr><tr><td><code>ENDPOINT_HUNTER / PERSISTENCE_HUNTER</code></td><td>out of scope</td><td>Would need a live EDR collection backend this project does not have.</td></tr><tr><td><code>THREAT_INTEL</code></td><td>out of scope, for now</td><td>A portable VirusTotal/GTI enrichment exists but is not wired in — external network dependency, pending decision.</td></tr></table>
-<p class="engine-note">Findings themselves come from VIGIA's deterministic Mode 1 engine, not from a named agent above — no per-finding agent attribution exists in the sealed contract (AuthoritativeFinding has no agent field). This table names what ZAYNOR's own local, Ollama-driven agent layer does around that sealed result.</p>
+<section id="agents"><h2>Agents in this pipeline</h2><table class="data-table"><tr><th>Role</th><th>Status</th><th>What it actually does</th></tr><tr><td><code>MENTOR</code></td><td>conectado</td><td>The only role a normal zaynor chat/serve run actually invokes; explains an already-sealed result, never re-invokes the engine.</td></tr><tr><td><code>INVESTIGATOR</code></td><td>implementado, sin invocación automática</td><td>collect_window/verify_custody are real and tested (agents/investigator_tools.py) but no CLI/API command calls them yet.</td></tr><tr><td><code>FLEET_COMMANDER</code></td><td>implementado, sin invocación automática</td><td>Writes to the investigation log; real code (agents/fleet_commander_tools.py), no caller in cli.py/api.py yet.</td></tr><tr><td><code>DETECTION_ENGINEER</code></td><td>implementado, sin invocación automática</td><td>draft_sigma_rule anchors candidates to a real sealed finding (agents/detection_engineer_tools.py), not wired to a command yet.</td></tr><tr><td><code>DISPATCHER</code></td><td>implementado, sin invocación automática</td><td>Catalog of evidence types Mode 1 can actually analyze (agents/dispatcher_tools.py), not wired to a command yet.</td></tr><tr><td><code>ENDPOINT_HUNTER / PERSISTENCE_HUNTER</code></td><td>out of scope</td><td>Would need a live EDR collection backend this project does not have.</td></tr><tr><td><code>THREAT_INTEL</code></td><td>out of scope, for now</td><td>A portable VirusTotal/GTI enrichment exists but is not wired in — external network dependency, pending decision.</td></tr></table>
+<p class="engine-note">Findings themselves come from ZAYNOR's own deterministic Mode 1 engine, not from a named agent above — no per-finding agent attribution exists in the sealed contract (AuthoritativeFinding has no agent field). This table names what ZAYNOR's own local, Ollama-driven agent layer does around that sealed result.</p>
 </section>
 <section id="findings"><h2>Findings</h2><article class="finding-card">
   <div class="finding-head">
@@ -96,13 +96,13 @@ nav.toc a:hover{ background:var(--bg-sunken); }
     <span class="ref">F-NITROBA</span>
     
   </div>
-  <p><strong>Detected by:</strong> VIGIA deterministic engine (Mode 1) — no LLM in the decision path.</p>
+  <p><strong>Detected by:</strong> ZAYNOR deterministic engine (Mode 1) — no LLM in the decision path.</p>
   <p>[MOTOR] Label-blind selection: SUSPICION_DETECTED. Significant signal with structural support (score=0.3135)</p>
   <details><summary>Evidence chain</summary><ul><li><code>NITROBA-ART-001</code> → <code>NITROBA-ART-001</code></li><li><code>NITROBA-ART-002</code> → <code>NITROBA-ART-002</code></li><li><code>NITROBA-ART-003</code> → <code>NITROBA-ART-003</code></li><li><code>NITROBA-ART-004</code> → <code>NITROBA-ART-004</code></li><li><code>NITROBA-ART-005</code> → <code>NITROBA-ART-005</code></li></ul></details>
 </article></section>
 <section id="unknowns"><h2>Unknowns</h2><ul class="plain"><li>None declared.</li></ul></section>
 <section id="chain-of-custody"><h2>Chain of custody</h2><div class="chain-block">result_sha256 (deterministic): 434cf0a51eaa0649e7a78a8941dfe4d3d6c9ce16c99b403c706e03889cb9089b
-report_hash (timestamped)   : 77525b3df771a06e37e1346a8155489999dd564cb8961228371aec94970a88a4</div></section>
+report_hash (timestamped)   : 2b867f817d15c557850ed37aa881cfd44cb644811b3f2d7c8e283f32947fa7a5</div></section>
 <section id="methodology"><h2>Methodology</h2><p>The deterministic engine produces and seals the result before any language model is invoked. The model receives a compressed, read-only summary and narrates it; it cannot alter a verdict, a finding, or the seal. Every claim in a narration is checked against this sealed result before being shown (zaynor chat/serve). result_sha256 is the canonical SHA-256 seal of the authoritative result: recompute it independently with `zaynor audit` to confirm this report was not altered after the fact.</p></section>
 </div>
 </body>

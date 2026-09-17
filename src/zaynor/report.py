@@ -51,6 +51,23 @@ def _custody_rows(result: ZaynorAuthoritativeResult) -> list[tuple[str, str, str
     return rows
 
 
+_ENGINE_DISPLAY_NAME = "ZAYNOR deterministic engine (Mode 1)"
+
+
+def _engine_display(result: ZaynorAuthoritativeResult) -> str:
+    """A client-facing report names ZAYNOR, not its vendored internals.
+
+    `result.engine["name"]` is literally the string "vigia_agent" (real
+    provenance metadata, correct for an internal audit trail) -- but this
+    function's output is what a perito or a court reads, and ZAYNOR is its
+    own product (AGENTS.md 2.1 / this session's own "no quiero mezclar a
+    VIGIA, ESTE es otro producto" instruction). The version number is real
+    and shown; the raw engine name is not.
+    """
+    version = result.engine.get("version", "")
+    return f"{_ENGINE_DISPLAY_NAME} {version}".rstrip()
+
+
 _METHODOLOGY = (
     "The deterministic engine produces and seals the result before any "
     "language model is invoked. The model receives a compressed, read-only "
@@ -76,7 +93,7 @@ def render_markdown(result: ZaynorAuthoritativeResult, seal: AuthoritySeal) -> s
         f"- **Classification:** {_incident_classification(result)}",
         f"- **Confidence:** {result.integrity.get('confidence', 'UNKNOWN')}",
         f"- **Result SHA-256:** `{seal.sha256}`",
-        f"- **Engine:** {result.engine.get('name', 'unknown')} {result.engine.get('version', '')}".rstrip(),
+        f"- **Engine:** {_engine_display(result)}",
         f"- **Findings / Unknowns:** {len(result.findings)} / {len(result.unknowns)}",
         "",
         "## Agents in this pipeline",
@@ -87,7 +104,7 @@ def render_markdown(result: ZaynorAuthoritativeResult, seal: AuthoritySeal) -> s
     lines += [f"| {name} | {status} | {note} |" for name, status, note in _AGENTS]
     lines += [
         "",
-        "Findings themselves come from VIGIA's deterministic Mode 1 engine, not "
+        "Findings themselves come from ZAYNOR's own deterministic Mode 1 engine, not "
         "from a named agent above -- no per-finding agent attribution exists in "
         "the sealed contract (`AuthoritativeFinding` has no agent field). This "
         "table names what ZAYNOR's own local, Ollama-driven agent layer does "
@@ -106,7 +123,7 @@ def render_markdown(result: ZaynorAuthoritativeResult, seal: AuthoritySeal) -> s
             rationale = finding.rationale.replace("|", "\\|") or "-"
             lines.append(
                 f"| {finding.finding_id} | {finding.state} | {technique} "
-                f"| VIGIA deterministic engine (Mode 1) | {rationale} |"
+                f"| {_ENGINE_DISPLAY_NAME} | {rationale} |"
             )
         lines.append("")
         for finding in result.findings:
@@ -153,23 +170,27 @@ def _finding_card(finding: AuthoritativeFinding) -> str:
     <span class="ref">{_escape_html(finding.finding_id)}</span>
     {f'<span class="badge mitre">{_escape_html(technique)}</span>' if technique != "-" else ""}
   </div>
-  <p><strong>Detected by:</strong> VIGIA deterministic engine (Mode 1) — no LLM in the decision path.</p>
+  <p><strong>Detected by:</strong> {_ENGINE_DISPLAY_NAME} — no LLM in the decision path.</p>
   <p>{_escape_html(finding.rationale or "No rationale recorded.")}</p>
   <details><summary>Evidence chain</summary><ul>{refs}</ul></details>
 </article>"""
 
 
-# Real status of ZAYNOR's own agent roles, verbatim from README.md's
-# "Agentes locales (Ollama), por rol" table — not per-finding attribution
-# (AuthoritativeFinding carries no agent field: findings come from VIGIA's
-# deterministic Mode 1, not a named ZAYNOR sub-agent) but an honest account
-# of which parts of the pipeline exist and ran versus are out of scope.
+# Real status of ZAYNOR's own agent roles -- not per-finding attribution
+# (AuthoritativeFinding carries no agent field: findings come from the
+# deterministic Mode 1 engine, not a named ZAYNOR sub-agent) but an honest
+# account of what actually runs during a normal analyze/report, versus
+# code that exists and is tested but has no automatic caller yet, versus
+# out of scope. Verified by grepping cli.py/api.py for each tool function
+# before writing this table -- "conectado" is reserved for the one role a
+# normal run actually invokes; the others are real, tested library code
+# waiting on a CLI/API entry point that does not exist yet.
 _AGENTS = (
-    ("MENTOR", "conectado", "Explains an already-sealed result; never re-invokes VIGIA."),
-    ("INVESTIGATOR", "conectado", "collect_window/verify_custody call VIGIA's MCP bridge for real."),
-    ("FLEET_COMMANDER", "conectado", "Writes to the investigation log; never produces a verdict."),
-    ("DETECTION_ENGINEER", "conectado", "draft_sigma_rule anchors candidates to a real sealed finding."),
-    ("DISPATCHER", "conectado", "Catalog of evidence types Mode 1 can actually analyze."),
+    ("MENTOR", "conectado", "The only role a normal zaynor chat/serve run actually invokes; explains an already-sealed result, never re-invokes the engine."),
+    ("INVESTIGATOR", "implementado, sin invocación automática", "collect_window/verify_custody are real and tested (agents/investigator_tools.py) but no CLI/API command calls them yet."),
+    ("FLEET_COMMANDER", "implementado, sin invocación automática", "Writes to the investigation log; real code (agents/fleet_commander_tools.py), no caller in cli.py/api.py yet."),
+    ("DETECTION_ENGINEER", "implementado, sin invocación automática", "draft_sigma_rule anchors candidates to a real sealed finding (agents/detection_engineer_tools.py), not wired to a command yet."),
+    ("DISPATCHER", "implementado, sin invocación automática", "Catalog of evidence types Mode 1 can actually analyze (agents/dispatcher_tools.py), not wired to a command yet."),
     ("ENDPOINT_HUNTER / PERSISTENCE_HUNTER", "out of scope", "Would need a live EDR collection backend this project does not have."),
     ("THREAT_INTEL", "out of scope, for now", "A portable VirusTotal/GTI enrichment exists but is not wired in — external network dependency, pending decision."),
 )
@@ -317,7 +338,7 @@ nav.toc a:hover{{ background:var(--bg-sunken); }}
 <p class="generated-at">Generated {_escape_html(generated_at)} (Argentina time)</p>
 <div class="summary-grid">
 <div class="stat-tile"><strong>Confidence</strong><span>{_escape_html(str(result.integrity.get('confidence', 'UNKNOWN')))}</span></div>
-<div class="stat-tile"><strong>Engine</strong><span>{_escape_html(result.engine.get('name', 'unknown'))} {_escape_html(result.engine.get('version', ''))}</span></div>
+<div class="stat-tile"><strong>Engine</strong><span>{_escape_html(_engine_display(result))}</span></div>
 <div class="stat-tile"><strong>Findings</strong><span>{len(result.findings)}</span></div>
 </div>
 <nav class="toc">
@@ -333,7 +354,7 @@ nav.toc a:hover{{ background:var(--bg-sunken); }}
 </div>
 </section>
 <section id="agents"><h2>Agents in this pipeline</h2>{_agents_html()}
-<p class="engine-note">Findings themselves come from VIGIA's deterministic Mode 1 engine, not from a named agent above — no per-finding agent attribution exists in the sealed contract (AuthoritativeFinding has no agent field). This table names what ZAYNOR's own local, Ollama-driven agent layer does around that sealed result.</p>
+<p class="engine-note">Findings themselves come from ZAYNOR's own deterministic Mode 1 engine, not from a named agent above — no per-finding agent attribution exists in the sealed contract (AuthoritativeFinding has no agent field). This table names what ZAYNOR's own local, Ollama-driven agent layer does around that sealed result.</p>
 </section>
 <section id="findings"><h2>Findings</h2>{findings_html}</section>
 <section id="unknowns"><h2>Unknowns</h2><ul class="plain">{unknowns_items}</ul></section>
@@ -407,16 +428,13 @@ def render_pdf(result: ZaynorAuthoritativeResult, seal: AuthoritySeal) -> bytes:
         Paragraph(f"Classification: {_incident_classification(result)}", styles["Normal"]),
         Paragraph(f"Confidence: {result.integrity.get('confidence', 'UNKNOWN')}", styles["Normal"]),
         Paragraph(f"Result SHA-256: {seal.sha256}", styles["Normal"]),
-        Paragraph(
-            f"Engine: {result.engine.get('name', 'unknown')} {result.engine.get('version', '')}",
-            styles["Normal"],
-        ),
+        Paragraph(f"Engine: {_engine_display(result)}", styles["Normal"]),
         Paragraph(f"Findings / Unknowns: {len(result.findings)} / {len(result.unknowns)}", styles["Normal"]),
         Spacer(1, 12),
         Paragraph("Agents in this pipeline", styles["Heading2"]),
         _table([["Role", "Status", "What it actually does"], *[[n, s, note] for n, s, note in _AGENTS]]),
         Paragraph(
-            "Findings come from VIGIA's deterministic Mode 1 engine, not from a named agent above "
+            "Findings come from ZAYNOR's own deterministic Mode 1 engine, not from a named agent above "
             "-- no per-finding agent attribution exists in the sealed contract.",
             styles["Normal"],
         ),
@@ -427,7 +445,7 @@ def render_pdf(result: ZaynorAuthoritativeResult, seal: AuthoritySeal) -> bytes:
     for finding in result.findings:
         technique = (finding.mitre or {}).get("technique", "-") if finding.mitre else "-"
         finding_table.append(
-            [finding.finding_id, finding.state, technique, "VIGIA Mode 1", finding.rationale or "-"]
+            [finding.finding_id, finding.state, technique, _ENGINE_DISPLAY_NAME, finding.rationale or "-"]
         )
     if len(finding_table) == 1:
         finding_table.append(["-", "-", "-", "-", "No findings in this result."])
