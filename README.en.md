@@ -2,7 +2,7 @@
 
 *[Leer en español](./README.md)*
 
-**[Published architecture diagram (HTML)](https://annatchijova.github.io/vigia/vigia_diagrams.html)**
+**[Published architecture diagram (HTML)](https://annatchijova.github.io/zaynor/architecture.html)**
 
 ## The real problem
 
