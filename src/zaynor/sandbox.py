@@ -105,12 +105,13 @@ def _open_confined(path: Path):
 def hash_evidence(evidence_dir: Path, requested: str, config: SandboxConfig = SandboxConfig()) -> tuple[Path, str, int]:
     """Hash one bounded evidence file before any caller receives its bytes."""
     path = _confined_regular_file(evidence_dir, requested)
-    size = path.stat().st_size
-    if size > config.max_read_bytes:
-        raise SandboxError("evidence file exceeds the read limit")
     digest = hashlib.sha256()
+    size = 0
     with _open_confined(path) as stream:
         for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            size += len(chunk)
+            if size > config.max_read_bytes:
+                raise SandboxError("evidence file exceeds the read limit")
             digest.update(chunk)
     return path, digest.hexdigest(), size
 
@@ -150,6 +151,22 @@ def _kill_process_group(pid: int) -> None:
         pass
 
 
+def _stop_process(process: subprocess.Popen) -> None:
+    """Stop a worker promptly and reap it without waiting on descendants."""
+    _kill_process_group(process.pid)
+    try:
+        process.kill()
+    except ProcessLookupError:
+        pass
+    try:
+        process.wait(timeout=0.5)
+    except subprocess.TimeoutExpired:
+        pass
+    for stream in (process.stdout, process.stderr):
+        if stream is not None:
+            stream.close()
+
+
 def _read_bounded_pipes(
     process: subprocess.Popen, config: SandboxConfig
 ) -> tuple[bytes, bytes]:
@@ -173,15 +190,21 @@ def _read_bounded_pipes(
 
             for key, _ in selector.select(timeout=min(remaining, 0.5)):
                 name = key.data
-                chunk = key.fileobj.read(65536)
+                # BufferedReader.read() may wait for the requested size even
+                # after select reports the pipe readable. read1() consumes
+                # only bytes currently available, preserving the deadline.
+                chunk = key.fileobj.read1(65536)
                 if not chunk:
                     selector.unregister(key.fileobj)
                     open_streams.discard(name)
                     continue
                 buffers[name].extend(chunk)
                 if len(buffers[name]) > config.max_output_bytes:
-                    _kill_process_group(process.pid)
+                    _stop_process(process)
                     raise SandboxError("worker output exceeded its limit")
+    except subprocess.TimeoutExpired:
+        _stop_process(process)
+        raise
     finally:
         selector.close()
 
@@ -189,8 +212,7 @@ def _read_bounded_pipes(
     try:
         process.wait(timeout=max(remaining, 0))
     except subprocess.TimeoutExpired:
-        _kill_process_group(process.pid)
-        process.wait(timeout=5)
+        _stop_process(process)
         raise
 
     return bytes(buffers["stdout"]), bytes(buffers["stderr"])
@@ -221,6 +243,7 @@ def run_worker_command(command: Sequence[str], config: SandboxConfig = SandboxCo
     try:
         stdout, stderr = _read_bounded_pipes(process, config)
     except subprocess.TimeoutExpired as exc:
+        _stop_process(process)
         raise SandboxError("worker command exceeded its timeout") from exc
 
     return process.returncode, stdout, stderr

@@ -32,9 +32,8 @@ class PathValidationResult:
     reason: str
     inode: int
     size: int
-    # Exact seconds represented as a Fraction derived from st_mtime_ns.
     mtime: Fraction
-    hash_prefix: str
+    content_hash: str
 
 
 class PathGuard:
@@ -79,13 +78,13 @@ class PathGuard:
             if ".." in p.parts:
                 return PathValidationResult(
                     valid=False, reason="PATH_TRAVERSAL",
-                    inode=0, size=0, mtime=Fraction(0), hash_prefix="",
+                    inode=0, size=0, mtime=Fraction(0), content_hash="",
                 )
             abs_path = self._lexical_absolute(p)
         except (OSError, TypeError, ValueError) as exc:
             return PathValidationResult(
                 valid=False, reason=f"INVALID_PATH: {exc}",
-                inode=0, size=0, mtime=Fraction(0), hash_prefix="",
+                inode=0, size=0, mtime=Fraction(0), content_hash="",
             )
 
         try:
@@ -95,17 +94,17 @@ class PathGuard:
                 if parent.is_symlink():
                     return PathValidationResult(
                         valid=False, reason="SYMLINK_DETECTED_IN_PATH",
-                        inode=0, size=0, mtime=Fraction(0), hash_prefix="",
+                        inode=0, size=0, mtime=Fraction(0), content_hash="",
                     )
                 if getattr(os.lstat(str(parent)), "st_reparse_tag", 0):
                     return PathValidationResult(
                         valid=False, reason="REPARSE_POINT_DETECTED_IN_PATH",
-                        inode=0, size=0, mtime=Fraction(0), hash_prefix="",
+                        inode=0, size=0, mtime=Fraction(0), content_hash="",
                     )
         except OSError as exc:
             return PathValidationResult(
                 valid=False, reason=f"SYMLINK_CHECK_FAILED: {exc}",
-                inode=0, size=0, mtime=Fraction(0), hash_prefix="",
+                inode=0, size=0, mtime=Fraction(0), content_hash="",
             )
 
         # Allowlist by path component, not text prefix: "<root>-neighbor" is
@@ -117,13 +116,13 @@ class PathGuard:
             reason = "FILE_NOT_FOUND" if not abs_path.exists() else "OUTSIDE_ALLOWLIST"
             return PathValidationResult(
                 valid=False, reason=reason,
-                inode=0, size=0, mtime=Fraction(0), hash_prefix="",
+                inode=0, size=0, mtime=Fraction(0), content_hash="",
             )
 
         if not abs_path.exists():
             return PathValidationResult(
                 valid=False, reason="FILE_NOT_FOUND",
-                inode=0, size=0, mtime=Fraction(0), hash_prefix="",
+                inode=0, size=0, mtime=Fraction(0), content_hash="",
             )
 
         try:
@@ -134,76 +133,78 @@ class PathGuard:
                 if not (stat.S_ISREG(st.st_mode) or stat.S_ISDIR(st.st_mode)):
                     return PathValidationResult(
                         valid=False, reason="NOT_A_REGULAR_FILE_OR_DIR",
-                        inode=inode, size=size, mtime=mtime, hash_prefix="",
+                        inode=inode, size=size, mtime=mtime, content_hash="",
                     )
             elif not stat.S_ISREG(st.st_mode):
                 return PathValidationResult(
                     valid=False, reason="NOT_A_REGULAR_FILE",
-                    inode=inode, size=size, mtime=mtime, hash_prefix="",
+                    inode=inode, size=size, mtime=mtime, content_hash="",
                 )
         except OSError as exc:
             return PathValidationResult(
                 valid=False, reason=f"STAT_FAILED: {exc}",
-                inode=0, size=0, mtime=Fraction(0), hash_prefix="",
+                inode=0, size=0, mtime=Fraction(0), content_hash="",
             )
 
-        hash_prefix = ""
+        content_hash = ""
         if size > 0 and not stat.S_ISDIR(st.st_mode):
             try:
                 with abs_path.open("rb") as handle:
-                    prefix = handle.read(4096)
-                hash_prefix = hashlib.sha256(prefix).hexdigest()[:16]
+                    digest = hashlib.sha256()
+                    for block in iter(lambda: handle.read(1024 * 1024), b""):
+                        digest.update(block)
+                content_hash = digest.hexdigest()
             except OSError:
                 pass
 
         return PathValidationResult(
             valid=True, reason="VALID",
-            inode=inode, size=size, mtime=mtime, hash_prefix=hash_prefix,
+            inode=inode, size=size, mtime=mtime, content_hash=content_hash,
         )
 
     def verify_no_toctou(
         self, path_str: str, previous: PathValidationResult
     ) -> PathValidationResult:
         """Re-check after access (USE). A changed inode, size, mtime, or
-        content-prefix hash between check and use is a TOCTOU attack.
+        full content hash between check and use is a TOCTOU attack.
         """
         current = self.validate(path_str)
         if not current.valid:
             return PathValidationResult(
                 valid=False, reason=f"TOCTOU_VIOLATION: {current.reason}",
                 inode=current.inode, size=current.size,
-                mtime=current.mtime, hash_prefix=current.hash_prefix,
+                mtime=current.mtime, content_hash=current.content_hash,
             )
         if current.inode != previous.inode:
             return PathValidationResult(
                 valid=False, reason="TOCTOU_INODE_CHANGED",
                 inode=current.inode, size=current.size,
-                mtime=current.mtime, hash_prefix=current.hash_prefix,
+                mtime=current.mtime, content_hash=current.content_hash,
             )
         if current.size != previous.size:
             return PathValidationResult(
                 valid=False, reason="TOCTOU_SIZE_CHANGED",
                 inode=current.inode, size=current.size,
-                mtime=current.mtime, hash_prefix=current.hash_prefix,
+                mtime=current.mtime, content_hash=current.content_hash,
             )
         if abs(current.mtime - previous.mtime) > Fraction(1, 1_000):
             return PathValidationResult(
                 valid=False, reason="TOCTOU_MTIME_CHANGED",
                 inode=current.inode, size=current.size,
-                mtime=current.mtime, hash_prefix=current.hash_prefix,
+                mtime=current.mtime, content_hash=current.content_hash,
             )
-        if current.hash_prefix != previous.hash_prefix:
+        if current.content_hash != previous.content_hash:
             return PathValidationResult(
                 valid=False, reason="TOCTOU_CONTENT_CHANGED",
                 inode=current.inode, size=current.size,
-                mtime=current.mtime, hash_prefix=current.hash_prefix,
+                mtime=current.mtime, content_hash=current.content_hash,
             )
         return current
 
     def safe_open(self, path_str: str, mode: str = "rb"):
         """Open a file with full TOCTOU protection: validate, open with
-        O_NOFOLLOW, fstat-verify it's still a regular file, hold a shared
-        lock for the read.
+        O_NOFOLLOW, fstat-verify it's still the validated inode and a regular
+        file, and hold a shared lock for the read.
         """
         check = self.validate(path_str)
         if not check.valid:
@@ -217,8 +218,9 @@ class PathGuard:
             try:
                 st = os.fstat(fd)
                 if not stat.S_ISREG(st.st_mode):
-                    os.close(fd)
                     raise PermissionError("PathGuard REJECT: NOT_A_REGULAR_FILE")
+                if st.st_ino != check.inode:
+                    raise PermissionError("PathGuard REJECT: INODE_CHANGED")
                 if hasattr(os, "LOCK_SH"):
                     import fcntl
 
@@ -232,8 +234,9 @@ class PathGuard:
             try:
                 st = os.fstat(fd)
                 if not stat.S_ISREG(st.st_mode):
-                    os.close(fd)
                     raise PermissionError("PathGuard REJECT: NOT_A_REGULAR_FILE")
+                if st.st_ino != check.inode:
+                    raise PermissionError("PathGuard REJECT: INODE_CHANGED")
                 return os.fdopen(fd, mode)
             except Exception:
                 os.close(fd)
