@@ -173,4 +173,65 @@ def test_tampering_with_created_at_breaks_the_hash(tmp_path):
 
     ok, message = AuditLog.verify_with_report(path, case_id="CASE-1")
     assert not ok
-    assert "entry_hash mismatch" in message
+
+
+def test_append_rejects_a_symlink_swapped_in_after_construction(tmp_path):
+    """A real audit.jsonl exists at construction time (so `_resume()`
+    passes cleanly), then gets replaced by a symlink before the next
+    `append()` -- the check must be repeated on every write, not only
+    once at `__init__`.
+    """
+    outside_target = tmp_path / "outside.txt"
+    outside_target.write_text("")
+    audit_path = tmp_path / "case" / "audit.jsonl"
+    audit_path.parent.mkdir()
+
+    log = AuditLog(audit_path, case_id="CASE-SYMLINK")
+    audit_path.unlink(missing_ok=True)
+    audit_path.symlink_to(outside_target)
+
+    with pytest.raises(ValueError, match="symlink"):
+        log.append("CASE_FROZEN", {"x": 1}, reason="frozen")
+    assert outside_target.read_text() == ""
+
+
+def test_construction_rejects_a_pre_placed_symlink_on_read(tmp_path):
+    outside_target = tmp_path / "outside.txt"
+    outside_target.write_text("not an audit log")
+    audit_path = tmp_path / "case" / "audit.jsonl"
+    audit_path.parent.mkdir()
+    audit_path.symlink_to(outside_target)
+
+    with pytest.raises(ValueError, match="symlink"):
+        AuditLog(audit_path, case_id="CASE-SYMLINK")
+
+
+def test_load_entries_and_verify_reject_a_pre_placed_symlink(tmp_path):
+    outside_target = tmp_path / "outside.txt"
+    outside_target.write_text('{"not":"real"}\n')
+    audit_path = tmp_path / "audit.jsonl"
+    audit_path.symlink_to(outside_target)
+
+    with pytest.raises(ValueError, match="symlink"):
+        AuditLog.load_entries(audit_path)
+    with pytest.raises(ValueError, match="symlink"):
+        AuditLog.verify_with_report(audit_path, case_id="CASE-SYMLINK")
+
+
+def test_verify_with_report_rejects_an_oversized_log(tmp_path):
+    path = tmp_path / "audit.jsonl"
+    log = AuditLog(path, case_id="CASE-BIG")
+    for _ in range(5):
+        log.append("TOOL_INVOKED", {"x": 1}, reason="synthetic bulk entry for a size-cap test")
+
+    import zaynor.audit_log as audit_log_module
+
+    original_limit = audit_log_module._MAX_AUDIT_LOG_BYTES
+    audit_log_module._MAX_AUDIT_LOG_BYTES = 10
+    try:
+        with pytest.raises(ValueError, match="exceeded"):
+            AuditLog.verify_with_report(path, case_id="CASE-BIG")
+        with pytest.raises(ValueError, match="exceeded"):
+            AuditLog.load_entries(path)
+    finally:
+        audit_log_module._MAX_AUDIT_LOG_BYTES = original_limit

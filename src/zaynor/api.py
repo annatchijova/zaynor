@@ -18,6 +18,8 @@ seal-verified chat path, not two.
 
 from __future__ import annotations
 
+import contextlib
+import fcntl
 import json
 import logging
 import os
@@ -302,6 +304,32 @@ class InvestigationLedgerCorrupted(ValueError):
 
 def _investigation_state_path(output_root: Path, case_id: str) -> Path:
     return output_root / case_id / "investigation.json"
+
+
+@contextlib.contextmanager
+def _investigation_write_lock(output_root: Path, case_id: str):
+    """Serialize the load -> propose_and_execute -> save cycle per case_id.
+
+    Red team round 22 (R22-01, CONFIRMED BY INDUCTION): `propose_investigation`
+    had no lock at all. Two concurrent requests for the same case both load
+    the same stale ledger, both really execute their MCP tool call, and
+    whichever `os.replace` runs last wins -- the other request's real,
+    already-executed observation is silently dropped, indistinguishable
+    from "never asked". An `flock` held across the whole critical section
+    (not just the final atomic write, which was already correct on its
+    own) turns that race into ordinary serialization: the second request
+    simply loads the *updated* ledger the first one just saved.
+    """
+    lock_path = output_root / case_id / "investigation.lock"
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    if lock_path.exists() and lock_path.is_symlink():
+        raise ApiError(500, "internal_error", "investigation lock path must not be a symlink", "server_error")
+    with open(lock_path, "a", encoding="utf-8") as handle:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
 
 
 def _load_investigation_state(case_id: str, output_root: Path, base_result_sha256: str) -> dict[str, Any]:
@@ -695,26 +723,27 @@ def create_app(
         except (CliInputError, ValueError):
             raise ApiError(422, "invalid_authority", "stored result or seal could not be verified", "authority_error") from None
 
-        state = _load_investigation_state_or_error(case_id, output_root, seal.sha256)
-        package, package_seal = build_consult_package(result, seal)
-        consult = ConsultTools(package, package_seal, hunts=DEFAULT_HUNT_CATALOG)
-        mcp_config = VigiaMCPConfig(evidence_dir=evidence_dir)
-        adapter = InvestigatorToolAdapter(mcp_config, consult)
-        client = OllamaClient(host=ollama_host, model=model, timeout_seconds=timeout_seconds)
-        investigator = BoundedInvestigator(client, state["session"], facts, adapter.handlers())
+        with _investigation_write_lock(output_root, case_id):
+            state = _load_investigation_state_or_error(case_id, output_root, seal.sha256)
+            package, package_seal = build_consult_package(result, seal)
+            consult = ConsultTools(package, package_seal, hunts=DEFAULT_HUNT_CATALOG)
+            mcp_config = VigiaMCPConfig(evidence_dir=evidence_dir)
+            adapter = InvestigatorToolAdapter(mcp_config, consult)
+            client = OllamaClient(host=ollama_host, model=model, timeout_seconds=timeout_seconds)
+            investigator = BoundedInvestigator(client, state["session"], facts, adapter.handlers())
 
-        try:
-            new_session, proposal, observation = investigator.propose_and_execute(question=req.question)
-        except OllamaError:
-            raise ApiError(503, "ollama_unavailable", "local narration service is unavailable", "service_unavailable") from None
-        except InvestigationRunnerError as exc:
-            raise ApiError(422, "policy_rejected", str(exc), "investigation_error") from None
+            try:
+                new_session, proposal, observation = investigator.propose_and_execute(question=req.question)
+            except OllamaError:
+                raise ApiError(503, "ollama_unavailable", "local narration service is unavailable", "service_unavailable") from None
+            except InvestigationRunnerError as exc:
+                raise ApiError(422, "policy_rejected", str(exc), "investigation_error") from None
 
-        now = format_argentina()
-        state["session"] = new_session
-        state["proposal_created_at"][proposal.proposal_id] = now
-        state["observation_recorded_at"][observation.observation_id] = now
-        _save_investigation_state(case_id, output_root, state)
+            now = format_argentina()
+            state["session"] = new_session
+            state["proposal_created_at"][proposal.proposal_id] = now
+            state["observation_recorded_at"][observation.observation_id] = now
+            _save_investigation_state(case_id, output_root, state)
 
         return _proposal_payload(proposal, status="EXECUTED", created_at=now)
 

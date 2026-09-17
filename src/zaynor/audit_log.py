@@ -91,6 +91,34 @@ def _canonical(obj: Any) -> str:
     return json.dumps(obj, sort_keys=True, separators=(",", ":"), ensure_ascii=True)
 
 
+def _reject_symlink(path: Path) -> None:
+    """Red team round 22 (R22-02, CONFIRMED BY INDUCTION): every other path
+    this codebase writes or reads through the case directory rejects a
+    symlink first (`PathGuard`, `cli.py::_atomic_json_write`,
+    `cli.py::_fixture_path`/`_directory_path`,
+    `api.py::_save_investigation_state`) -- this module, whose whole
+    purpose is tamper-evidence, had no equivalent check and silently
+    followed a pre-placed symlink on both read and write.
+    """
+    if path.is_symlink():
+        raise ValueError(f"audit log path must not be a symlink: {path}")
+
+
+# Red team round 22 (R22-04, CODE FACT): `_read_bounded` in ollama_client.py
+# established the convention of capping a read before parsing it -- this
+# module was written after that convention existed and did not follow it.
+# Not exploitable through any API-reachable path today (nothing wired to
+# `ReadOnlyToolRegistry` grows this file), but the cap belongs here before
+# that changes, not after.
+_MAX_AUDIT_LOG_BYTES = 16 * 1024 * 1024
+
+
+def _reject_oversized(path: Path) -> None:
+    size = path.stat().st_size
+    if size > _MAX_AUDIT_LOG_BYTES:
+        raise ValueError(f"audit log exceeded the {_MAX_AUDIT_LOG_BYTES}-byte limit: {size} bytes at {path}")
+
+
 @dataclass(frozen=True)
 class AuditEntry:
     seq: int
@@ -130,6 +158,7 @@ class AuditLog:
         return self._case_id
 
     def _resume(self) -> tuple[int, str]:
+        _reject_symlink(self._path)
         if not self._path.exists():
             return 0, self._genesis
         seq = 0
@@ -154,6 +183,8 @@ class AuditLog:
             raise ValueError(f"unknown audit action {action!r}; the vocabulary is closed: {sorted(_ACTIONS)}")
         if not isinstance(reason, str) or not reason.strip():
             raise ValueError("reason must be a non-empty string — an unreasoned audit event cannot exist")
+        _reject_symlink(self._path)
+        _reject_symlink(self._tail_path)
         seq = self._seq + 1
         body = {
             "seq": seq,
@@ -199,9 +230,11 @@ class AuditLog:
         (CLAUDE.md 5.3: a degraded read must never look like a correct one).
         """
         path = Path(log_path)
+        _reject_symlink(path)
         if not path.exists():
             return []
         entries: list[dict[str, Any]] = []
+        _reject_oversized(path)
         with path.open("r", encoding="utf-8") as handle:
             for line in handle:
                 line = line.strip()
@@ -234,8 +267,10 @@ class AuditLog:
         log_path: str | Path, *, case_id: str, hmac_key: bytes | None = None
     ) -> tuple[bool, str]:
         path = Path(log_path)
+        _reject_symlink(path)
         if not path.exists():
             return True, "no log file"
+        _reject_oversized(path)
         key = hmac_key if hmac_key is not None else resolve_hmac_key()
         genesis = genesis_hash(case_id)
 
@@ -290,6 +325,7 @@ class AuditLog:
                 last_hash = record["entry_hash"]
 
         tail_path = path.with_suffix(path.suffix + ".tail")
+        _reject_symlink(tail_path)
         if not tail_path.exists():
             if saw_any:
                 return True, "chain valid; no tail anchor present (truncation not covered)"

@@ -507,6 +507,55 @@ def test_propose_investigation_runs_a_real_deterministic_tool_call(tmp_path, cap
     assert "sha256" in json.dumps(observation["payload"])
 
 
+def test_propose_investigation_serializes_concurrent_requests_for_the_same_case(tmp_path, capsys, monkeypatch):
+    """Red team round 22 (R22-01, CONFIRMED BY INDUCTION): before
+    `_investigation_write_lock` was added, `propose_investigation` was a
+    plain load -> compute -> save cycle with no lock at all. Two
+    concurrent requests for the same case_id both loaded the same stale
+    ledger, both really executed their MCP tool call, and whichever
+    `os.replace` ran last silently discarded the other's real,
+    already-executed observation -- a lost update reproduced with real
+    threads and a real subprocess call into VIGIA's vendored MCP bridge,
+    no fault injection needed. This confirms the fix: both real,
+    genuinely concurrent requests now persist, because the second one
+    blocks on the per-case flock until the first has saved, then loads
+    the *updated* ledger instead of the stale one.
+    """
+    from concurrent.futures import ThreadPoolExecutor
+
+    output_root = _analyzed_case(tmp_path, capsys)
+    cases_root = tmp_path / "cases"
+    evidence_path = str(cases_root / "INC-API-CASE" / "evidence" / "collected" / "auth.jsonl")
+    app = create_app(output_root=output_root, cases_root=cases_root)
+
+    def fake_generate(self, *, system, prompt):
+        proposal_id = "P-AAA" if "Question A" in prompt else "P-BBB"
+        return json.dumps({
+            "proposal_id": proposal_id,
+            "case_id": "INC-API-CASE",
+            "question": "irrelevant, the real prompt carries it",
+            "rationale": "concurrency induction test",
+            "requested_tool": "verify_custody",
+            "arguments": {"path": evidence_path},
+            "information_sought": "recomputed hash",
+        })
+
+    monkeypatch.setattr(OllamaClient, "generate", fake_generate)
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        future_a = pool.submit(_propose, app, "INC-API-CASE", "Question A")
+        future_b = pool.submit(_propose, app, "INC-API-CASE", "Question B")
+        result_a = future_a.result(timeout=30)
+        result_b = future_b.result(timeout=30)
+
+    assert result_a["status"] == "EXECUTED"
+    assert result_b["status"] == "EXECUTED"
+
+    summary = _route(app, "/cases/{case_id}/investigation")("INC-API-CASE")
+    assert len(summary["proposals"]) == 2
+    assert len(summary["observations"]) == 2
+
+
 def test_propose_investigation_persists_across_requests(tmp_path, capsys, monkeypatch):
     output_root = _analyzed_case(tmp_path, capsys)
     cases_root = tmp_path / "cases"
