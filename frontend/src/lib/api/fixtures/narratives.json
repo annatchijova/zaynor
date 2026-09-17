@@ -1,0 +1,48 @@
+{
+  "what_happened": {
+    "narrative": "Se detectó una sesión de la cuenta svc-backup fuera de la ventana de mantenimiento documentada. El conjunto sellado confirma esa discrepancia, pero no alcanza para atribuirla a actividad maliciosa.",
+    "finding_refs": ["F001", "F002"],
+    "evidence_refs": [
+      { "artifact": "E001", "lineage_id": "auth-srv-files-01-20260916" },
+      { "artifact": "E005", "lineage_id": "analyst-case-001" }
+    ],
+    "certainty": "AUTHORIZED",
+    "disclaimer": "Esta explicación no modifica el veredicto autoritativo."
+  },
+  "why_suspicious": {
+    "narrative": "La discrepancia entre el inicio de sesión y la ventana de mantenimiento es una señal corroborada. El resultado se abstiene porque esa señal no identifica por sí sola un uso no autorizado.",
+    "finding_refs": ["F001", "F002"],
+    "evidence_refs": [
+      { "artifact": "E001", "lineage_id": "auth-srv-files-01-20260916" },
+      { "artifact": "E003", "lineage_id": "endpoint-srv-files-01-20260916" }
+    ],
+    "certainty": "AUTHORIZED",
+    "disclaimer": "Esta explicación no modifica el veredicto autoritativo."
+  },
+  "supporting_evidence": {
+    "narrative": "E001 aporta el inicio de sesión observado y E005 conserva la ventana de mantenimiento declarada. Ambos se muestran con referencias de linaje para que no se interpreten como una sola fuente repetida.",
+    "finding_refs": ["F001"],
+    "evidence_refs": [
+      { "artifact": "E001", "lineage_id": "auth-srv-files-01-20260916" },
+      { "artifact": "E005", "lineage_id": "analyst-case-001" }
+    ],
+    "certainty": "AUTHORIZED",
+    "disclaimer": "Esta explicación no modifica el veredicto autoritativo."
+  },
+  "unknowns": {
+    "narrative": "No sabemos si existió una aprobación independiente para la excepción ni contamos con la línea de comandos completa del proceso observado.",
+    "finding_refs": ["F002"],
+    "evidence_refs": [
+      { "artifact": "E003", "lineage_id": "endpoint-srv-files-01-20260916" }
+    ],
+    "certainty": "AUTHORIZED",
+    "disclaimer": "Esta explicación no modifica el veredicto autoritativo."
+  },
+  "next_step": {
+    "narrative": "La siguiente acción propuesta es una consulta read-only sobre registros de cambio o telemetría retenida. Una observación nueva no modifica el resultado hasta que atraviese el análisis determinista y se emita un nuevo sello.",
+    "finding_refs": [],
+    "evidence_refs": [],
+    "certainty": "LIMITED",
+    "disclaimer": "Esta explicación no modifica el veredicto autoritativo."
+  }
+}

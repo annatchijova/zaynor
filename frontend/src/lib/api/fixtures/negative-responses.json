@@ -1,0 +1,22 @@
+{
+  "case_not_found": {
+    "code": "CASE_NOT_FOUND",
+    "message": "No se encontró el caso solicitado.",
+    "request_id": null
+  },
+  "invalid_request": {
+    "code": "INVALID_REQUEST",
+    "message": "La solicitud no cumple el contrato esperado.",
+    "request_id": null
+  },
+  "ollama_unavailable": {
+    "code": "OLLAMA_UNAVAILABLE",
+    "message": "La narración local no está disponible.",
+    "request_id": null
+  },
+  "policy_rejected": {
+    "code": "POLICY_REJECTED",
+    "message": "La solicitud de narración fue rechazada por la política.",
+    "request_id": null
+  }
+}
