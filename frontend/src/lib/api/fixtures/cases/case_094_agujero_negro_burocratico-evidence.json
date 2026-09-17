@@ -1,0 +1,15 @@
+[
+  {
+    "evidence_id": "case_094_agujero_negro_burocratico.json",
+    "type": "json",
+    "source": "manifest congelado",
+    "relative_path": "case_094_agujero_negro_burocratico.json",
+    "sha256": "083ac7b359ec127c77425d0d01812b7d99ed002118775e9d7b5f16aaf486a3e6",
+    "size_bytes": 3333,
+    "manifest_status": "VERIFIED",
+    "lineage_id": "case_094_agujero_negro_burocratico.json",
+    "provenance": [],
+    "finding_refs": [],
+    "metadata": {}
+  }
+]

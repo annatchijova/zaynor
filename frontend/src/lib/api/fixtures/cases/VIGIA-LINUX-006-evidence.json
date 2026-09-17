@@ -1,0 +1,15 @@
+[
+  {
+    "evidence_id": "VIGIA-LINUX-006.json",
+    "type": "json",
+    "source": "manifest congelado",
+    "relative_path": "VIGIA-LINUX-006.json",
+    "sha256": "8838c49f2b38e5fa3fbb98f98bd77b7f683aa6f77176e6d585e676fb94227871",
+    "size_bytes": 12567,
+    "manifest_status": "VERIFIED",
+    "lineage_id": "VIGIA-LINUX-006.json",
+    "provenance": [],
+    "finding_refs": [],
+    "metadata": {}
+  }
+]

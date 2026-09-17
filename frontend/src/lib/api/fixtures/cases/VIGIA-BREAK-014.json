@@ -1,0 +1,569 @@
+{
+  "case_id": "VIGIA-BREAK-014",
+  "snapshot": {
+    "status": "VERIFIED",
+    "manifest_sha256": "c2238eb0397deaad9cb7422fdd904610aca5e04e694b060e299ea511d49671cb",
+    "evidence_set_sha256": "232ff76e27eee179ec843d6523d32c713cb2df07ee96756e35e81bdf4b88b183",
+    "artifact_count": 1,
+    "sealed_at": "2026-09-17T17:34:53.914476+00:00"
+  },
+  "authoritative_result": {
+    "case_id": "VIGIA-BREAK-014",
+    "verdict": "SUSPICION",
+    "confidence": "UNKNOWN",
+    "findings": [
+      {
+        "finding_id": "F-VIGIA-BREAK-014",
+        "state": "SUSPICION",
+        "rationale": "[MOTOR] Label-blind selection: SUSPICION_DETECTED. Significant signal with structural support (score=0.2322)",
+        "evidence_refs": [
+          {
+            "artifact": "b014_01",
+            "lineage_id": "b014_01"
+          },
+          {
+            "artifact": "b014_02",
+            "lineage_id": "b014_02"
+          },
+          {
+            "artifact": "b014_03",
+            "lineage_id": "b014_03"
+          },
+          {
+            "artifact": "b014_04",
+            "lineage_id": "b014_04"
+          },
+          {
+            "artifact": "b014_05",
+            "lineage_id": "b014_05"
+          },
+          {
+            "artifact": "b014_06",
+            "lineage_id": "b014_06"
+          },
+          {
+            "artifact": "b014_07",
+            "lineage_id": "b014_07"
+          },
+          {
+            "artifact": "b014_08",
+            "lineage_id": "b014_08"
+          },
+          {
+            "artifact": "b014_09",
+            "lineage_id": "b014_09"
+          },
+          {
+            "artifact": "b014_10",
+            "lineage_id": "b014_10"
+          },
+          {
+            "artifact": "b014_11",
+            "lineage_id": "b014_11"
+          },
+          {
+            "artifact": "b014_12",
+            "lineage_id": "b014_12"
+          },
+          {
+            "artifact": "b014_13",
+            "lineage_id": "b014_13"
+          },
+          {
+            "artifact": "b014_14",
+            "lineage_id": "b014_14"
+          },
+          {
+            "artifact": "b014_15",
+            "lineage_id": "b014_15"
+          },
+          {
+            "artifact": "b014_16",
+            "lineage_id": "b014_16"
+          },
+          {
+            "artifact": "b014_17",
+            "lineage_id": "b014_17"
+          },
+          {
+            "artifact": "b014_18",
+            "lineage_id": "b014_18"
+          },
+          {
+            "artifact": "b014_19",
+            "lineage_id": "b014_19"
+          },
+          {
+            "artifact": "b014_20",
+            "lineage_id": "b014_20"
+          },
+          {
+            "artifact": "b014_21",
+            "lineage_id": "b014_21"
+          },
+          {
+            "artifact": "b014_22",
+            "lineage_id": "b014_22"
+          },
+          {
+            "artifact": "b014_23",
+            "lineage_id": "b014_23"
+          },
+          {
+            "artifact": "b014_24",
+            "lineage_id": "b014_24"
+          },
+          {
+            "artifact": "b014_25",
+            "lineage_id": "b014_25"
+          },
+          {
+            "artifact": "b014_26",
+            "lineage_id": "b014_26"
+          },
+          {
+            "artifact": "b014_27",
+            "lineage_id": "b014_27"
+          },
+          {
+            "artifact": "b014_28",
+            "lineage_id": "b014_28"
+          },
+          {
+            "artifact": "b014_29",
+            "lineage_id": "b014_29"
+          },
+          {
+            "artifact": "b014_30",
+            "lineage_id": "b014_30"
+          },
+          {
+            "artifact": "b014_31",
+            "lineage_id": "b014_31"
+          },
+          {
+            "artifact": "b014_32",
+            "lineage_id": "b014_32"
+          },
+          {
+            "artifact": "b014_33",
+            "lineage_id": "b014_33"
+          },
+          {
+            "artifact": "b014_34",
+            "lineage_id": "b014_34"
+          },
+          {
+            "artifact": "b014_35",
+            "lineage_id": "b014_35"
+          },
+          {
+            "artifact": "b014_36",
+            "lineage_id": "b014_36"
+          },
+          {
+            "artifact": "b014_37",
+            "lineage_id": "b014_37"
+          },
+          {
+            "artifact": "b014_38",
+            "lineage_id": "b014_38"
+          },
+          {
+            "artifact": "b014_39",
+            "lineage_id": "b014_39"
+          },
+          {
+            "artifact": "b014_40",
+            "lineage_id": "b014_40"
+          },
+          {
+            "artifact": "b014_41",
+            "lineage_id": "b014_41"
+          },
+          {
+            "artifact": "b014_42",
+            "lineage_id": "b014_42"
+          },
+          {
+            "artifact": "b014_43",
+            "lineage_id": "b014_43"
+          },
+          {
+            "artifact": "b014_44",
+            "lineage_id": "b014_44"
+          },
+          {
+            "artifact": "b014_45",
+            "lineage_id": "b014_45"
+          },
+          {
+            "artifact": "b014_46",
+            "lineage_id": "b014_46"
+          },
+          {
+            "artifact": "b014_47",
+            "lineage_id": "b014_47"
+          },
+          {
+            "artifact": "b014_48",
+            "lineage_id": "b014_48"
+          },
+          {
+            "artifact": "b014_49",
+            "lineage_id": "b014_49"
+          },
+          {
+            "artifact": "b014_50",
+            "lineage_id": "b014_50"
+          },
+          {
+            "artifact": "b014_51",
+            "lineage_id": "b014_51"
+          },
+          {
+            "artifact": "b014_52",
+            "lineage_id": "b014_52"
+          },
+          {
+            "artifact": "b014_53",
+            "lineage_id": "b014_53"
+          },
+          {
+            "artifact": "b014_54",
+            "lineage_id": "b014_54"
+          },
+          {
+            "artifact": "b014_55",
+            "lineage_id": "b014_55"
+          },
+          {
+            "artifact": "b014_56",
+            "lineage_id": "b014_56"
+          },
+          {
+            "artifact": "b014_57",
+            "lineage_id": "b014_57"
+          },
+          {
+            "artifact": "b014_58",
+            "lineage_id": "b014_58"
+          },
+          {
+            "artifact": "b014_59",
+            "lineage_id": "b014_59"
+          },
+          {
+            "artifact": "b014_60",
+            "lineage_id": "b014_60"
+          },
+          {
+            "artifact": "b014_61",
+            "lineage_id": "b014_61"
+          },
+          {
+            "artifact": "b014_62",
+            "lineage_id": "b014_62"
+          },
+          {
+            "artifact": "b014_63",
+            "lineage_id": "b014_63"
+          },
+          {
+            "artifact": "b014_64",
+            "lineage_id": "b014_64"
+          },
+          {
+            "artifact": "b014_65",
+            "lineage_id": "b014_65"
+          },
+          {
+            "artifact": "b014_66",
+            "lineage_id": "b014_66"
+          },
+          {
+            "artifact": "b014_67",
+            "lineage_id": "b014_67"
+          },
+          {
+            "artifact": "b014_68",
+            "lineage_id": "b014_68"
+          },
+          {
+            "artifact": "b014_69",
+            "lineage_id": "b014_69"
+          },
+          {
+            "artifact": "b014_70",
+            "lineage_id": "b014_70"
+          },
+          {
+            "artifact": "b014_71",
+            "lineage_id": "b014_71"
+          },
+          {
+            "artifact": "b014_72",
+            "lineage_id": "b014_72"
+          },
+          {
+            "artifact": "b014_73",
+            "lineage_id": "b014_73"
+          },
+          {
+            "artifact": "b014_74",
+            "lineage_id": "b014_74"
+          },
+          {
+            "artifact": "b014_75",
+            "lineage_id": "b014_75"
+          },
+          {
+            "artifact": "b014_76",
+            "lineage_id": "b014_76"
+          },
+          {
+            "artifact": "b014_77",
+            "lineage_id": "b014_77"
+          },
+          {
+            "artifact": "b014_78",
+            "lineage_id": "b014_78"
+          },
+          {
+            "artifact": "b014_79",
+            "lineage_id": "b014_79"
+          },
+          {
+            "artifact": "b014_80",
+            "lineage_id": "b014_80"
+          },
+          {
+            "artifact": "b014_81",
+            "lineage_id": "b014_81"
+          },
+          {
+            "artifact": "b014_82",
+            "lineage_id": "b014_82"
+          },
+          {
+            "artifact": "b014_83",
+            "lineage_id": "b014_83"
+          },
+          {
+            "artifact": "b014_84",
+            "lineage_id": "b014_84"
+          },
+          {
+            "artifact": "b014_85",
+            "lineage_id": "b014_85"
+          },
+          {
+            "artifact": "b014_86",
+            "lineage_id": "b014_86"
+          },
+          {
+            "artifact": "b014_87",
+            "lineage_id": "b014_87"
+          },
+          {
+            "artifact": "b014_88",
+            "lineage_id": "b014_88"
+          },
+          {
+            "artifact": "b014_89",
+            "lineage_id": "b014_89"
+          },
+          {
+            "artifact": "b014_90",
+            "lineage_id": "b014_90"
+          },
+          {
+            "artifact": "b014_91",
+            "lineage_id": "b014_91"
+          },
+          {
+            "artifact": "b014_92",
+            "lineage_id": "b014_92"
+          },
+          {
+            "artifact": "b014_93",
+            "lineage_id": "b014_93"
+          },
+          {
+            "artifact": "b014_94",
+            "lineage_id": "b014_94"
+          },
+          {
+            "artifact": "b014_95",
+            "lineage_id": "b014_95"
+          },
+          {
+            "artifact": "b014_96",
+            "lineage_id": "b014_96"
+          },
+          {
+            "artifact": "b014_97",
+            "lineage_id": "b014_97"
+          },
+          {
+            "artifact": "b014_98",
+            "lineage_id": "b014_98"
+          },
+          {
+            "artifact": "b014_99",
+            "lineage_id": "b014_99"
+          },
+          {
+            "artifact": "b014_100",
+            "lineage_id": "b014_100"
+          },
+          {
+            "artifact": "b014_meta",
+            "lineage_id": "b014_meta"
+          }
+        ],
+        "lineage_ids": [
+          "b014_01",
+          "b014_02",
+          "b014_03",
+          "b014_04",
+          "b014_05",
+          "b014_06",
+          "b014_07",
+          "b014_08",
+          "b014_09",
+          "b014_10",
+          "b014_11",
+          "b014_12",
+          "b014_13",
+          "b014_14",
+          "b014_15",
+          "b014_16",
+          "b014_17",
+          "b014_18",
+          "b014_19",
+          "b014_20",
+          "b014_21",
+          "b014_22",
+          "b014_23",
+          "b014_24",
+          "b014_25",
+          "b014_26",
+          "b014_27",
+          "b014_28",
+          "b014_29",
+          "b014_30",
+          "b014_31",
+          "b014_32",
+          "b014_33",
+          "b014_34",
+          "b014_35",
+          "b014_36",
+          "b014_37",
+          "b014_38",
+          "b014_39",
+          "b014_40",
+          "b014_41",
+          "b014_42",
+          "b014_43",
+          "b014_44",
+          "b014_45",
+          "b014_46",
+          "b014_47",
+          "b014_48",
+          "b014_49",
+          "b014_50",
+          "b014_51",
+          "b014_52",
+          "b014_53",
+          "b014_54",
+          "b014_55",
+          "b014_56",
+          "b014_57",
+          "b014_58",
+          "b014_59",
+          "b014_60",
+          "b014_61",
+          "b014_62",
+          "b014_63",
+          "b014_64",
+          "b014_65",
+          "b014_66",
+          "b014_67",
+          "b014_68",
+          "b014_69",
+          "b014_70",
+          "b014_71",
+          "b014_72",
+          "b014_73",
+          "b014_74",
+          "b014_75",
+          "b014_76",
+          "b014_77",
+          "b014_78",
+          "b014_79",
+          "b014_80",
+          "b014_81",
+          "b014_82",
+          "b014_83",
+          "b014_84",
+          "b014_85",
+          "b014_86",
+          "b014_87",
+          "b014_88",
+          "b014_89",
+          "b014_90",
+          "b014_91",
+          "b014_92",
+          "b014_93",
+          "b014_94",
+          "b014_95",
+          "b014_96",
+          "b014_97",
+          "b014_98",
+          "b014_99",
+          "b014_100",
+          "b014_meta"
+        ],
+        "mitre": null,
+        "nist": null
+      }
+    ],
+    "unknowns": [],
+    "hypotheses": [],
+    "fractures": [],
+    "signals": [],
+    "result_sha256": "ce20176802ce51f70e3f04f54662a6583ac711ccd61d662989216e99c2dc7df7",
+    "engine": {
+      "name": "vigia_agent",
+      "version": "1.0.0-SANS-2026",
+      "configuration_hash": "4be18f35f16b9da9e9ca2ef3b5388d33561d5555d5750e5863b996c228869446"
+    },
+    "audit_refs": [
+      "357ee4271907607507734467258ceb8babfb0eb7b29a9e28b29570dfb18722f1"
+    ]
+  },
+  "seal": {
+    "status": "VERIFIED",
+    "result_sha256": "ce20176802ce51f70e3f04f54662a6583ac711ccd61d662989216e99c2dc7df7",
+    "canonicalize_version": "zaynor-authority-v1"
+  },
+  "audit": {
+    "status": "VERIFIED",
+    "manifest": "VERIFIED",
+    "snapshot": "VERIFIED",
+    "evidence": "VERIFIED",
+    "result": "VERIFIED",
+    "seal": "VERIFIED",
+    "provenance": "EMPTY",
+    "checked_at": "2026-09-17T17:34:53.914476+00:00",
+    "detail": null
+  },
+  "investigation": {
+    "session_id": null,
+    "status": "NOT_STARTED",
+    "proposals": [],
+    "observations": [],
+    "authoritative_result_unchanged": true
+  }
+}

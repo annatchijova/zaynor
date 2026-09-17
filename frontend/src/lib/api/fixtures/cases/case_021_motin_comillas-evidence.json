@@ -1,0 +1,15 @@
+[
+  {
+    "evidence_id": "case_021_motin_comillas.json",
+    "type": "json",
+    "source": "manifest congelado",
+    "relative_path": "case_021_motin_comillas.json",
+    "sha256": "bdc9464ca8ea28366424b31e9317f66828e87a05716fed3ec3058ec6a165e178",
+    "size_bytes": 3027,
+    "manifest_status": "VERIFIED",
+    "lineage_id": "case_021_motin_comillas.json",
+    "provenance": [],
+    "finding_refs": [],
+    "metadata": {}
+  }
+]

@@ -1,0 +1,84 @@
+{
+  "case_id": "case_099_troyano_emocional",
+  "snapshot": {
+    "status": "VERIFIED",
+    "manifest_sha256": "debdba5f66cf4377a50621344f8320de01a7f182c1da6b3c81c62e6bec2277ff",
+    "evidence_set_sha256": "c9ffe41a778203b53054400c98d1ad8ba91933474738102f08f139cffd5301a1",
+    "artifact_count": 1,
+    "sealed_at": "2026-09-17T17:34:49.103782+00:00"
+  },
+  "authoritative_result": {
+    "case_id": "case_099_troyano_emocional",
+    "verdict": "SUSPICION",
+    "confidence": "UNKNOWN",
+    "findings": [
+      {
+        "finding_id": "F-case_099_troyano_emocional",
+        "state": "SUSPICION",
+        "rationale": "[MOTOR] Label-blind selection: SUSPICION_DETECTED. Significant signal with structural support (score=0.2876)",
+        "evidence_refs": [
+          {
+            "artifact": "a099_01",
+            "lineage_id": "a099_01"
+          },
+          {
+            "artifact": "a099_02",
+            "lineage_id": "a099_02"
+          },
+          {
+            "artifact": "a099_03",
+            "lineage_id": "a099_03"
+          },
+          {
+            "artifact": "a099_04",
+            "lineage_id": "a099_04"
+          }
+        ],
+        "lineage_ids": [
+          "a099_01",
+          "a099_02",
+          "a099_03",
+          "a099_04"
+        ],
+        "mitre": null,
+        "nist": null
+      }
+    ],
+    "unknowns": [],
+    "hypotheses": [],
+    "fractures": [],
+    "signals": [],
+    "result_sha256": "00d8241ddfa473c2aa9b72aa2a5e4d618549560543784c969c1c1bb22fc16065",
+    "engine": {
+      "name": "vigia_agent",
+      "version": "1.0.0-SANS-2026",
+      "configuration_hash": "b5b76963e1adf0bb4cd5a330ee69b0cd45a1223d1672c222daab3be6b9cb93ac"
+    },
+    "audit_refs": [
+      "cb10a548f6c8099ac389f68bd14267f1947eb7339eb44fc531f539b8942268a6"
+    ]
+  },
+  "seal": {
+    "status": "VERIFIED",
+    "result_sha256": "00d8241ddfa473c2aa9b72aa2a5e4d618549560543784c969c1c1bb22fc16065",
+    "canonicalize_version": "zaynor-authority-v1"
+  },
+  "audit": {
+    "status": "VERIFIED",
+    "manifest": "VERIFIED",
+    "snapshot": "VERIFIED",
+    "evidence": "VERIFIED",
+    "result": "VERIFIED",
+    "seal": "VERIFIED",
+    "provenance": "EMPTY",
+    "checked_at": "2026-09-17T17:34:49.103782+00:00",
+    "detail": null
+  },
+  "investigation": {
+    "session_id": null,
+    "status": "NOT_STARTED",
+    "proposals": [],
+    "observations": [],
+    "authoritative_result_unchanged": true
+  }
+}

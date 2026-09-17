@@ -1,0 +1,169 @@
+{
+  "case_id": "VIGIA-BREAK-011",
+  "snapshot": {
+    "status": "VERIFIED",
+    "manifest_sha256": "8abf472eab3b7a10559377a299ca1b462c726fba209aa9a51c56fab74fede606",
+    "evidence_set_sha256": "2b465a95a37e5d56f9e36c36c800ad42df4c751e797dcb6b31e6ff1aa686ba6a",
+    "artifact_count": 1,
+    "sealed_at": "2026-09-17T17:34:51.829057+00:00"
+  },
+  "authoritative_result": {
+    "case_id": "VIGIA-BREAK-011",
+    "verdict": "UNKNOWN",
+    "confidence": "UNKNOWN",
+    "findings": [
+      {
+        "finding_id": "F-VIGIA-BREAK-011",
+        "state": "UNKNOWN",
+        "rationale": "[MOTOR] Label-blind selection: NO_SEMIOTIC_ANOMALY_DETECTED. Insufficient evidence of malicious intent (score=0.0357)",
+        "evidence_refs": [
+          {
+            "artifact": "b011_01",
+            "lineage_id": "b011_01"
+          },
+          {
+            "artifact": "b011_02",
+            "lineage_id": "b011_02"
+          },
+          {
+            "artifact": "b011_03",
+            "lineage_id": "b011_03"
+          },
+          {
+            "artifact": "b011_04",
+            "lineage_id": "b011_04"
+          },
+          {
+            "artifact": "b011_05",
+            "lineage_id": "b011_05"
+          },
+          {
+            "artifact": "b011_06",
+            "lineage_id": "b011_06"
+          },
+          {
+            "artifact": "b011_07",
+            "lineage_id": "b011_07"
+          },
+          {
+            "artifact": "b011_08",
+            "lineage_id": "b011_08"
+          },
+          {
+            "artifact": "b011_09",
+            "lineage_id": "b011_09"
+          },
+          {
+            "artifact": "b011_10",
+            "lineage_id": "b011_10"
+          },
+          {
+            "artifact": "b011_11",
+            "lineage_id": "b011_11"
+          },
+          {
+            "artifact": "b011_12",
+            "lineage_id": "b011_12"
+          },
+          {
+            "artifact": "b011_13",
+            "lineage_id": "b011_13"
+          },
+          {
+            "artifact": "b011_14",
+            "lineage_id": "b011_14"
+          },
+          {
+            "artifact": "b011_15",
+            "lineage_id": "b011_15"
+          },
+          {
+            "artifact": "b011_16",
+            "lineage_id": "b011_16"
+          },
+          {
+            "artifact": "b011_17",
+            "lineage_id": "b011_17"
+          },
+          {
+            "artifact": "b011_18",
+            "lineage_id": "b011_18"
+          },
+          {
+            "artifact": "b011_19",
+            "lineage_id": "b011_19"
+          },
+          {
+            "artifact": "b011_20",
+            "lineage_id": "b011_20"
+          },
+          {
+            "artifact": "b011_meta",
+            "lineage_id": "b011_meta"
+          }
+        ],
+        "lineage_ids": [
+          "b011_01",
+          "b011_02",
+          "b011_03",
+          "b011_04",
+          "b011_05",
+          "b011_06",
+          "b011_07",
+          "b011_08",
+          "b011_09",
+          "b011_10",
+          "b011_11",
+          "b011_12",
+          "b011_13",
+          "b011_14",
+          "b011_15",
+          "b011_16",
+          "b011_17",
+          "b011_18",
+          "b011_19",
+          "b011_20",
+          "b011_meta"
+        ],
+        "mitre": null,
+        "nist": null
+      }
+    ],
+    "unknowns": [],
+    "hypotheses": [],
+    "fractures": [],
+    "signals": [],
+    "result_sha256": "f7de98b8eefb5067976b2bb37b42bd2468d1b98ec37e727e1365196bd030f5a2",
+    "engine": {
+      "name": "vigia_agent",
+      "version": "1.0.0-SANS-2026",
+      "configuration_hash": "24afb72d3148c585e37da4bfa4390318b749a9ad03ff3767bdb07e3d69fc5729"
+    },
+    "audit_refs": [
+      "98a0e56d2224ab1e3a7792b72127fecf58bb5cd72fb783eac8874d745278e3a2"
+    ]
+  },
+  "seal": {
+    "status": "VERIFIED",
+    "result_sha256": "f7de98b8eefb5067976b2bb37b42bd2468d1b98ec37e727e1365196bd030f5a2",
+    "canonicalize_version": "zaynor-authority-v1"
+  },
+  "audit": {
+    "status": "VERIFIED",
+    "manifest": "VERIFIED",
+    "snapshot": "VERIFIED",
+    "evidence": "VERIFIED",
+    "result": "VERIFIED",
+    "seal": "VERIFIED",
+    "provenance": "EMPTY",
+    "checked_at": "2026-09-17T17:34:51.829057+00:00",
+    "detail": null
+  },
+  "investigation": {
+    "session_id": null,
+    "status": "NOT_STARTED",
+    "proposals": [],
+    "observations": [],
+    "authoritative_result_unchanged": true
+  }
+}

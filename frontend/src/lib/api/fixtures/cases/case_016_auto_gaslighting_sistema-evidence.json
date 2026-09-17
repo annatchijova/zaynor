@@ -1,0 +1,15 @@
+[
+  {
+    "evidence_id": "case_016_auto_gaslighting_sistema.json",
+    "type": "json",
+    "source": "manifest congelado",
+    "relative_path": "case_016_auto_gaslighting_sistema.json",
+    "sha256": "b795ff8f047934c54925b378a5ba1a39e21883eb25176c5497fb6551a98dce70",
+    "size_bytes": 3071,
+    "manifest_status": "VERIFIED",
+    "lineage_id": "case_016_auto_gaslighting_sistema.json",
+    "provenance": [],
+    "finding_refs": [],
+    "metadata": {}
+  }
+]

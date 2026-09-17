@@ -1,0 +1,15 @@
+[
+  {
+    "evidence_id": "case_fusion_normalizacion_maliciosa.json",
+    "type": "json",
+    "source": "manifest congelado",
+    "relative_path": "case_fusion_normalizacion_maliciosa.json",
+    "sha256": "7ea57d722544b3d157dbb641c3c3204d251aa52d478d28ed58408966fd13f0e7",
+    "size_bytes": 2911,
+    "manifest_status": "VERIFIED",
+    "lineage_id": "case_fusion_normalizacion_maliciosa.json",
+    "provenance": [],
+    "finding_refs": [],
+    "metadata": {}
+  }
+]

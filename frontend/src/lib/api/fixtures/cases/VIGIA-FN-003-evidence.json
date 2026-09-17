@@ -1,0 +1,15 @@
+[
+  {
+    "evidence_id": "VIGIA-FN-003.json",
+    "type": "json",
+    "source": "manifest congelado",
+    "relative_path": "VIGIA-FN-003.json",
+    "sha256": "0eb1d3230f4e1bab6a557b1eedb4e58d76a2cb53cde257093c774c94354de0c9",
+    "size_bytes": 7686,
+    "manifest_status": "VERIFIED",
+    "lineage_id": "VIGIA-FN-003.json",
+    "provenance": [],
+    "finding_refs": [],
+    "metadata": {}
+  }
+]

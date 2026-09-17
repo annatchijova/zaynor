@@ -1,0 +1,79 @@
+{
+  "case_id": "VIGIA-FN-001",
+  "snapshot": {
+    "status": "VERIFIED",
+    "manifest_sha256": "f43fe0281a6a5080bd9ef3491caad3a9538ddb20e341afec750e9a763d9d589d",
+    "evidence_set_sha256": "5455fa9987c5a451920f88dbaffc1e0fd24d27f1f8c07a8e26de75c8f39c572b",
+    "artifact_count": 1,
+    "sealed_at": "2026-09-17T17:34:56.249778+00:00"
+  },
+  "authoritative_result": {
+    "case_id": "VIGIA-FN-001",
+    "verdict": "UNKNOWN",
+    "confidence": "UNKNOWN",
+    "findings": [
+      {
+        "finding_id": "F-VIGIA-FN-001",
+        "state": "UNKNOWN",
+        "rationale": "[MOTOR] Label-blind selection: NO_SEMIOTIC_ANOMALY_DETECTED. Insufficient evidence of malicious intent (score=0.0201)",
+        "evidence_refs": [
+          {
+            "artifact": "fn001_01",
+            "lineage_id": "fn001_01"
+          },
+          {
+            "artifact": "fn001_02",
+            "lineage_id": "fn001_02"
+          },
+          {
+            "artifact": "fn001_03",
+            "lineage_id": "fn001_03"
+          }
+        ],
+        "lineage_ids": [
+          "fn001_01",
+          "fn001_02",
+          "fn001_03"
+        ],
+        "mitre": null,
+        "nist": null
+      }
+    ],
+    "unknowns": [],
+    "hypotheses": [],
+    "fractures": [],
+    "signals": [],
+    "result_sha256": "7adc98aa93b0ecee2a3a7453cda5e4a3c4f816cf11f93598a5ebcbd1dae9b276",
+    "engine": {
+      "name": "vigia_agent",
+      "version": "1.0.0-SANS-2026",
+      "configuration_hash": "f39fcfbc091a51ee7e15ed5c92c63cada397abab1e32750c0950817e05808b00"
+    },
+    "audit_refs": [
+      "4ff56f41f1b71a9832ead595990bf90a1a42a7b3044e86393d0d0f43277182a2"
+    ]
+  },
+  "seal": {
+    "status": "VERIFIED",
+    "result_sha256": "7adc98aa93b0ecee2a3a7453cda5e4a3c4f816cf11f93598a5ebcbd1dae9b276",
+    "canonicalize_version": "zaynor-authority-v1"
+  },
+  "audit": {
+    "status": "VERIFIED",
+    "manifest": "VERIFIED",
+    "snapshot": "VERIFIED",
+    "evidence": "VERIFIED",
+    "result": "VERIFIED",
+    "seal": "VERIFIED",
+    "provenance": "EMPTY",
+    "checked_at": "2026-09-17T17:34:56.249778+00:00",
+    "detail": null
+  },
+  "investigation": {
+    "session_id": null,
+    "status": "NOT_STARTED",
+    "proposals": [],
+    "observations": [],
+    "authoritative_result_unchanged": true
+  }
+}

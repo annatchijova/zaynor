@@ -1,0 +1,15 @@
+[
+  {
+    "evidence_id": "case_099_troyano_emocional.json",
+    "type": "json",
+    "source": "manifest congelado",
+    "relative_path": "case_099_troyano_emocional.json",
+    "sha256": "801cf8ee333831ab06b6f2d81e2e06d97f081dd9d211ab2e3b7f58633adf9267",
+    "size_bytes": 2954,
+    "manifest_status": "VERIFIED",
+    "lineage_id": "case_099_troyano_emocional.json",
+    "provenance": [],
+    "finding_refs": [],
+    "metadata": {}
+  }
+]

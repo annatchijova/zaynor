@@ -1,0 +1,15 @@
+[
+  {
+    "evidence_id": "VIGIA-BREAK-012.json",
+    "type": "json",
+    "source": "manifest congelado",
+    "relative_path": "VIGIA-BREAK-012.json",
+    "sha256": "ed15ce21467c216ecf8a69e889555930861935ae6d4ec28b404f1e82abf24a1c",
+    "size_bytes": 12762,
+    "manifest_status": "VERIFIED",
+    "lineage_id": "VIGIA-BREAK-012.json",
+    "provenance": [],
+    "finding_refs": [],
+    "metadata": {}
+  }
+]

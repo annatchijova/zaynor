@@ -1,0 +1,15 @@
+[
+  {
+    "evidence_id": "case_010_falso_positivo_empatico.json",
+    "type": "json",
+    "source": "manifest congelado",
+    "relative_path": "case_010_falso_positivo_empatico.json",
+    "sha256": "0688d05263e512911b9abcb89806667268e589a4dcf574d94b2e94121239ffe5",
+    "size_bytes": 3054,
+    "manifest_status": "VERIFIED",
+    "lineage_id": "case_010_falso_positivo_empatico.json",
+    "provenance": [],
+    "finding_refs": [],
+    "metadata": {}
+  }
+]

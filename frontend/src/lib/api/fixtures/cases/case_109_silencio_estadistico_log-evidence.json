@@ -1,0 +1,15 @@
+[
+  {
+    "evidence_id": "case_109_silencio_estadistico_log.json",
+    "type": "json",
+    "source": "manifest congelado",
+    "relative_path": "case_109_silencio_estadistico_log.json",
+    "sha256": "c5b650b07238df5e870832e41ba6504fd9f06aa544089310494792b0e6baea93",
+    "size_bytes": 3381,
+    "manifest_status": "VERIFIED",
+    "lineage_id": "case_109_silencio_estadistico_log.json",
+    "provenance": [],
+    "finding_refs": [],
+    "metadata": {}
+  }
+]
