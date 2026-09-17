@@ -283,3 +283,104 @@ def test_chat_completions_rejects_an_unknown_case_id(tmp_path):
     }))
     assert error.status_code == 404
     assert error.code == "case_not_found"
+
+
+def test_get_case_returns_the_full_overview(tmp_path, capsys):
+    output_root = _analyzed_case(tmp_path, capsys)
+    cases_root = tmp_path / "cases"
+    app = create_app(output_root=output_root, cases_root=cases_root)
+    overview = _route(app, "/cases/{case_id}")("INC-API-CASE")
+    assert overview["case_id"] == "INC-API-CASE"
+    assert overview["authoritative_result"]["verdict"] == "ABSTAIN"
+    assert overview["seal"]["status"] == "VERIFIED"
+    assert overview["audit"]["status"] == "VERIFIED"
+    assert overview["snapshot"]["status"] == "VERIFIED"
+    assert overview["snapshot"]["artifact_count"] > 0
+    assert overview["investigation"] == {
+        "session_id": None, "status": "NOT_STARTED", "proposals": [], "observations": [],
+        "authoritative_result_unchanged": True,
+    }
+
+
+def test_get_case_degrades_snapshot_honestly_without_cases_root(tmp_path, capsys):
+    output_root = _analyzed_case(tmp_path, capsys)
+    app = create_app(output_root=output_root)  # no cases_root configured
+    overview = _route(app, "/cases/{case_id}")("INC-API-CASE")
+    assert overview["snapshot"]["status"] == "UNKNOWN"
+    assert overview["audit"]["status"] == "UNKNOWN"
+    # The sealed result itself is still verified independently of cases_root.
+    assert overview["authoritative_result"]["verdict"] == "ABSTAIN"
+
+
+def test_get_case_result_matches_the_overview(tmp_path, capsys):
+    output_root = _analyzed_case(tmp_path, capsys)
+    app = create_app(output_root=output_root, cases_root=tmp_path / "cases")
+    result = _route(app, "/cases/{case_id}/result")("INC-API-CASE")
+    assert result["case_id"] == "INC-API-CASE"
+    assert result["verdict"] == "ABSTAIN"
+    assert result["hypotheses"] == []
+    assert result["fractures"] == []
+    assert result["signals"] == []
+
+
+def test_get_case_audit_reuses_compute_case_audit(tmp_path, capsys):
+    output_root = _analyzed_case(tmp_path, capsys)
+    cases_root = tmp_path / "cases"
+    app = create_app(output_root=output_root, cases_root=cases_root)
+    audit = _route(app, "/cases/{case_id}/audit")("INC-API-CASE")
+    assert audit["status"] == "VERIFIED"
+    assert audit["manifest"] == "VERIFIED"
+    assert audit["seal"] == "VERIFIED"
+
+
+def test_get_case_evidence_reflects_the_real_frozen_manifest(tmp_path, capsys):
+    output_root = _analyzed_case(tmp_path, capsys)
+    cases_root = tmp_path / "cases"
+    app = create_app(output_root=output_root, cases_root=cases_root)
+    evidence = _route(app, "/cases/{case_id}/evidence")("INC-API-CASE")["evidence"]
+    assert len(evidence) > 0
+    for artifact in evidence:
+        assert artifact["manifest_status"] == "VERIFIED"
+        assert len(artifact["sha256"]) == 64
+
+
+def test_get_case_evidence_requires_cases_root(tmp_path, capsys):
+    output_root = _analyzed_case(tmp_path, capsys)
+    app = create_app(output_root=output_root)  # no cases_root configured
+    error = _api_error(lambda: _route(app, "/cases/{case_id}/evidence")("INC-API-CASE"))
+    assert error.status_code == 500
+
+
+def test_get_case_investigation_is_honestly_not_started(tmp_path, capsys):
+    output_root = _analyzed_case(tmp_path, capsys)
+    app = create_app(output_root=output_root, cases_root=tmp_path / "cases")
+    investigation = _route(app, "/cases/{case_id}/investigation")("INC-API-CASE")
+    assert investigation["status"] == "NOT_STARTED"
+    assert investigation["proposals"] == []
+
+
+def test_get_case_rejects_an_unknown_case(tmp_path):
+    app = create_app(output_root=tmp_path / "outputs")
+    error = _api_error(lambda: _route(app, "/cases/{case_id}")("NEVER-ANALYZED"))
+    assert error.status_code == 404
+    assert error.code == "case_not_found"
+
+
+def test_get_case_report_descriptor_and_download_render_real_content(tmp_path, capsys):
+    output_root = _analyzed_case(tmp_path, capsys)
+    app = create_app(output_root=output_root, cases_root=tmp_path / "cases")
+    descriptor = _route(app, "/cases/{case_id}/reports/{fmt}")("INC-API-CASE", "md")
+    assert descriptor["format"] == "md"
+    assert descriptor["content_type"] == "text/markdown"
+    assert descriptor["download_url"] == "/cases/INC-API-CASE/reports/md/download"
+
+    response = _route(app, "/cases/{case_id}/reports/{fmt}/download")("INC-API-CASE", "md")
+    assert response.media_type == "text/markdown"
+    assert b"INC-API-CASE" in response.body
+
+
+def test_get_case_report_rejects_an_unsupported_format(tmp_path, capsys):
+    output_root = _analyzed_case(tmp_path, capsys)
+    app = create_app(output_root=output_root)
+    error = _api_error(lambda: _route(app, "/cases/{case_id}/reports/{fmt}")("INC-API-CASE", "docx"))
+    assert error.status_code == 400

@@ -524,6 +524,7 @@ def _run_chat(args: argparse.Namespace) -> int:
 
 def _run_serve(args: argparse.Namespace) -> int:
     output_root = _directory_path(args.output_root)
+    cases_root = _directory_path(args.cases_root) if args.cases_root else None
     try:
         import uvicorn
 
@@ -534,6 +535,7 @@ def _run_serve(args: argparse.Namespace) -> int:
         ) from exc
     app = create_app(
         output_root=output_root,
+        cases_root=cases_root,
         ollama_host=args.ollama_host,
         model=_resolve_model(args.model),
         timeout_seconds=args.timeout,
@@ -729,6 +731,10 @@ def build_parser() -> argparse.ArgumentParser:
         "serve", help="exponer un API compatible con OpenAI/OpenWebUI sobre casos ya analizados"
     )
     serve_parser.add_argument("--output-root", required=True)
+    serve_parser.add_argument(
+        "--cases-root", default=None,
+        help="raíz de casos congelados; habilita /cases/{id}/evidence y auditoría completa (opcional)",
+    )
     serve_parser.add_argument("--host", default="127.0.0.1", help="dirección de escucha de este API")
     serve_parser.add_argument("--port", type=int, default=8420)
     serve_parser.add_argument("--ollama-host", default="http://127.0.0.1:11434", help="Ollama local-only")
