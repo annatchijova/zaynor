@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 
 import pytest
@@ -5,6 +6,9 @@ import pytest
 from zaynor.adapter import AdapterError, VigiaAdapter, ZaynorMode1Adapter, _evidence_path_for_mode1
 from zaynor.case_freezer import _content_sha256, _sealed_at_sha256
 from zaynor.schemas import CaseManifest, ManifestEntry
+
+VIGIA_REPO_PATH = Path("/home/labestiadevigia/vigia-repo")
+SCENARIO_ROOT = Path(__file__).parent.parent / "scenarios" / "inc-2026-demo-001"
 
 
 def _manifest() -> CaseManifest:
@@ -155,3 +159,46 @@ def test_mode1_adapter_routes_a_lone_json_case_file_to_mode1_by_itself(monkeypat
     # name is what proves the routing decision, not liveness.
     assert captured["evidence_path"].name == "vigia-case.json"
     assert captured["case_id"] == "INC-ADAPTER-002"
+
+
+@pytest.mark.skipif(
+    not (VIGIA_REPO_PATH / "vigia_agent.py").is_file(),
+    reason="vigia-repo checkout not present on this machine",
+)
+def test_repeated_analyze_of_the_same_frozen_case_produces_the_same_seal(tmp_path):
+    """Confirmed by an external audit, then reproduced here: before this
+    fix, materialize_frozen_snapshot used a random tempfile suffix for its
+    private snapshot directory. ZAYNOR points VIGIA_EVIDENCE_DIR/
+    VIGIA_ALLOWED_REGISTRY_PATHS/VIGIA_ALLOWED_DUMP_PATHS at that
+    directory, and VIGIA's own runtime_execution_fingerprint (vigia-repo,
+    vigia/core/runtime_fingerprint.py) hashes every VIGIA_* environment
+    variable into engine.configuration_hash — by design, since values like
+    VIGIA_EBS_RESOLVE genuinely affect the deterministic computation. A
+    randomized path carries no decision-relevant information but still
+    changed configuration_hash, and therefore the seal, on every run of
+    the IDENTICAL frozen case — violating CLAUDE.md 5.2's bit-for-bit
+    reproducibility requirement with nothing about the evidence, decision,
+    or configuration actually differing. Fixed by making the snapshot
+    directory name content-addressed (manifest.content_sha256) instead of
+    randomized, entirely on ZAYNOR's side of the environment variables it
+    constructs (AGENTS.md 2.1: never modify vigia-repo).
+    """
+    from zaynor.case_freezer import freeze_case
+
+    profile_map = json.loads((SCENARIO_ROOT / "evidence_profile.json").read_text())
+    manifest, evidence_dir = freeze_case(
+        case_id="INC-ADAPTER-REPRO",
+        evidence_profile="admin-session-investigation",
+        profile_map=profile_map,
+        source_root=SCENARIO_ROOT,
+        cases_root=tmp_path,
+    )
+    adapter = ZaynorMode1Adapter(VIGIA_REPO_PATH, tmp_path / "outputs", timeout_seconds=120)
+
+    result_a = adapter.analyze(manifest, evidence_dir)
+    result_b = adapter.analyze(manifest, evidence_dir)
+
+    assert result_a.engine["configuration_hash"] == result_b.engine["configuration_hash"]
+    from zaynor.authority_seal import seal_authoritative_result
+
+    assert seal_authoritative_result(result_a).sha256 == seal_authoritative_result(result_b).sha256

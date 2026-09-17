@@ -6,6 +6,7 @@ import pytest
 
 from zaynor.adapter import AdapterError, ZaynorMode1Adapter
 from zaynor.case_freezer import _content_sha256, _sealed_at_sha256
+from zaynor.frozen_snapshot import FrozenSnapshotError, materialize_frozen_snapshot
 from zaynor.hash_utils import sha256_file
 from zaynor.schemas import CaseManifest, ManifestEntry
 
@@ -85,3 +86,58 @@ def test_manifest_binds_the_complete_authorized_evidence_set(tmp_path):
             _manifest("CASE-EXACT", event),
             evidence,
         )
+
+
+def test_snapshot_directory_name_is_content_addressed_not_randomized(tmp_path):
+    """Confirmed by an external audit, then reproduced against the real
+    engine: a randomized snapshot directory name leaked into VIGIA's
+    runtime_execution_fingerprint (every VIGIA_* env var, including the
+    allowlist paths ZAYNOR points at this directory), making
+    engine.configuration_hash — and therefore the seal — different on
+    every run of the identical frozen case. The directory name must
+    depend only on the manifest's content identity, so it repeats exactly
+    for repeated analyses of the same case.
+    """
+    case_root = tmp_path / "CASE-DETERMINISTIC"
+    evidence = case_root / "evidence"
+    evidence.mkdir(parents=True)
+    (evidence / "event.log").write_text("evidence bytes")
+    manifest = _manifest("CASE-DETERMINISTIC", evidence / "event.log")
+
+    with materialize_frozen_snapshot(manifest, evidence) as snapshot_a:
+        snapshot_dir_a = snapshot_a.path.parent.name
+    with materialize_frozen_snapshot(manifest, evidence) as snapshot_b:
+        snapshot_dir_b = snapshot_b.path.parent.name
+
+    assert snapshot_dir_a == snapshot_dir_b
+    assert manifest.content_sha256 in snapshot_dir_a
+
+
+def test_concurrent_snapshot_for_the_same_case_fails_closed(tmp_path):
+    """A leftover directory from a crashed prior run, or a genuinely
+    concurrent analyze of the same case, must be visible as a failure —
+    never silently reused or overwritten.
+    """
+    case_root = tmp_path / "CASE-COLLISION"
+    evidence = case_root / "evidence"
+    evidence.mkdir(parents=True)
+    (evidence / "event.log").write_text("evidence bytes")
+    manifest = _manifest("CASE-COLLISION", evidence / "event.log")
+
+    with materialize_frozen_snapshot(manifest, evidence):
+        with pytest.raises(FrozenSnapshotError, match="already exists"):
+            with materialize_frozen_snapshot(manifest, evidence):
+                pass
+
+
+def test_snapshot_directory_is_cleaned_up_after_use(tmp_path):
+    case_root = tmp_path / "CASE-CLEANUP"
+    evidence = case_root / "evidence"
+    evidence.mkdir(parents=True)
+    (evidence / "event.log").write_text("evidence bytes")
+    manifest = _manifest("CASE-CLEANUP", evidence / "event.log")
+
+    with materialize_frozen_snapshot(manifest, evidence) as snapshot:
+        snapshot_dir = snapshot.path.parent
+        assert snapshot_dir.is_dir()
+    assert not snapshot_dir.exists()

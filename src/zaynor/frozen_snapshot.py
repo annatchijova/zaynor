@@ -5,13 +5,16 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-import tempfile
+import re
+import shutil
 from contextlib import contextmanager
 from dataclasses import dataclass
 from pathlib import Path
 
 from zaynor.hash_utils import sha256_file
 from zaynor.schemas import CaseManifest
+
+_SAFE_CONTENT_SHA256 = re.compile(r"^[0-9a-f]{64}$")
 
 
 class FrozenSnapshotError(ValueError):
@@ -98,14 +101,49 @@ def materialize_frozen_snapshot(manifest: CaseManifest, evidence_dir: Path):
     The executor never receives the live case evidence. Each copied byte is
     checked against the manifest before execution; later mutations of the
     original case cannot change the bytes being analyzed.
+
+    The snapshot directory name is content-addressed
+    (`.zaynor_snapshot_<manifest.content_sha256>`), not a random `tempfile`
+    suffix. Confirmed by induction (external audit, then reproduced here):
+    a random suffix leaks into VIGÍA's own sealed result. ZAYNOR points
+    `VIGIA_EVIDENCE_DIR`/`VIGIA_ALLOWED_REGISTRY_PATHS`/
+    `VIGIA_ALLOWED_DUMP_PATHS` at this directory, and VIGÍA's
+    `runtime_execution_fingerprint` (vigia-repo, `vigia/core/
+    runtime_fingerprint.py`) hashes every `VIGIA_*` environment variable
+    into `engine.configuration_hash` — by design, since values like
+    `VIGIA_EBS_RESOLVE` genuinely affect the deterministic computation and
+    should be fingerprinted. A randomized path is not one of those: it
+    carries no decision-relevant information, only a different value on
+    every run of the identical frozen case, which the fingerprint then
+    faithfully (and correctly, per its own contract) propagates into a
+    different seal every time — violating CLAUDE.md §5.2's bit-for-bit
+    reproducibility requirement without any evidence, decision, or
+    configuration actually differing. Not a change to vigia-repo (AGENTS.md
+    §2.1: integrate, never modify VIGÍA) — the fix is entirely on ZAYNOR's
+    side of the environment variables it constructs. A collision (another
+    process already materializing a snapshot for the same manifest
+    content, or a snapshot left behind by a crashed prior run) fails
+    closed rather than silently reusing or overwriting a directory this
+    process did not itself just create.
     """
     expected = _validated_entries(manifest, evidence_dir)
     case_root = evidence_dir.parent
     if case_root.is_symlink() or not case_root.is_dir():
         raise FrozenSnapshotError("case root is missing or unsafe")
+    if not _SAFE_CONTENT_SHA256.fullmatch(manifest.content_sha256):
+        raise FrozenSnapshotError("manifest content_sha256 is not a valid hex digest")
 
-    with tempfile.TemporaryDirectory(dir=str(case_root), prefix=".zaynor_snapshot_") as temporary:
-        snapshot = Path(temporary) / "evidence"
+    temporary = case_root / f".zaynor_snapshot_{manifest.content_sha256}"
+    try:
+        temporary.mkdir()
+    except FileExistsError as exc:
+        raise FrozenSnapshotError(
+            f"a snapshot directory already exists for this case content: {temporary} "
+            "— a concurrent analyze is in progress, or one crashed without cleaning up; "
+            "remove it before retrying"
+        ) from exc
+    try:
+        snapshot = temporary / "evidence"
         snapshot.mkdir()
         for relative, expected_hash, expected_size in expected:
             source = evidence_dir / relative
@@ -130,3 +168,5 @@ def materialize_frozen_snapshot(manifest: CaseManifest, evidence_dir: Path):
             manifest_sha256=_manifest_digest(manifest),
             snapshot_sha256=_snapshot_digest(snapshot),
         )
+    finally:
+        shutil.rmtree(temporary, ignore_errors=True)
