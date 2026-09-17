@@ -26,11 +26,15 @@ Semantics:
 - An triggered rule is satisfied when the rule's doc patterns are matched by
   the changed set: every pattern when ``require_all`` (the mirrored
   README.md/README.en.md pair), otherwise at least one.
-- A deliberate waiver is a commit trailer anywhere in the checked range::
+- A deliberate waiver is a commit trailer in the checked range: the final
+  paragraph of the message, as a contiguous ``key: value`` block (the way
+  ``git interpret-trailers`` defines it)::
 
       Docs-Waiver: <rule-id> <short reason>
 
-  Waivers are per-rule, visible in git history, and reported (never silent).
+  Waivers are per-rule, visible in git history, and reported (never
+  silent). A trailer-shaped line anywhere else in the body — an example,
+  an illustration followed by more prose — is not a waiver.
 - Exit codes: 0 accepts, 1 rejects (violations listed), 2 is an internal
   error. Violations print to stderr, so the `pre-push` hook can simply run
   the script and let its exit status decide.
@@ -43,6 +47,7 @@ contract, add the rule here in the same change.
 from __future__ import annotations
 
 import fnmatch
+import re
 import subprocess
 import sys
 from dataclasses import dataclass, field
@@ -231,23 +236,89 @@ def changed_files_staged() -> list[str]:
 def load_waivers(range_spec: str) -> dict[str, str]:
     """Collect `Docs-Waiver: <rule-id> <reason>` trailers from a git range.
 
-    Returns {rule_id: reason}; the last waiver in the range wins for a
-    duplicate rule id. Only full-message lines whose key is
-    ``Docs-Waiver`` (case-insensitive) count — prose mentioning the word
-    does not, because Conventional Commits trailers are line-delimited.
+    Returns {rule_id: reason}; the newest commit's waiver wins for a
+    duplicate rule id. A waiver only counts in *trailer position*: the
+    final paragraph of the message must be a contiguous block of
+    ``key: value`` lines, the way ``git interpret-trailers`` defines it.
+    A trailer-shaped line anywhere else — mid-body prose, an example
+    inside backticks, an illustration followed by more prose — is not a
+    waiver, because waivers must be deliberate and placed, not accidental.
     """
-    blobs = _git("log", "--format=%x1e%B%x1e", range_spec)
+    commits = _git("rev-list", "--reverse", range_spec).split()
     waivers: dict[str, str] = {}
-    for blob in blobs.split("\x1e"):
-        for line in blob.splitlines():
-            stripped = line.strip()
-            key, _, rest = stripped.partition(":")
-            if key.strip().lower() != "docs-waiver":
+    for commit in commits:
+        body = _git("log", "--format=%B", "-n", "1", commit)
+        for key, value in _message_trailers(body):
+            if key.lower() != "docs-waiver":
                 continue
-            rule_id, _, reason = rest.strip().partition(" ")
+            rule_id, _, reason = value.partition(" ")
             if rule_id:
                 waivers[rule_id] = reason.strip()
     return waivers
+
+
+# A trailer line is one ``token: value`` line — a token with no spaces
+# (``git interpret-trailers`` also accepts ``[...]`` brackets and ``#``
+# separators, which this gate does not need). Separator lines, comments,
+# and indented lines are never trailer lines.
+_TRAILER_LINE = re.compile(r"^(?!#|---)(?P<key>[^\s:#]+)\s*:\s*(?P<value>.*)$")
+
+
+def _is_trailer_line(line: str) -> bool:
+    """One ``key: value`` line, never a separator, comment, or indented line."""
+    if not line.strip() or line[:1] in (" ", "\t"):
+        return False
+    match = _TRAILER_LINE.match(line)
+    return match is not None and bool(match.group("key").strip())
+
+
+def _message_trailers(body: str) -> list[tuple[str, str]]:
+    """Return the ``key: value`` pairs of one message's trailer block.
+
+    Trailer semantics, in the shape ``git interpret-trailers`` applies:
+    the block starts at the first line of the final paragraph whose lines
+    are all ``key: value`` (or continuation lines starting with a space);
+    if some line of that paragraph is not trailer-shaped, or the message
+    is a single paragraph, there is no trailer block. Separator and
+    comment lines (``---``, ``# ...``, scissors) are never trailers.
+    """
+    lines = body.splitlines()
+    while lines and not lines[-1].strip():
+        lines.pop()
+    if not lines:
+        return []
+    block: list[str] = []
+    for line in reversed(lines):
+        if not line.strip():
+            break
+        if _is_trailer_line(line) or line[:1] in (" ", "\t"):
+            # An indented line is a continuation: git folds it into the
+            # trailer above it, or treats a lone indented final line as a
+            # one-line non-trailer paragraph (no trailer block). A later
+            # non-trailer line still kills the block below.
+            block.append(line)
+            continue
+        return []
+    if len(block) == len(lines):
+        # A single-paragraph message has no trailer block: its first line
+        # is the subject, so a one-line ``Docs-Waiver: ...`` message is a
+        # subject, not a trailer — same as git.
+        return []
+    trailers: list[tuple[str, str]] = []
+    for raw in reversed(block):
+        if raw[:1] in (" ", "\t"):
+            if not trailers:
+                # Lone indented final line: git reads it as a one-line
+                # continuation paragraph, so there is no trailer block.
+                return []
+            key, value = trailers[-1]
+            trailers[-1] = (key, f"{value} {raw.strip()}")
+            continue
+        match = _TRAILER_LINE.match(raw.strip())
+        if match is None:  # unreachable: _is_trailer_line matched above
+            continue
+        trailers.append((match.group("key"), match.group("value").strip()))
+    return trailers
 
 
 def evaluate(files: list[str], waivers: dict[str, str] | None = None) -> list[Outcome]:
@@ -310,8 +381,9 @@ def _render(outcomes: list[Outcome], file_count: int) -> None:
             file=sys.stderr,
         )
         print(
-            "docs_check: update the docs above, or waive this rule "
-            "deliberately with a commit trailer: "
+            "docs_check: update the docs above in this branch, or — when "
+            "the docs genuinely need no change — record that decision with "
+            "a trailer in the final paragraph of the commit message: "
             "'Docs-Waiver: <rule-id> <reason>'.",
             file=sys.stderr,
         )

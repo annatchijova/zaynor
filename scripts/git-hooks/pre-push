@@ -10,7 +10,7 @@
 # git feeds "<local_ref> <local_sha> <remote_ref> <remote_sha>" lines on
 # stdin. Installed by scripts/install-hooks.sh (or equivalently by
 # docs/skills/git-discipline/scripts/install_guard_hooks.sh, which copies
-# this same file). Bypass (human, deliberate):
+# this same file). Human bypass (deliberate, disables BOTH gates below):
 #   git push --no-verify ...
 set -euo pipefail
 ZERO="0000000000000000000000000000000000000000"
@@ -63,6 +63,14 @@ while read -r local_ref local_sha remote_ref remote_sha; do
 done <<<"$input"
 
 if [ "$status" -ne 0 ] || [ "$docs_status" -ne 0 ]; then
+    if [ "$docs_status" -ne 0 ]; then
+        echo "docs-check: fix by updating the docs above in this branch, or — when" >&2
+        echo "            the docs genuinely need no change — record that decision with" >&2
+        echo "            a 'Docs-Waiver: <rule-id> <reason>' trailer in the final" >&2
+        echo "            paragraph of the commit message. Prefer the trailer over" >&2
+        echo "            'git push --no-verify', which also disables the force-push" >&2
+        echo "            guard above for this push." >&2
+    fi
     exit 1
 fi
 exit 0

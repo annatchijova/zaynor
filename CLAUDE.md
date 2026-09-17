@@ -104,12 +104,16 @@ disappears. The human pays for a scrambled history. These rules are cheap insura
   ```
   Recovery is then one command: `git reset --hard <tag>`.
 
-- **Forbidden operations.** `git rebase`, interactive rebase / `git squash`, and
-  `git push --force` (including `--force-with-lease`) are prohibited in any agent
-  session. They rewrite history and generate unrecoverable loss. Only forward-only
-  operations are allowed: `commit`, `merge`, `revert` — they change history by
-  *adding* to it, which is always recoverable. If history genuinely needs cleaning,
-  a human does it deliberately, outside the agent loop.
+- **Forbidden operations.** `git rebase`, interactive rebase / `git squash`,
+  and `git push --force` (including `--force-with-lease`) are prohibited in
+  any agent session. They rewrite history and generate unrecoverable loss.
+  So is any direct push to the default branch (`main`), or any local bypass
+  of its branch protection — every change lands through a branch → PR →
+  review → merge, no exceptions for speed or seniority (see `AGENTS.md` §4
+  for the workflow and the protected-branch settings). Only forward-only
+  operations are allowed: `commit`, `merge`, `revert` — they change history
+  by *adding* to it, which is always recoverable. If history genuinely needs
+  cleaning, a human does it deliberately, outside the agent loop.
 
 - **Verify state before you claim it.** Never report repo state from memory or a
   stale snapshot. Before saying "committed", "pushed", or "on branch X":

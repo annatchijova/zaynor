@@ -113,6 +113,21 @@ def _git(cwd: Path, *args: str) -> str:
     return result.stdout.strip()
 
 
+def _waivers_in(repo: Path, range_spec: str) -> dict[str, str]:
+    """load_waivers against the throwaway repo (docs_check runs in our cwd)."""
+    commits = _git(repo, "rev-list", "--reverse", range_spec).split()
+    waivers: dict[str, str] = {}
+    for commit in commits:
+        body = _git(repo, "log", "--format=%B", "-n", "1", commit)
+        for key, value in docs_check._message_trailers(body):
+            if key.lower() != "docs-waiver":
+                continue
+            rule_id, _, reason = value.partition(" ")
+            if rule_id:
+                waivers[rule_id] = reason.strip()
+    return waivers
+
+
 @pytest.fixture
 def git_repo(tmp_path: Path) -> Path:
     repo = tmp_path / "repo"
@@ -186,6 +201,121 @@ def test_prose_mentioning_a_waiver_does_not_waive(git_repo: Path):
     base, head = _git(git_repo, "rev-parse", "HEAD~1"), _git(git_repo, "rev-parse", "HEAD")
     result = _run_gate(git_repo, "--git-range", f"{base}..{head}")
     assert result.returncode == 1
+
+
+def test_illustrative_waiver_line_followed_by_prose_does_not_waive(git_repo: Path):
+    # The reviewer's repro: a trailer-shaped line in its own paragraph, but
+    # with more prose after it, is not in trailer position (git agrees:
+    # `git interpret-trailers --parse` yields nothing for this body).
+    (git_repo / "src" / "zaynor").mkdir(parents=True)
+    (git_repo / "src" / "zaynor" / "cli.py").write_text("print(1)\n")
+    _git(git_repo, "add", "-A")
+    _git(
+        git_repo,
+        "commit",
+        "-m",
+        "docs: document the waiver trailer in CHANGELOG",
+        "-m",
+        "Added a note to CHANGELOG.md describing the escape hatch:",
+        "-m",
+        "Docs-Waiver: cli-usage temporarily disabling while docs catch up",
+        "-m",
+        "This is just illustrating the syntax for other contributors.",
+    )
+    base, head = _git(git_repo, "rev-parse", "HEAD~1"), _git(git_repo, "rev-parse", "HEAD")
+    result = _run_gate(git_repo, "--git-range", f"{base}..{head}")
+    assert result.returncode == 1
+    assert "cli-usage" in result.stderr
+    assert "WAIVED" not in result.stderr
+
+
+def test_waiver_after_trailer_block_epilogue_does_not_waive(git_repo: Path):
+    (git_repo / "src" / "zaynor").mkdir(parents=True)
+    (git_repo / "src" / "zaynor" / "cli.py").write_text("print(1)\n")
+    _git(git_repo, "add", "-A")
+    _git(
+        git_repo,
+        "commit",
+        "-m",
+        "feat(cli): tweak",
+        "-m",
+        "Docs-Waiver: cli-usage no-op tweak",
+        "-m",
+        "Epilogue prose here.",
+    )
+    base, head = _git(git_repo, "rev-parse", "HEAD~1"), _git(git_repo, "rev-parse", "HEAD")
+    result = _run_gate(git_repo, "--git-range", f"{base}..{head}")
+    assert result.returncode == 1
+
+
+def test_newest_commit_wins_for_duplicate_rule_waiver(git_repo: Path):
+    (git_repo / "src" / "zaynor").mkdir(parents=True)
+    (git_repo / "src" / "zaynor" / "cli.py").write_text("print(1)\n")
+    _git(git_repo, "add", "-A")
+    _git(
+        git_repo,
+        "commit",
+        "-m",
+        "feat(cli): first tweak",
+        "-m",
+        "Docs-Waiver: cli-usage older reason",
+    )
+    (git_repo / "src" / "zaynor" / "cli.py").write_text("print(2)\n")
+    _git(git_repo, "add", "-A")
+    _git(
+        git_repo,
+        "commit",
+        "-m",
+        "feat(cli): second tweak",
+        "-m",
+        "Docs-Waiver: cli-usage newer reason",
+    )
+    base = _git(git_repo, "rev-parse", "HEAD~2")
+    head = _git(git_repo, "rev-parse", "HEAD")
+    waivers = _waivers_in(git_repo, f"{base}..{head}")
+    assert waivers == {"cli-usage": "newer reason"}
+
+
+# --- pure trailer-block semantics (no git needed) ----------------------------
+
+
+def test_message_trailers_requires_final_paragraph_block():
+    trailers = docs_check._message_trailers(
+        "docs: document x\n"
+        "\n"
+        "Added a note describing the escape hatch:\n"
+        "\n"
+        "Docs-Waiver: cli-usage temporarily disabling\n"
+        "\n"
+        "This is just illustrating the syntax.\n"
+    )
+    assert trailers == []
+
+
+def test_message_trailers_keeps_mixed_block_and_continuations():
+    trailers = docs_check._message_trailers(
+        "feat(cli): tweak\n"
+        "\n"
+        "Some context.\n"
+        "\n"
+        "Co-authored-by: T <t@t.co>\n"
+        "Docs-Waiver: cli-usage first part\n"
+        " second part\n"
+    )
+    assert trailers == [
+        ("Co-authored-by", "T <t@t.co>"),
+        ("Docs-Waiver", "cli-usage first part second part"),
+    ]
+
+
+def test_message_trailers_rejects_bare_subject_and_fenced_lines():
+    assert docs_check._message_trailers("Docs-Waiver: cli-usage foo\n") == []
+    assert (
+        docs_check._message_trailers(
+            "docs: x\n\nDoc:\n\n```\nDocs-Waiver: cli-usage foo\n```\n\nMore prose.\n"
+        )
+        == []
+    )
 
 
 def test_staged_mode_rejects_uncommitted_code(git_repo: Path):

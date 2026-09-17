@@ -45,14 +45,17 @@ should help preserve that usefulness as the project evolves.
    the MCP tools, the frontend, the SDLC tooling) requires updating that
    document in the same change. Which code parts contract which docs is
    `DOCS_MAP` in `scripts/docs_check.py` — the single source of truth;
-   extend it when you add a part that has a doc contract. Enforcement is
-   mechanical, at two points:
+   extend it when you add a part that has a doc contract.    Enforcement is mechanical:
    - the `pre-push` hook runs `scripts/docs_check.py` over the range
      being pushed (installed by `./scripts/install-hooks.sh`);
-   - CI runs the same gate on every PR (`docs-sync` job).
-   A rule can be waived deliberately with a commit trailer
-   `Docs-Waiver: <rule-id> <reason>` — per rule, visible in git history,
-   never silent. Run the gate locally at any time:
+   - CI runs the same gate on every PR and on every direct push to
+     `main` (`docs-sync` job).
+   A rule can be waived deliberately with a commit trailer in the final
+   paragraph of the commit message — `Docs-Waiver: <rule-id> <reason>` —
+   per rule, visible in git history, never silent. Only a trailer in
+   trailer position counts: an illustrative `Docs-Waiver:` line inside
+   body prose or a code fence is not a waiver. Run the gate locally at
+   any time:
    ```bash
    python3 scripts/docs_check.py --base origin/main   # branch diff vs main
    python3 scripts/docs_check.py --staged             # what is staged now

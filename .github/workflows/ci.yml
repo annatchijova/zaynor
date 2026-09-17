@@ -41,7 +41,6 @@ jobs:
     name: docs sync gate
     runs-on: ubuntu-latest
     timeout-minutes: 5
-    if: github.event_name == 'pull_request'
     steps:
       - name: Checkout (full history for the merge-base diff)
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
@@ -51,8 +50,12 @@ jobs:
         uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 # v5
         with:
           python-version: "3.12"
-      - name: Docs-sync gate (code changes must update the docs that describe them)
+      - name: Docs-sync gate on PRs (branch diff vs main)
+        if: github.event_name == 'pull_request'
         run: python3 scripts/docs_check.py --base origin/main
+      - name: Docs-sync gate on direct pushes (this push's own range)
+        if: github.event_name == 'push'
+        run: python3 scripts/docs_check.py --git-range ${{ github.event.before }}..${{ github.event.after }}
 
   format:
     name: black --check (informational)

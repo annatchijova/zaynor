@@ -48,13 +48,17 @@ el proyecto evoluciona.
    SDLC) exige actualizar ese documento en el mismo cambio. Qué partes del
    código contratan qué docs está en `DOCS_MAP` de `scripts/docs_check.py`
    — la fuente de verdad; ampliala cuando agregues una parte que tenga
-   contrato documental. La aplicación es mecánica, en dos puntos:
+   contrato documental. La aplicación es mecánica:
    - el hook `pre-push` corre `scripts/docs_check.py` sobre el rango
      empujado (instalado con `./scripts/install-hooks.sh`);
-   - CI corre la misma compuerta en cada PR (job `docs-sync`).
+   - CI corre la misma compuerta en cada PR y en cada push directo a
+     `main` (job `docs-sync`).
    Una regla se puede eximir de forma deliberada con el trailer de commit
-   `Docs-Waiver: <rule-id> <razón>` — por regla, visible en el historial,
-   nunca silenciosa. Corré la compuerta localmente cuando quieras:
+   en el párrafo final del mensaje — `Docs-Waiver: <rule-id> <razón>` —
+   por regla, visible en el historial, nunca silenciosa. Solo cuenta un
+   trailer en posición de trailer: una línea ilustrativa `Docs-Waiver:`
+   dentro del cuerpo o de un bloque de código no es una exención. Corré
+   la compuerta localmente cuando quieras:
    ```bash
    python3 scripts/docs_check.py --base origin/main   # diff de la rama vs main
    python3 scripts/docs_check.py --staged             # lo que hay staged

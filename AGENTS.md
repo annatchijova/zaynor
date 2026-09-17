@@ -315,18 +315,28 @@ than silently complying or silently refusing.
 
 ## 4. Git and PR workflow
 
-**Only the repo owner pushes straight to `main`; the other three don't,
-ever.** For everyone but the owner, the flow is: branch → commit → push →
-PR → review by the owner → merge. This holds even solo, even at hour 40: with
-three people moving fast in parallel, an unreviewed direct push from any of
-them is exactly what costs the most, because the other two don't know it
-happened. The owner already reviews every PR that lands — a PR opened by the
-owner would have no one left to review it independently, so requiring one
-buys nothing. The owner pushing directly is the asymmetry that keeps the
-review gate meaningful for everyone else; it's not a loophole anyone else
-gets to use by analogy.
+**Nobody pushes straight to `main` — not the owner, not the team, not an
+agent.** `main` is protected on GitHub (see the branch-protection settings
+below): every change lands through a branch → PR → review → merge, with no
+exceptions for speed, seniority, or a deadline. The maintainer's agent
+previously pushed straight to `main` through a local bypass; that was the
+agent's own trick, not a privilege anyone else inherits, and branch
+protection now closes it mechanically. The asymmetry the old text described
+(owner pushes directly, everyone else opens PRs) is gone: the owner reviews
+every PR, and the owner's own changes get their review from the team before
+they merge. With three people moving fast in parallel, an unreviewed direct
+push from anyone is exactly what costs the most, because the other two
+don't know it happened.
 
-The flow for the three non-owner contributors:
+Branch protection on `main` (maintainer: keep these settings on; they are
+the mechanical half of this section):
+
+- Require a pull request before merging (no direct pushes, owner included).
+- Require status checks to pass before merging: the CI `lint`, `test`, and
+  `docs-sync` jobs.
+- No force-pushes, no deletions of `main`.
+
+The flow for every contributor, owner included:
 
 1. **Branch off current `main`:**
    ```bash
@@ -392,12 +402,16 @@ or `src/zaynor/adapter.py` without touching the docs mapped to it (READMEs,
 `docs/architecture-for-frontend.md`, contributing docs — see `DOCS_MAP` for
 the exact map). It is enforced mechanically twice: the `pre-push` hook runs
 it over the range being pushed, and CI runs it on every PR (`docs-sync`
-job). A rule can be waived deliberately with a commit trailer
-`Docs-Waiver: <rule-id> <reason>` — per rule, visible in git history, never
-silent. When you add a code part that has a doc contract, add its rule to
-`DOCS_MAP` in the same change. This applies to agents in particular: if
-your push is blocked by the gate, the fix is to write the missing docs, not
-to reach for `--no-verify`.
+job) and on every direct push to `main` (over that push's own range).
+A rule can be waived deliberately with a commit trailer in the final
+paragraph of the commit message — `Docs-Waiver: <rule-id> <reason>` —
+per rule, visible in git history, never silent. Only a trailer in trailer
+position counts: an illustrative `Docs-Waiver:` line inside body prose or
+a code fence is not a waiver (the gate parses the final ``key: value``
+block the way `git interpret-trailers` does). When you add a code part
+that has a doc contract, add its rule to `DOCS_MAP` in the same change.
+This applies to agents in particular: if your push is blocked by the gate,
+the fix is to write the missing docs, not to reach for `--no-verify`.
 
 **No `git commit` or `git push` without explicit permission.** An agent may
 stage changes and propose a commit message, but `git commit` and `git push`
@@ -406,8 +420,9 @@ the session. A general instruction to work on the repo is not commit
 permission.
 
 **Forbidden in any agent session:** `git rebase -i`, history-rewriting
-squash outside the merge step above, and `git push --force`
-(`--force-with-lease` included) to any shared branch. Only forward-only
+squash outside the merge step above, `git push --force`
+(`--force-with-lease` included) to any shared branch, and any direct push
+to `main` (or any local bypass of branch protection). Only forward-only
 operations (`commit`, `merge`, `revert`, and the plain non-interactive
 `rebase` in step 3 above, which rewrites only your own unpushed branch).
 
