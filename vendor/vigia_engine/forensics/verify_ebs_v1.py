@@ -1,0 +1,675 @@
+#!/usr/bin/env python3
+"""
+forensics/verify_ebs_v1.py
+─────────────────────────────────────────────────────────────────────────────
+Verificador Independiente EBS v1 — VIGIA Forensic Suite
+
+GARANTIA DE INDEPENDENCIA TOTAL (DeepSeek + Gemini):
+    Este script usa EXCLUSIVAMENTE stdlib Python.
+    No importa NINGUNA clase de vigia.models, vigia.engine ni vigia.forensics.
+    Puede ejecutarse en cualquier maquina con Python 3.6+ sin instalacion.
+    Si el verificador necesita importar el codigo de produccion, el sistema
+    no es auditable por terceros — viola el principio de independencia forense.
+
+CONSTANTES LOCALES:
+    Las constantes del estandar (EBS_VERSION, umbrales) estan copiadas aqui.
+    No se importan desde ebs_v1.py. Esto es intencional: el verificador
+    no debe depender de que el codigo de produccion este disponible.
+
+VALIDACIONES R1-R5:
+    R1 — Integridad de hashes (bundle_hash, graph_hash, policy_hash,
+         decision_hash y, cuando esta declarado, analysis_fingerprint). El
+         primero identifica una corrida completa; el ultimo permite comparar
+         la proyeccion analitica sin UUID/timestamps. Todos los digests
+         declarados se re-derivan; antes del 2026-07-18 decision_hash se
+         sellaba pero ningun verificador lo recomputaba: era un campo
+         decorativo.
+    R2 — Cumplimiento de politica (max_delta, allowed_roles)
+    R3 — Coherencia de decision (risk <-> epsilon <-> ACCEPT/REJECT/ABSTAIN)
+    R4 — engine_attestation_hash: PRESENCIA + FORMATO solamente. Este
+         verificador es stdlib-only y no puede re-derivar el hash del motor
+         sin el arbol fuente pinneado + manifiesto de dependencias; la
+         re-derivacion de origen vive en el repo
+         (tests/test_attestation_coverage_integrity.py). R4 NO prueba que
+         el bundle fue producido por el motor atestado — solo que el campo
+         existe y tiene forma de SHA-256.
+    R5 — Anclaje ECL (External Constraint Layer, si presente)
+
+NIVELES DE CONFORMIDAD:
+    Level 0 — Non-compliant:         estructura invalida
+    Level 1 — Structurally valid:    esquema correcto
+    Level 2 — Cryptographically valid: hashes consistentes + politica OK
+    Level 3 — Fully compliant EBS v1:  R1-R5 + ECL presente
+                (R4 dentro de este nivel = formato verificado, origen NO
+                re-derivado — ver nota R4 arriba)
+
+USO:
+    python3 verify_ebs_v1.py bundle.json
+    python3 verify_ebs_v1.py bundle.json --verbose
+    python3 verify_ebs_v1.py bundle.json --strict   # falla si Level < 3
+    python3 verify_ebs_v1.py bundle.json --json     # salida JSON estructurada
+    echo $?  # 0=PASS  1=FAIL
+
+PROTOCOLO DE HASH (identico a bundle_builder.py):
+    graph_hash  = SHA256(evidence_graph SIN el campo graph_hash)
+    policy_hash = SHA256(policy_spec)
+    analysis_fingerprint = SHA256(proyeccion analitica sin UUID/timestamps)
+    bundle_hash = SHA256(bundle_id + version + timestamp +
+                         evidence_graph_CON_graph_hash + decision_trace +
+                         policy_spec + actions + system_state)
+─────────────────────────────────────────────────────────────────────────────
+"""
+from __future__ import annotations
+
+# STDLIB ONLY — cero imports de produccion
+import argparse
+import hashlib
+import json
+import math
+import sys
+from datetime import datetime, timezone
+from typing import Any, Dict, List, Optional, Tuple
+
+
+# ---------------------------------------------------------------------------
+# Constantes locales del estandar EBS v1
+# Copiadas deliberadamente — no se importan desde ebs_v1.py
+# ---------------------------------------------------------------------------
+
+_EBS_VERSION = "1.0"
+_EBS_SUPPORTED_VERSIONS = ["1.0"]
+_VERIFIER_VERSION = "1.3.0"   # bumped: signed-zero normalization (-0.0 == 0.0)
+
+
+# ---------------------------------------------------------------------------
+# Hash helper — implementacion local, identica a bundle_builder._sha256_dict
+# ---------------------------------------------------------------------------
+
+import unicodedata as _unicodedata
+from fractions import Fraction as _Fraction
+
+_V2_STR_PREFIX = "s:"
+
+
+def _v2_norm_str(s):
+    return _unicodedata.normalize("NFC", s.replace("\r\n", "\n").replace("\r", "\n"))
+
+
+def _canonicalize_v1(obj: Any) -> Any:
+    """Esquema v1 (LEGACY — solo verificacion de bundles historicos)."""
+    if isinstance(obj, bool):
+        return "true" if obj else "false"
+    if isinstance(obj, int):
+        return f"{obj}:int"
+    if isinstance(obj, float):
+        if obj != obj:          # NaN
+            return "nan"
+        if obj == float("inf"):
+            return "inf"
+        if obj == float("-inf"):
+            return "-inf"
+        return f"{obj + 0.0:.8f}"  # +0.0 maps -0.0 -> 0.0: signed zero must canonicalize identically
+    if isinstance(obj, str):
+        return obj
+    if obj is None:
+        return "null"
+    if isinstance(obj, dict):
+        return {k: _canonicalize_v1(v) for k, v in sorted(obj.items())}
+    if isinstance(obj, (list, tuple)):
+        return [_canonicalize_v1(v) for v in obj]
+    return str(obj)
+
+
+def _canonicalize_v2(obj: Any) -> Any:
+    """
+    Esquema v2 (R3-2) — DEFAULT. Escalares identicos a v1; strings escapados
+    (s: + NFC/CRLF->LF); Fraction explicito. Cierra las colisiones de tipo.
+    """
+    if isinstance(obj, bool):
+        return "true" if obj else "false"
+    if isinstance(obj, int):
+        return f"{obj}:int"
+    if isinstance(obj, float):
+        if obj != obj:          # NaN
+            return "nan"
+        if obj == float("inf"):
+            return "inf"
+        if obj == float("-inf"):
+            return "-inf"
+        return f"{obj + 0.0:.8f}"  # +0.0 maps -0.0 -> 0.0: signed zero must canonicalize identically
+    if isinstance(obj, str):
+        return _V2_STR_PREFIX + _v2_norm_str(obj)
+    if obj is None:
+        return "null"
+    if isinstance(obj, _Fraction):
+        return f"{obj.numerator}/{obj.denominator}:frac"
+    if isinstance(obj, dict):
+        return {k: _canonicalize_v2(v) for k, v in sorted(obj.items())}
+    if isinstance(obj, (list, tuple)):
+        return [_canonicalize_v2(v) for v in obj]
+    return _V2_STR_PREFIX + _v2_norm_str(str(obj))
+
+
+def _canonicalize(obj: Any) -> Any:
+    """Forma canonica DEFAULT (v2). Ver canonicalize.py / _canonicalize_v2."""
+    return _canonicalize_v2(obj)
+
+
+def _sha256_dict_matches(obj: Dict, stored: str) -> bool:
+    """True si el hash de `obj` recomputa bajo v2 O v1 (R3-2 backward-compat).
+    Un bundle manipulado no reproduce ninguno; los historicos (v1) siguen
+    verificando; los nuevos (v2) obtienen la codificacion sin colisiones."""
+    return any(
+        _sha256_dict(obj, canon=c) == stored
+        for c in (_canonicalize_v2, _canonicalize_v1)
+    )
+
+
+def _sha256_dict(obj: Dict, canon=_canonicalize) -> str:
+    """
+    SHA-256 determinístico de un dict con forma canónica estricta (H22).
+
+    Usa _canonicalize() antes de serializar para garantizar que
+    int(1) y float(1.0) produzcan hashes distintos y reproducibles
+    entre arquitecturas y versiones de Python.
+    """
+    canonical = canon(obj)
+    serialized = json.dumps(canonical, sort_keys=True, ensure_ascii=True).encode("utf-8")
+    return hashlib.sha256(serialized).hexdigest()
+
+
+# ---------------------------------------------------------------------------
+# Resultado de verificacion
+# ---------------------------------------------------------------------------
+
+class VerificationResult:
+
+    def __init__(self) -> None:
+        self.checks: List[Dict[str, Any]] = []
+        self.conformity_level: int = 0
+        self.passed: bool = False
+        self.timestamp: str = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+
+    def add(
+        self,
+        rule: str,
+        passed: bool,
+        message: str,
+        severity: str = "ERROR",
+        detail: Optional[Any] = None,
+    ) -> None:
+        self.checks.append({
+            "rule": rule,
+            "passed": passed,
+            "message": message,
+            "severity": severity,
+            "detail": detail,
+        })
+
+    def critical_failures(self) -> List[Dict]:
+        return [c for c in self.checks if not c["passed"] and c["severity"] == "ERROR"]
+
+    def to_dict(self) -> Dict[str, Any]:
+        labels = {
+            0: "Non-compliant",
+            1: "Structurally valid",
+            2: "Cryptographically valid",
+            3: "Fully compliant EBS v1",
+        }
+        return {
+            "verifier_version": _VERIFIER_VERSION,
+            "timestamp": self.timestamp,
+            "passed": self.passed,
+            "conformity_level": self.conformity_level,
+            "conformity_label": labels.get(self.conformity_level, "Unknown"),
+            "checks": self.checks,
+            "summary": {
+                "total": len(self.checks),
+                "passed": sum(1 for c in self.checks if c["passed"]),
+                "failed": sum(1 for c in self.checks if not c["passed"]),
+            },
+        }
+
+    def to_json(self, indent: int = 2) -> str:
+        return json.dumps(self.to_dict(), sort_keys=True, indent=indent)
+
+
+# ---------------------------------------------------------------------------
+# R1 — Integridad de hashes
+# ---------------------------------------------------------------------------
+
+def _check_graph_hash(bundle: Dict) -> Tuple[bool, str]:
+    """
+    graph_hash = SHA256(evidence_graph SIN el campo graph_hash).
+    El campo graph_hash es el resultado — no puede ser input de si mismo.
+    """
+    graph = bundle.get("evidence_graph", {})
+    stored = bundle.get("integrity", {}).get("graph_hash", "")
+    if not stored:
+        return False, "graph_hash ausente en integrity"
+    graph_for_hash = {k: v for k, v in graph.items() if k not in ("graph_hash", "generated_at")}
+    if not _sha256_dict_matches(graph_for_hash, stored):
+        recomputed = _sha256_dict(graph_for_hash)
+        return False, f"graph_hash NO coincide: recomputed={recomputed[:16]}... stored={stored[:16]}..."
+    return True, "graph_hash integro"
+
+
+def _check_policy_hash(bundle: Dict) -> Tuple[bool, str]:
+    policy = bundle.get("policy_spec", {})
+    stored = bundle.get("integrity", {}).get("policy_hash", "")
+    if not stored:
+        return False, "policy_hash ausente en integrity"
+    policy_for_hash = {k: v for k, v in policy.items() if k != "created_at"}
+    if not _sha256_dict_matches(policy_for_hash, stored):
+        recomputed = _sha256_dict(policy_for_hash)
+        return False, f"policy_hash NO coincide: {recomputed[:16]}... != {stored[:16]}..."
+    return True, "policy_hash integro"
+
+
+def _check_decision_hash(bundle: Dict) -> Tuple[bool, str]:
+    """decision_hash = SHA256(decision_trace), sin exclusion de campos
+    (espejo exacto del sellado: bundle_builder.seal() hace
+    `decision_hash = _sha256_dict(decision_dict)`).
+
+    V-3 (docs/PATTERN_HUNT_20260718.md, 2026-07-18): este hash se sellaba en
+    CADA bundle como uno de los cuatro hashes de contenido del IntegrityBlock,
+    pero ningun verificador lo re-derivaba — garbage de 64 hex en
+    integrity.decision_hash pasaba todos los checks. El CONTENIDO de
+    decision_trace siempre estuvo cubierto por bundle_hash (no habia agujero
+    de contenido); el defecto era presentar como "integridad" un campo que
+    nada validaba. Backward-compat via _sha256_dict_matches (v2 O v1), igual
+    que graph/policy/bundle.
+    """
+    decision = bundle.get("decision_trace", {})
+    stored = bundle.get("integrity", {}).get("decision_hash", "")
+    if not stored:
+        return False, "decision_hash ausente en integrity"
+    if not _sha256_dict_matches(decision, stored):
+        recomputed = _sha256_dict(decision)
+        return False, f"decision_hash NO coincide: {recomputed[:16]}... != {stored[:16]}..."
+    return True, "decision_hash integro (re-derivado de decision_trace)"
+
+
+def _analysis_projection(bundle_payload: Dict) -> Dict:
+    """Mirror BundleBuilder's stable analytical projection (B-198).
+
+    The full bundle seal intentionally includes UUID/timestamps as a custody
+    event.  This projection omits only those operational fields so repeated
+    analysis can be compared without weakening the full seal.
+    """
+    projection = dict(bundle_payload)
+    projection.pop("bundle_id", None)
+    projection.pop("timestamp", None)
+    graph = dict(projection.get("evidence_graph", {}))
+    graph.pop("generated_at", None)
+    projection["evidence_graph"] = graph
+    policy = dict(projection.get("policy_spec", {}))
+    policy.pop("created_at", None)
+    projection["policy_spec"] = policy
+    state = dict(projection.get("system_state", {}))
+    state.pop("timestamp", None)
+    projection["system_state"] = state
+    return projection
+
+
+def _check_analysis_fingerprint(bundle: Dict) -> Tuple[bool, str]:
+    """Re-derive an optional B-198 stable replay identifier.
+
+    Old EBS bundles predate the field and retain their historical verification
+    contract.  New bundles must not carry an unverified decorative digest.
+    """
+    stored = bundle.get("integrity", {}).get("analysis_fingerprint", "")
+    if not stored:
+        return True, "analysis_fingerprint absent — legacy bundle; not required"
+    payload = {k: v for k, v in bundle.items() if k != "integrity"}
+    projection = _analysis_projection(payload)
+    if not _sha256_dict_matches(projection, stored):
+        return False, "analysis_fingerprint NO coincide — analytical projection changed"
+    return True, "analysis_fingerprint integro (proyeccion analitica reproducible)"
+
+
+def _check_bundle_hash(bundle: Dict) -> Tuple[bool, str]:
+    """
+    bundle_hash = SHA256(todo el contenido incluyendo evidence_graph con graph_hash asignado).
+    Cualquier modificacion de cualquier campo invalida el bundle.
+    """
+    payload = {k: v for k, v in bundle.items() if k != "integrity"}
+    stored = bundle.get("integrity", {}).get("bundle_hash", "")
+    if not stored:
+        return False, "bundle_hash ausente en integrity"
+    if not _sha256_dict_matches(payload, stored):
+        return False, f"bundle_hash NO coincide — bundle modificado o corrompido"
+    return True, "bundle_hash integro"
+
+
+# ---------------------------------------------------------------------------
+# Level 1 — Estructura
+# ---------------------------------------------------------------------------
+
+def _check_structure(bundle: Dict) -> Tuple[bool, str]:
+    required = [
+        "bundle_version", "timestamp", "evidence_graph",
+        "decision_trace", "policy_spec", "actions",
+        "system_state", "integrity",
+    ]
+    missing = [f for f in required if f not in bundle]
+    if missing:
+        return False, f"Campos faltantes: {', '.join(missing)}"
+
+    if bundle.get("bundle_version") not in _EBS_SUPPORTED_VERSIONS:
+        return False, f"Version no soportada: {bundle.get('bundle_version')}"
+
+    integrity = bundle.get("integrity", {})
+    for h in ["bundle_hash", "graph_hash", "policy_hash"]:
+        if h not in integrity:
+            return False, f"Falta {h} en integrity"
+
+    dt = bundle.get("decision_trace", {})
+    for f in ["decision", "posterior", "risk"]:
+        if f not in dt:
+            return False, f"Falta {f} en decision_trace"
+
+    if dt.get("decision") not in ("ACCEPT", "REJECT", "ABSTAIN"):
+        return False, f"decision invalida: {dt.get('decision')}"
+
+    return True, "Estructura EBS v1 valida"
+
+
+# ---------------------------------------------------------------------------
+# R2 — Cumplimiento de politica
+# ---------------------------------------------------------------------------
+
+def _check_policy_compliance(bundle: Dict) -> Tuple[bool, str, List[str]]:
+    rules = {
+        r["variable"]: r
+        for r in bundle.get("policy_spec", {}).get("rules", [])
+    }
+    actions = bundle.get("actions", [])
+    violations = []
+
+    for i, action in enumerate(actions):
+        var = action.get("variable", "")
+        delta = abs(action.get("delta", 0.0))
+        actor = action.get("actor", "system")
+
+        if var not in rules:
+            violations.append(f"Accion #{i}: variable '{var}' sin regla de politica")
+            continue
+
+        rule = rules[var]
+        if delta > rule.get("max_delta", float("inf")):
+            violations.append(
+                f"Accion #{i}: |delta|={delta:.4f} > max_delta={rule['max_delta']:.4f} para '{var}'"
+            )
+        allowed = rule.get("allowed_roles", [])
+        if allowed and actor not in allowed:
+            violations.append(
+                f"Accion #{i}: actor='{actor}' no autorizado para '{var}'"
+            )
+
+    if violations:
+        return False, f"{len(violations)} violacion(es) de politica", violations
+    return True, "Todas las acciones respetan la politica", []
+
+
+# ---------------------------------------------------------------------------
+# R3 — Coherencia de decision
+# ---------------------------------------------------------------------------
+
+def _check_decision_coherence(bundle: Dict) -> Tuple[bool, str]:
+    dt = bundle.get("decision_trace", {})
+    decision = dt.get("decision", "")
+    risk = float(dt.get("risk", 0.0))
+    posterior = float(dt.get("posterior", 0.5))
+    epsilon = float(dt.get("epsilon_used", 0.05))
+
+    if risk <= epsilon:
+        expected = "ACCEPT"
+    elif risk >= (1.0 - epsilon):
+        expected = "REJECT"
+    else:
+        expected = "ABSTAIN"
+
+    TOL = 1e-4
+    if abs(risk - epsilon) < TOL or abs(risk - (1.0 - epsilon)) < TOL:
+        return True, f"Decision en zona limite (tolerancia numerica aplicada)"
+
+    if decision != expected:
+        return (
+            False,
+            f"Incoherencia: risk={risk:.6f} epsilon={epsilon:.4f} "
+            f"esperado={expected} almacenado={decision}",
+        )
+
+    # Validar rangos
+    if not (0.0 <= posterior <= 1.0):
+        return False, f"posterior={posterior} fuera de [0,1]"
+    if risk < 0.0:
+        return False, f"risk={risk} negativo"
+
+    return True, f"Coherencia OK: decision={decision} risk={risk:.6f} epsilon={epsilon:.4f}"
+
+
+# ---------------------------------------------------------------------------
+# R4 — Engine attestation
+# ---------------------------------------------------------------------------
+
+def _check_engine_attestation(bundle: Dict) -> Tuple[bool, str]:
+    """R4 — presencia + formato SOLAMENTE (V-4, docs/PATTERN_HUNT_20260718.md).
+
+    Este verificador es stdlib-only por diseño: no puede re-derivar el hash
+    del motor sin el arbol fuente pinneado + manifiesto de dependencias. Un
+    valor de 64 hex plausible-pero-fabricado PASA este check. La re-derivacion
+    de origen es responsabilidad del repo (compute_engine_attestation +
+    tests/test_attestation_coverage_integrity.py), no de este script. El
+    mensaje de exito lo declara para que ningun reporte pueda leer R4 como
+    prueba de origen.
+    """
+    att = bundle.get("integrity", {}).get("engine_attestation_hash", "")
+    if not att:
+        return False, "engine_attestation_hash ausente — Level 3 no alcanzable"
+    if len(att) != 64 or not all(c in "0123456789abcdef" for c in att.lower()):
+        return False, f"engine_attestation_hash formato invalido"
+    return True, (
+        f"engine_attestation_hash presente: {att[:16]}... "
+        "[solo formato verificado — el origen NO se re-deriva en modo "
+        "standalone; ver test_attestation_coverage_integrity.py]"
+    )
+
+
+# ---------------------------------------------------------------------------
+# R5 — ECL binding
+# ---------------------------------------------------------------------------
+
+def _check_ecl_binding(bundle: Dict) -> Tuple[bool, str]:
+    ecl = bundle.get("integrity", {}).get("ecl_hash", "")
+    if not ecl:
+        return False, "ecl_hash ausente — sin anclaje ECL (Level 3 no alcanzable)"
+    if len(ecl) != 64:
+        return False, f"ecl_hash formato invalido"
+    return True, f"ECL anclado: {ecl[:16]}..."
+
+
+def _check_devil_advocate(bundle: Dict) -> Tuple[bool, str]:
+    """R6 — MALICE/INTENT findings must have devil_advocate populated (Daubert requirement)."""
+    findings = bundle.get("findings", [])
+    if not findings:
+        # R7 Option C (Collective vote, 2026-06-19): a single-verdict bundle
+        # with no findings[] is NOT exempt from this check just because it
+        # has a different shape. Same vocabulary as the rest of this
+        # function: caie_analysis.verdict, not decision_trace.decision
+        # (which uses the mapped EBS vocabulary REJECT/ABSTAIN/ACCEPT,
+        # distinct from the raw forensic MALICE/INTENT/SUSPICION verdict).
+        caie = bundle.get("caie_analysis") or {}
+        if caie.get("verdict", "") in ("MALICE", "INTENT"):
+            da = caie.get("devil_advocate")
+            if not da:
+                return False, (
+                    "R7 VIOLATION: single-verdict bundle has MALICE/INTENT verdict "
+                    "in caie_analysis but no devil_advocate object — the "
+                    "falsification step was never attempted. This bundle must not "
+                    "be treated as sealed-compliant."
+                )
+            return True, "Single-verdict bundle has devil_advocate populated in caie_analysis"
+        return True, "No findings field and no MALICE/INTENT verdict — check not applicable"
+    violations = []
+    for f in findings:
+        if f.get("verdict", "") in ("MALICE", "INTENT"):
+            da = str(f.get("devil_advocate", "")).strip()
+            if not da or da in ("", "N/A", "null", "None"):
+                violations.append(f.get("finding_id", f.get("id", "UNKNOWN")))
+    if violations:
+        return False, f"Findings {violations} have MALICE/INTENT verdict but empty devil_advocate — Daubert invalidity"
+    return True, "All MALICE/INTENT findings have devil_advocate populated"
+
+# ---------------------------------------------------------------------------
+# Motor principal
+# ---------------------------------------------------------------------------
+
+def verify_bundle(
+    bundle: Dict,
+    strict: bool = False,
+    verbose: bool = False,
+) -> VerificationResult:
+
+    result = VerificationResult()
+
+    # Level 1: estructura
+    ok, msg = _check_structure(bundle)
+    result.add("L1_STRUCTURE", ok, msg, severity="ERROR" if not ok else "INFO")
+    if not ok:
+        result.conformity_level = 0
+        result.passed = False
+        return result
+
+    result.conformity_level = 1
+
+    # R3: coherencia de decision (no depende de hashes)
+    ok, msg = _check_decision_coherence(bundle)
+    result.add("R3_DECISION_COHERENCE", ok, msg, severity="ERROR" if not ok else "INFO")
+
+    # R1: integridad criptografica
+    ok_g, msg_g = _check_graph_hash(bundle)
+    result.add("R1_GRAPH_HASH", ok_g, msg_g, severity="ERROR" if not ok_g else "INFO")
+
+    ok_p, msg_p = _check_policy_hash(bundle)
+    result.add("R1_POLICY_HASH", ok_p, msg_p, severity="ERROR" if not ok_p else "INFO")
+
+    ok_d, msg_d = _check_decision_hash(bundle)
+    result.add("R1_DECISION_HASH", ok_d, msg_d, severity="ERROR" if not ok_d else "INFO")
+
+    ok_a, msg_a = _check_analysis_fingerprint(bundle)
+    result.add("R1_ANALYSIS_FINGERPRINT", ok_a, msg_a, severity="ERROR" if not ok_a else "INFO")
+
+    ok_b, msg_b = _check_bundle_hash(bundle)
+    result.add("R1_BUNDLE_HASH", ok_b, msg_b, severity="ERROR" if not ok_b else "INFO")
+
+    hash_ok = ok_g and ok_p and ok_d and ok_a and ok_b
+
+    # R2: cumplimiento de politica
+    ok_pc, msg_pc, violations = _check_policy_compliance(bundle)
+    result.add(
+        "R2_POLICY_COMPLIANCE", ok_pc, msg_pc,
+        severity="ERROR" if not ok_pc else "INFO",
+        detail=violations if violations and verbose else None,
+    )
+
+    # Determinar Level 2
+    critical = result.critical_failures()
+    if not critical and hash_ok and ok_pc:
+        result.conformity_level = 2
+
+    # R4 y R5 — solo WARNING, no bloquean Level 2
+    ok_att, msg_att = _check_engine_attestation(bundle)
+    result.add("R4_ENGINE_ATTESTATION", ok_att, msg_att, severity="WARNING" if not ok_att else "INFO")
+
+    ok_ecl, msg_ecl = _check_ecl_binding(bundle)
+    result.add("R5_ECL_BINDING", ok_ecl, msg_ecl, severity="WARNING" if not ok_ecl else "INFO")
+    ok_da, msg_da = _check_devil_advocate(bundle)
+    result.add("R6_DEVIL_ADVOCATE", ok_da, msg_da, severity="CRITICAL" if not ok_da else "INFO")
+
+    # Determinar Level 3
+    if not critical and hash_ok and ok_pc and ok_att and ok_ecl and ok_da:
+        result.conformity_level = 3
+
+    # Resultado final
+    if result.conformity_level >= 2:
+        result.passed = True
+    elif strict:
+        result.passed = False
+    else:
+        result.passed = result.conformity_level >= 1 and not critical
+
+    if strict and result.conformity_level < 3:
+        result.passed = False
+
+    return result
+
+
+# ---------------------------------------------------------------------------
+# CLI
+# ---------------------------------------------------------------------------
+
+def _print_result(result: VerificationResult, verbose: bool, as_json: bool) -> None:
+    if as_json:
+        print(result.to_json())
+        return
+
+    d = result.to_dict()
+    status = "PASS" if result.passed else "FAIL"
+    print(f"\n{'='*60}")
+    print(f"  VIGIA — Verificador Independiente EBS v1  v{_VERIFIER_VERSION}")
+    print(f"{'='*60}")
+    print(f"  Resultado   : {status}")
+    print(f"  Conformidad : Level {result.conformity_level} — {d['conformity_label']}")
+    print(f"  Timestamp   : {result.timestamp}")
+    s = d["summary"]
+    print(f"  Checks      : {s['passed']}/{s['total']} OK")
+    print(f"{'='*60}")
+
+    if verbose or not result.passed:
+        print()
+        for check in result.checks:
+            icon = "OK  " if check["passed"] else ("FAIL" if check["severity"] == "ERROR" else "WARN")
+            print(f"  [{icon}] {check['rule']}")
+            print(f"          {check['message']}")
+            if check.get("detail") and verbose:
+                for v in (check["detail"] if isinstance(check["detail"], list) else [check["detail"]]):
+                    print(f"          > {v}")
+
+    if not result.passed:
+        print("\n  FALLAS CRITICAS:")
+        for fail in result.critical_failures():
+            print(f"    - {fail['rule']}: {fail['message']}")
+    print()
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(
+        description="Verificador Independiente EBS v1 — VIGIA (stdlib puro)",
+        epilog="Exit: 0=PASS  1=FAIL",
+    )
+    parser.add_argument("bundle_path", help="Ruta al bundle.json EBS v1")
+    parser.add_argument("--verbose", "-v", action="store_true")
+    parser.add_argument("--strict", "-s", action="store_true", help="Exige Level 3")
+    parser.add_argument("--json", action="store_true", help="Salida JSON")
+
+    args = parser.parse_args()
+
+    try:
+        with open(args.bundle_path, "r", encoding="utf-8") as f:
+            bundle = json.load(f)
+    except FileNotFoundError:
+        print(f"ERROR: No encontrado: {args.bundle_path}", file=sys.stderr)
+        return 1
+    except json.JSONDecodeError as e:
+        print(f"ERROR: JSON invalido: {e}", file=sys.stderr)
+        return 1
+
+    result = verify_bundle(bundle, strict=args.strict, verbose=args.verbose)
+    _print_result(result, verbose=args.verbose, as_json=args.json)
+    return 0 if result.passed else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())
