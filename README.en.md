@@ -211,6 +211,13 @@ releases follow [SemVer](https://semver.org/spec/v2.0.0.html) with a
 until the tree converges: see [`CONTRIBUTING.md`](./CONTRIBUTING.md)).
 See [`CONTRIBUTING.md`](./CONTRIBUTING.md) for the full workflow.
 
+Docs-sync gate (`scripts/docs_check.py`): a code change that a document
+contracts (CLI, API, agents, the VIGÍA adapter, the seal, MCP, frontend,
+SDLC — the map is the script's `DOCS_MAP`) must update that document in the
+same branch. Enforced mechanically by the `pre-push` hook and the CI
+`docs-sync` job; deliberate per-rule exemptions via the commit trailer
+`Docs-Waiver: <rule-id> <reason>`.
+
 ## Requirements and sovereignty
 
 - All processing runs locally.

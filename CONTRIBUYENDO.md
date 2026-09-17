@@ -42,27 +42,51 @@ el proyecto evoluciona.
 4. Proponé tests con cada cambio. Deben cubrir el comportamiento esperado,
    límites, casos negativos y casos adversariales relevantes. Una pull request
    sin propuesta de tests está incompleta.
-5. Configurá las compuertas locales una vez por clon:
+5. Mantené la documentación sincronizada con el código. Cambiar un archivo
+   que un documento contrata (la CLI, la API, los agentes, el adaptador de
+   VIGÍA, el sello, las herramientas MCP, el frontend, las herramientas de
+   SDLC) exige actualizar ese documento en el mismo cambio. Qué partes del
+   código contratan qué docs está en `DOCS_MAP` de `scripts/docs_check.py`
+   — la fuente de verdad; ampliala cuando agregues una parte que tenga
+   contrato documental. La aplicación es mecánica:
+   - el hook `pre-push` corre `scripts/docs_check.py` sobre el rango
+     empujado (instalado con `./scripts/install-hooks.sh`);
+   - CI corre la misma compuerta en cada PR y en cada push directo a
+     `main` (job `docs-sync`).
+   Una regla se puede eximir de forma deliberada con el trailer de commit
+   en el párrafo final del mensaje — `Docs-Waiver: <rule-id> <razón>` —
+   por regla, visible en el historial, nunca silenciosa. Solo cuenta un
+   trailer en posición de trailer: una línea ilustrativa `Docs-Waiver:`
+   dentro del cuerpo o de un bloque de código no es una exención. Corré
+   la compuerta localmente cuando quieras:
+   ```bash
+   python3 scripts/docs_check.py --base origin/main   # diff de la rama vs main
+   python3 scripts/docs_check.py --staged             # lo que hay staged
+   ```
+6. Configurá las compuertas locales una vez por clon:
    ```bash
    pip install -e ".[dev]" && pip install pre-commit
-   ./scripts/install-hooks.sh   # commit-msg (commitlint) + pre-push (bloqueo de force-push)
+   ./scripts/install-hooks.sh   # commit-msg (commitlint) + pre-push (bloqueo de force-push + docs-sync)
    pre-commit install           # higiene de espacios/EOF/YAML/TOML/JSON
    ```
+   Si clonaste antes de que aterrizara una actualización de hooks, corré
+   `./scripts/install-hooks.sh --force` para tomarla (si no, sigue el hook
+   viejo y solo la compuerta de CI aplica el chequeo nuevo).
    Y corré la suite de verificación antes de proponer un cambio:
    ```bash
    python3 -m pytest tests/ -q
-   ruff check src tests scripts conftest.py
+   ruff check src tools tests scripts conftest.py
    ```
    `black --check src tests scripts conftest.py` y `mypy src/zaynor/` son
    consultivos (el árbol es anterior al formateo; 20 notas preexistentes de
    mypy están registradas en `pyproject.toml [tool.mypy]`). Mantené el
    estilo circundante en los archivos que toques y corregí las notas nuevas
    de mypy ahí, pero ninguno de los dos bloquea una fusión.
-6. Si tocás `src/zaynor/report.py`, `audit_log.py`, o cualquier cosa
+7. Si tocás `src/zaynor/report.py`, `audit_log.py`, o cualquier cosa
    sellada/hasheada, agregá un test que falle si tu cambio rompe
    determinismo o evidencia de manipulación — no solo un test del camino
    feliz.
-7. Nada de `git rebase`, nada de `git push --force`, nada de aplastar
+8. Nada de `git rebase`, nada de `git push --force`, nada de aplastar
    historial. Ver `CLAUDE.md` §2 para la disciplina de git completa que
    sigue este repo. (El hook `pre-push` aplica el veto al force-push de
    forma mecánica.)
