@@ -65,6 +65,8 @@ def list_available_models(host: str = "http://127.0.0.1:11434", *, timeout_secon
     Used by `zaynor models` to show what is actually installed, next to the
     suggested catalog — nobody is required to have any specific model pulled.
     """
+    if timeout_seconds <= 0:
+        raise OllamaError("Ollama timeout must be positive")
     request = urllib.request.Request(_local_url(host) + "/api/tags", method="GET")
     try:
         with urllib.request.urlopen(request, timeout=timeout_seconds) as response:
