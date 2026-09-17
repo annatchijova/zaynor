@@ -29,7 +29,7 @@ from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, model_validator
 
 from zaynor.agents.chat_service import answer_question
 from zaynor.agents.contracts import Audience
@@ -39,18 +39,28 @@ from zaynor.frozen_snapshot import FrozenSnapshotError, _validated_entries
 from zaynor.schemas import AuthoritativeFinding, ZaynorAuthoritativeResult
 
 _MODEL_ID = "zaynor-forensic"
+_MAX_CHAT_MESSAGES = 64
+_MAX_MESSAGE_CONTENT_CHARS = 32_768
+_MAX_CHAT_TEXT_BYTES = 131_072
 logger = logging.getLogger(__name__)
 
 
 class ChatMessage(BaseModel):
-    role: str
-    content: str
+    role: str = Field(max_length=32)
+    content: str = Field(max_length=_MAX_MESSAGE_CONTENT_CHARS)
 
 
 class ChatRequest(BaseModel):
     model: str = _MODEL_ID
-    messages: list[ChatMessage]
+    messages: list[ChatMessage] = Field(max_length=_MAX_CHAT_MESSAGES)
     stream: bool = False
+
+    @model_validator(mode="after")
+    def validate_total_chat_text(self) -> "ChatRequest":
+        total_bytes = sum(len(message.content.encode("utf-8")) for message in self.messages)
+        if total_bytes > _MAX_CHAT_TEXT_BYTES:
+            raise ValueError("chat message content exceeds the request limit")
+        return self
 
 
 class CaseChatRequest(BaseModel):
