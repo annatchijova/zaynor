@@ -369,9 +369,18 @@ def load_verified_stored_case(
     return result, seal
 
 
-def _run_audit(args: argparse.Namespace) -> int:
+def compute_case_audit(case_id: str, cases_root: Path, output_root: Path) -> dict[str, Any]:
+    """Re-verify a case's manifest, snapshot, evidence, bundle, and sealed
+    result from scratch, without trusting any producer-side state.
+
+    Pure function over already-resolved directories, shared by `zaynor
+    audit` and the API's `/cases/{case_id}/audit` route -- one
+    verification implementation, not two that could quietly drift apart.
+    Never raises for an expected failure: every failure mode is reported
+    inside the returned dict's "error" field with `overall: FAILED`.
+    """
     report: dict[str, Any] = {
-        "case_id": args.case_id,
+        "case_id": case_id,
         "manifest": "FAILED",
         "snapshot": "FAILED",
         "evidence": "FAILED",
@@ -386,10 +395,9 @@ def _run_audit(args: argparse.Namespace) -> int:
         "overall": "FAILED",
     }
     try:
-        if not _SAFE_CASE_ID.fullmatch(args.case_id):
+        if not _SAFE_CASE_ID.fullmatch(case_id):
             raise CliInputError("case-id must be a bounded path-safe identifier")
-        cases_root = _directory_path(args.cases_root)
-        case_dir = cases_root / args.case_id
+        case_dir = cases_root / case_id
         if case_dir.is_symlink() or not case_dir.is_dir():
             raise CliInputError("selected case directory is missing or unsafe")
         manifest = _load_case_manifest(case_dir)
@@ -407,13 +415,12 @@ def _run_audit(args: argparse.Namespace) -> int:
         report["snapshot"] = "VERIFIED"
         report["evidence"] = f"{len(entries)}/{len(manifest.entries)} VERIFIED"
 
-        output_root = _directory_path(args.output_root)
-        output_case_dir = output_root / args.case_id
+        output_case_dir = output_root / case_id
         bundle_path = output_case_dir / "bundle.json"
         bundle_file = _fixture_path(str(bundle_path))
         bundle_bytes = bundle_file.read_bytes()
         bundle = json.loads(bundle_bytes.decode("utf-8"))
-        if not isinstance(bundle, dict) or bundle.get("case_id") != args.case_id:
+        if not isinstance(bundle, dict) or bundle.get("case_id") != case_id:
             raise CliInputError("stored bundle case_id does not match selected case")
         sidecar_path = bundle_path.with_suffix(bundle_path.suffix + ".sha256")
         fields = _fixture_path(str(sidecar_path)).read_text(encoding="utf-8").strip().split()
@@ -423,14 +430,14 @@ def _run_audit(args: argparse.Namespace) -> int:
             raise CliInputError("stored bundle evidence hash does not match current snapshot")
         report["engine"] = str(bundle.get("vigia_agent_version", "UNKNOWN"))
 
-        result = _load_stored_result(args.case_id, output_case_dir / "result.json")
+        result = _load_stored_result(case_id, output_case_dir / "result.json")
         seal = _load_stored_seal(output_case_dir / "result.seal.json")
         verify_authoritative_result(result, seal)
         if result.integrity.get("authorized_manifest_sha256") != manifest_digest:
             raise CliInputError("result manifest hash does not match selected manifest")
         if result.integrity.get("analyzed_snapshot_sha256") != snapshot_digest:
             raise CliInputError("result snapshot hash does not match current evidence")
-        if result.integrity.get("authorized_case_id") != args.case_id:
+        if result.integrity.get("authorized_case_id") != case_id:
             raise CliInputError("result authorized case_id does not match selected case")
         report.update(
             {
@@ -447,12 +454,17 @@ def _run_audit(args: argparse.Namespace) -> int:
                 "overall": "VERIFIED",
             }
         )
-        _emit(report, as_json=args.json)
-        return 0
     except (CliInputError, OSError, RuntimeError, ValueError, json.JSONDecodeError) as exc:
         report["error"] = str(exc)
-        _emit(report, as_json=args.json)
-        return 1
+    return report
+
+
+def _run_audit(args: argparse.Namespace) -> int:
+    cases_root = _directory_path(args.cases_root)
+    output_root = _directory_path(args.output_root)
+    report = compute_case_audit(args.case_id, cases_root, output_root)
+    _emit(report, as_json=args.json)
+    return 0 if report["overall"] == "VERIFIED" else 1
 
 
 _MODEL_ENV_VAR = "ZAYNOR_OLLAMA_MODEL"
