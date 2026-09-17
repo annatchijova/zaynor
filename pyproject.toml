@@ -20,12 +20,15 @@ report = ["reportlab>=4"]
 telemetry = ["opentelemetry-sdk>=1.20,<2"]
 # Local SDLC tooling: linters, formatter, type checker, tests.
 # Install with: pip install -e ".[dev]"
+# Floors mirror the exact pins in .github/workflows/ci.yml so local runs
+# reproduce CI; CI pins exact versions for supply-chain reproducibility.
 dev = [
-    "ruff>=0.8",
-    "black>=24",
-    "mypy>=1.10",
-    "pytest>=8",
-    "pytest-asyncio>=0.23",
+    "ruff>=0.16.8",
+    "black>=26.5.1",
+    "mypy>=2.3.1",
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+    "pytest-timeout>=2.4.0",
 ]
 
 [project.scripts]
@@ -46,6 +49,10 @@ include = ["zaynor*", "vendor*"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+# Per-test ceiling for the MCP stdio handshake and any other subprocess
+# round-trip: fail the test instead of hanging the runner. CI passes
+# --timeout=60 explicitly; this default covers local runs without the flag.
+timeout = 60
 
 [tool.coverage.run]
 source = ["zaynor"]
