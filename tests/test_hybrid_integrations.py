@@ -11,7 +11,6 @@ from zaynor.hybrid_integrations import (
     freeze_verified_window,
     record_window_context,
     remember_window_summary,
-    verify_annaconda_window,
 )
 
 

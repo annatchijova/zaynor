@@ -21,7 +21,7 @@ Recovery is then trivial: `git reset --hard <tag>` returns to exactly the pre-se
 
 `git rebase`, `git squash` (interactive rebase), and `git push --force` rewrite history. In an autonomous session they are not productivity tools, they are loss generators: a rebase gone wrong scrambles the commit graph, a force-push overwrites the remote's record of what everyone else has. State explicitly in any agent prompt that these are prohibited. Forward-only operations — `commit`, `merge`, `revert` — change history by *adding* to it, which is always recoverable. If history genuinely needs cleaning, a human does it deliberately, outside the agent loop, never as a side effect of a coding task.
 
-A `pre-push` hook can enforce the force-push prohibition mechanically rather than relying on the prompt; `scripts/install_guard_hooks.sh` installs one that blocks `--force` / `--force-with-lease` pushes.
+A `pre-push` hook can enforce the force-push prohibition mechanically rather than relying on the prompt; `scripts/install-hooks.sh` (or the skill-local `scripts/install_guard_hooks.sh`, which installs the same `scripts/git-hooks/pre-push` file) installs one that blocks `--force` / `--force-with-lease` pushes.
 
 ## Verify state before you claim it
 

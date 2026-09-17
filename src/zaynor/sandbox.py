@@ -41,6 +41,7 @@ import selectors
 import stat
 import subprocess
 import time
+import contextlib
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Sequence
@@ -102,22 +103,27 @@ def _open_confined(path: Path):
         raise
 
 
-def hash_evidence(evidence_dir: Path, requested: str, config: SandboxConfig = SandboxConfig()) -> tuple[Path, str, int]:
+_DEFAULT_SANDBOX_CONFIG = SandboxConfig()
+
+
+def hash_evidence(evidence_dir: Path, requested: str, config: SandboxConfig | None = None) -> tuple[Path, str, int]:
     """Hash one bounded evidence file before any caller receives its bytes."""
+    resolved = _DEFAULT_SANDBOX_CONFIG if config is None else config
     path = _confined_regular_file(evidence_dir, requested)
     digest = hashlib.sha256()
     size = 0
     with _open_confined(path) as stream:
         for chunk in iter(lambda: stream.read(1024 * 1024), b""):
             size += len(chunk)
-            if size > config.max_read_bytes:
+            if size > resolved.max_read_bytes:
                 raise SandboxError("evidence file exceeds the read limit")
             digest.update(chunk)
     return path, digest.hexdigest(), size
 
 
-def read_evidence(evidence_dir: Path, requested: str, config: SandboxConfig = SandboxConfig()) -> tuple[bytes, str]:
+def read_evidence(evidence_dir: Path, requested: str, config: SandboxConfig | None = None) -> tuple[bytes, str]:
     """Return bytes only after hashing the same bounded file."""
+    resolved = _DEFAULT_SANDBOX_CONFIG if config is None else config
     path = _confined_regular_file(evidence_dir, requested)
     digest = hashlib.sha256()
     chunks: list[bytes] = []
@@ -125,7 +131,7 @@ def read_evidence(evidence_dir: Path, requested: str, config: SandboxConfig = Sa
     with _open_confined(path) as stream:
         for chunk in iter(lambda: stream.read(1024 * 1024), b""):
             total += len(chunk)
-            if total > config.max_read_bytes:
+            if total > resolved.max_read_bytes:
                 raise SandboxError("evidence file exceeds the read limit")
             digest.update(chunk)
             chunks.append(chunk)
@@ -145,10 +151,8 @@ def _kill_process_group(pid: int) -> None:
     an error, so ProcessLookupError is swallowed here rather than left to
     crash the caller.
     """
-    try:
+    with contextlib.suppress(ProcessLookupError):
         os.killpg(pid, 9)
-    except ProcessLookupError:
-        pass
 
 
 def _stop_process(process: subprocess.Popen) -> None:
@@ -218,7 +222,7 @@ def _read_bounded_pipes(
     return bytes(buffers["stdout"]), bytes(buffers["stderr"])
 
 
-def run_worker_command(command: Sequence[str], config: SandboxConfig = SandboxConfig()) -> tuple[int, bytes, bytes]:
+def run_worker_command(command: Sequence[str], config: SandboxConfig | None = None) -> tuple[int, bytes, bytes]:
     """Run an already-allowlisted worker command with POSIX resource limits
     and a real streaming bound on its output.
 
@@ -226,9 +230,10 @@ def run_worker_command(command: Sequence[str], config: SandboxConfig = SandboxCo
     the worker launcher contract; this function supplies process-level
     bounds plus the output-size/timeout enforcement.
     """
+    resolved = _DEFAULT_SANDBOX_CONFIG if config is None else config
     if not command or any("\x00" in part for part in command):
         raise SandboxError("worker command must be non-empty and NUL-free")
-    if not config.allowed_commands or command[0] not in config.allowed_commands:
+    if not resolved.allowed_commands or command[0] not in resolved.allowed_commands:
         raise SandboxError("worker command is not in the explicit allowlist")
 
     process = subprocess.Popen(
@@ -237,11 +242,11 @@ def run_worker_command(command: Sequence[str], config: SandboxConfig = SandboxCo
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
         start_new_session=True,
-        preexec_fn=lambda: _limit_resources(config),
+        preexec_fn=lambda: _limit_resources(resolved),
         close_fds=True,
     )
     try:
-        stdout, stderr = _read_bounded_pipes(process, config)
+        stdout, stderr = _read_bounded_pipes(process, resolved)
     except subprocess.TimeoutExpired as exc:
         _stop_process(process)
         raise SandboxError("worker command exceeded its timeout") from exc

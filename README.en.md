@@ -1,5 +1,13 @@
 # Zaynor — local, traceable DFIR investigation
 
+[![CI](https://github.com/annatchijova/zaynor/actions/workflows/ci.yml/badge.svg)](https://github.com/annatchijova/zaynor/actions/workflows/ci.yml)
+[![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](./pyproject.toml)
+[![Ruff](https://img.shields.io/badge/lint-ruff-green.svg)](https://docs.astral.sh/ruff/)
+[![Black](https://img.shields.io/badge/format-black-black.svg)](https://black.readthedocs.io/)
+[![Conventional Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-yellow.svg)](https://www.conventionalcommits.org/en/v1.0.0/)
+[![Keep a Changelog](https://img.shields.io/badge/Keep%20a%20Changelog-1.1.0-orange.svg)](./CHANGELOG.md)
+[![SemVer](https://img.shields.io/badge/SemVer-2.0.0-blueviolet.svg)](https://semver.org/spec/v2.0.0.html)
+
 *[Leer en español](./README.md)*
 
 **[Published architecture diagram (HTML)](https://annatchijova.github.io/zaynor/architecture.html)**
@@ -192,6 +200,16 @@ zaynor audit --case-id CASE-001 --cases-root ./cases --output-root ./outputs
 `--engine-repo` still exists for anyone who wants to point at their own
 VIGÍA checkout (developing against VIGÍA itself, or a newer engine
 version) — an override, not a requirement.
+
+## Development (SDLC)
+
+Commits use [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/)
+(enforced by `scripts/commitlint.py` as the `commit-msg` hook);
+releases follow [SemVer](https://semver.org/spec/v2.0.0.html) with a
+[Keep a Changelog](./CHANGELOG.md); lint with
+[`ruff`](https://docs.astral.sh/ruff/) (format/type badges are informational
+until the tree converges: see [`CONTRIBUTING.md`](./CONTRIBUTING.md)).
+See [`CONTRIBUTING.md`](./CONTRIBUTING.md) for the full workflow.
 
 ## Requirements and sovereignty
 

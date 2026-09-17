@@ -339,7 +339,9 @@ The flow for the three non-owner contributors:
    ```
    <type>[optional scope]: <imperative description>
    ```
-   Types: `feat`, `fix`, `docs`, `refactor`, `test`, `build`, `ci`, `chore`.
+   Types: `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`,
+   `perf`, `ci`, `build`, `security`, `revert` — the full list enforced by
+   `scripts/commitlint.py` (`ALLOWED_TYPES` is the source of truth).
    Keep commits small and focused — several small commits beat one that
    touches the tool layer, the ledger, and the renderer at once, because the
    second reviewer has to be able to tell which part they're actually
@@ -403,11 +405,13 @@ the real output. Don't report from memory of what you intended to do.
 Run the real command; don't infer results from reading the code.
 
 ```bash
-# adjust to whatever the chosen stack ends up being — keep this section
-# updated as soon as the test/lint commands are decided, this placeholder
-# is here so the section isn't silently skipped
-pytest -q
-ruff check .
+python3 -m pytest tests/ -q
+ruff check src tests scripts conftest.py
+black --check src tests scripts conftest.py   # advisory: tree predates formatting
+mypy src/zaynor/          # advisory: 20 pre-existing notes, see pyproject [tool.mypy]
+git log --format=%s | while IFS= read -r subject; do
+  printf '%s\n' "$subject" | python3 scripts/commitlint.py
+done                       # every header on main passes the commit-msg gate
 ```
 
 A green run is reported with what it actually covers — "the tool-layer

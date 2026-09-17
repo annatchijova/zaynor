@@ -18,6 +18,15 @@ report = ["reportlab>=4"]
 # OTel spans over freeze/analyze/tool-call steps (src/zaynor/telemetry.py).
 # Optional: every command runs identically without it, hash chain untouched.
 telemetry = ["opentelemetry-sdk>=1.20,<2"]
+# Local SDLC tooling: linters, formatter, type checker, tests.
+# Install with: pip install -e ".[dev]"
+dev = [
+    "ruff>=0.8",
+    "black>=24",
+    "mypy>=1.10",
+    "pytest>=8",
+    "pytest-asyncio>=0.23",
+]
 
 [project.scripts]
 zaynor = "zaynor.cli:main"
@@ -36,3 +45,56 @@ include = ["zaynor*", "vendor*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+asyncio_mode = "auto"
+
+[tool.coverage.run]
+source = ["zaynor"]
+branch = true
+
+[tool.coverage.report]
+exclude_also = [
+    "if TYPE_CHECKING:",
+    "raise AssertionError",
+    ".*pragma: no cover.*",
+]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+src = ["src"]
+
+[tool.ruff.lint]
+# Intentionally small and verified-against-the-tree (2026-09-17, ruff 0.16):
+# every enabled rule is green on the current code. Rules that would flag
+# pre-existing intentional style (E501 long forensic strings, S101 asserts
+# in tests, UP035 collections.abc moves, I001 unsorted imports, COM812,
+# N802/N806/N818 names) stay OFF so `ruff check` is actionable, not noise.
+# Widen one rule at a time: enable, fix the tree, keep it green.
+select = ["E4", "E7", "E9", "F", "B", "SIM105"]
+ignore = [
+    "E402",  # late imports are intentional: EBS test skips, telemetry importorskip, executor cycle
+    "B008",  # SandboxConfig() defaults are frozen dataclasses, never mutated
+    "B011",  # assert False with message is an intentional fail-closed marker
+    "SIM105",  # try/except/pass carries forensic rationale comments suppress() would drop
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101"]
+"src/zaynor/cli.py" = ["T201"]
+
+[tool.black]
+line-length = 100
+target-version = ["py312"]
+include = "\\.pyi?$"
+exclude = "(^vendor/|\\.venv/|\\.git/|__pycache__|\\.kilo/)"
+
+[tool.mypy]
+python_version = "3.12"
+show_error_codes = true
+ignore_missing_imports = true
+# Baseline posture: 20 pre-existing arg-type/assignment/union-attr notes
+# across 10 files (mypy 2.3, 2026-09-17) stay advisory. CI runs mypy without
+# --warn-unused-ignores so narrowing the tree later never breaks the gate.
+# Do NOT add warn_unused_ignores or strict flags until the baseline is zero.
+exclude = ["vendor/", "\\.venv/", "\\.kilo/"]
+mypy_path = "src"
