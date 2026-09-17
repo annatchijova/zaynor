@@ -485,6 +485,39 @@ def _run_serve(args: argparse.Namespace) -> int:
     return 0
 
 
+def _run_report(args: argparse.Namespace) -> int:
+    from zaynor.report import ReportError, render_html, render_markdown, render_pdf
+
+    if not _SAFE_CASE_ID.fullmatch(args.case_id):
+        raise CliInputError("case-id must be a bounded path-safe identifier")
+    output_root = _directory_path(args.output_root)
+    output_case_dir = output_root / args.case_id
+    result = _load_stored_result(args.case_id, output_case_dir / "result.json")
+    seal = _load_stored_seal(output_case_dir / "result.seal.json")
+    try:
+        if args.format == "md":
+            rendered: str | bytes = render_markdown(result, seal)
+            mode = "w"
+        elif args.format == "html":
+            rendered = render_html(result, seal)
+            mode = "w"
+        else:
+            rendered = render_pdf(result, seal)
+            mode = "wb"
+    except ReportError as exc:
+        raise CliInputError(str(exc)) from exc
+    out_path = Path(args.out) if args.out else output_case_dir / f"report.{args.format}"
+    if out_path.exists() and out_path.is_symlink():
+        raise CliInputError(f"output path must not be a symlink: {out_path}")
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    if mode == "w":
+        out_path.write_text(rendered, encoding="utf-8")
+    else:
+        out_path.write_bytes(rendered)
+    print(str(out_path))
+    return 0
+
+
 def _run_models(args: argparse.Namespace) -> int:
     from zaynor.agents.model_catalog import SUGGESTED_MODELS
     from zaynor.agents.ollama_client import OllamaError, list_available_models
@@ -609,6 +642,15 @@ def build_parser() -> argparse.ArgumentParser:
     models_parser.add_argument("--host", default="http://127.0.0.1:11434", help="Ollama local-only")
     models_parser.add_argument("--json", action="store_true", help="emitir JSON estable")
     models_parser.set_defaults(handler=_run_models)
+
+    report_parser = subparsers.add_parser(
+        "report", help="generar un reporte legible (md/html/pdf) sobre un resultado ya sellado"
+    )
+    report_parser.add_argument("--case-id", required=True)
+    report_parser.add_argument("--output-root", required=True)
+    report_parser.add_argument("--format", choices=["md", "html", "pdf"], default="md")
+    report_parser.add_argument("--out", default=None, help="por defecto, <output-root>/<case-id>/report.<format>")
+    report_parser.set_defaults(handler=_run_report)
     return parser
 
 

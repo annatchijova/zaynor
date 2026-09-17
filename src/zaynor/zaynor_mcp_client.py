@@ -82,17 +82,42 @@ def _local_ollama_url(value: str) -> str:
     return value
 
 
+def _default_vendored_vigia_path() -> Path:
+    """ZAYNOR's own vendored VIGÍA subset (`vendor/vigia_engine/`).
+
+    Computed independently of `vendored_engine.py`'s `VENDORED_ENGINE_PATH`
+    (same idea, same directory) so this module has no import-time dependency
+    on that file. Same reasoning as `cli.py`'s `_default_engine_repo()` for
+    Mode 1: bundled with the repo, so defaulting to it does not "silently
+    break on any other checkout" the way a path on one development machine
+    would — that concern is what the field's docstring below still guards
+    against for anyone overriding it.
+    """
+    import zaynor
+
+    return Path(zaynor.__file__).resolve().parent.parent.parent / "vendor" / "vigia_engine"
+
+
+_DEFAULT_BRIDGE_RELATIVE_PATH = "vigia/vigia_sift_bridge_min.py"
+
+
 @dataclass(frozen=True)
 class VigiaMCPConfig:
     """Everything needed to launch the bridge as a local, offline subprocess.
 
-    `vigia_repo_path` and `evidence_dir` are required explicitly — never
-    defaulted to a path on this development machine, since that would
-    silently break on any other checkout.
+    `vigia_repo_path` defaults to ZAYNOR's own vendored subset (round 17: 9
+    tools, see docs/red-team/2026-09-17-round-17-vendored-mcp-tools.md) —
+    bundled with this repo, not a path on one development machine. Passing
+    an external checkout still works for the full 22-tool bridge; pair it
+    with `bridge_relative_path="vigia/vigia_sift_bridge.py"` (the vendored
+    subset uses a different filename precisely so the two are never
+    confused for each other). `evidence_dir` has no reasonable default and
+    stays required.
     """
 
-    vigia_repo_path: Path
     evidence_dir: Path
+    vigia_repo_path: Path = field(default_factory=_default_vendored_vigia_path)
+    bridge_relative_path: str = _DEFAULT_BRIDGE_RELATIVE_PATH
     python_executable: str = "python3"
     ollama_host: str = "http://127.0.0.1:11434"
     ollama_model: str = "deepseek-r1:8b"
@@ -109,7 +134,7 @@ class VigiaMCPConfig:
             )
 
     def server_params(self) -> StdioServerParameters:
-        bridge_path = self.vigia_repo_path / "vigia" / "vigia_sift_bridge.py"
+        bridge_path = self.vigia_repo_path / self.bridge_relative_path
         if not bridge_path.is_file():
             raise VigiaMCPError(f"VIGÍA bridge not found at {bridge_path}")
         if not self.evidence_dir.is_dir():

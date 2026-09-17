@@ -14,6 +14,8 @@ dependencies = [
 # `zaynor serve` — the OpenAI-compatible HTTP surface OpenWebUI talks to.
 # Optional: `analyze`/`freeze`/`audit`/`chat` do not need an HTTP server.
 api = ["fastapi>=0.110", "uvicorn>=0.27", "pydantic>=2"]
+# `zaynor report --format pdf`. `md`/`html` need no extra dependency.
+report = ["reportlab>=4"]
 
 [project.scripts]
 zaynor = "zaynor.cli:main"
@@ -23,7 +25,11 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-where = ["src"]
+where = ["src", "."]
+include = ["zaynor*", "vendor*"]
+
+[tool.setuptools.package-data]
+"vendor.vigia_engine" = ["*.py", "*.md", "vigia/**/*.py"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

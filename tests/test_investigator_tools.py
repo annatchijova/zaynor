@@ -2,8 +2,10 @@
 
 `list_hunts`/`request_adjudication` delegate to `ConsultTools` and are
 tested without any VIGÍA dependency. `collect_window`/`verify_custody`
-call the real VIGÍA MCP bridge and skip cleanly if this machine has no
-vigia-repo checkout, same policy as test_zaynor_mcp_client.py.
+call the real VIGÍA MCP bridge — round 17: migrated onto ZAYNOR's own
+vendored subset (`VigiaMCPConfig.vigia_repo_path`'s new default, see
+docs/red-team/2026-09-17-round-17-vendored-mcp-tools.md), so these no
+longer skip on a machine without a separate vigia-repo checkout.
 """
 
 from __future__ import annotations
@@ -24,8 +26,6 @@ from zaynor.authority_seal import seal_authoritative_result
 from zaynor.framework_context import AuthoritativePackage, FrameworkContext
 from zaynor.schemas import AuthoritativeFinding, EvidenceRef, ZaynorAuthoritativeResult
 from zaynor.zaynor_mcp_client import VigiaMCPConfig
-
-VIGIA_REPO_PATH = Path("/home/labestiadevigia/vigia-repo")
 
 
 def _package():
@@ -73,10 +73,6 @@ def test_verify_custody_requires_a_path():
         verify_custody(config, {})
 
 
-@pytest.mark.skipif(
-    not (VIGIA_REPO_PATH / "vigia" / "vigia_sift_bridge.py").is_file(),
-    reason="vigia-repo checkout not present on this machine",
-)
 class TestAgainstRealVigiaBridge:
     @pytest.fixture
     def evidence_dir(self, tmp_path):
@@ -86,14 +82,14 @@ class TestAgainstRealVigiaBridge:
         return evidence
 
     def test_collect_window_reads_real_evidence_through_vigia(self, evidence_dir):
-        config = VigiaMCPConfig(vigia_repo_path=VIGIA_REPO_PATH, evidence_dir=evidence_dir)
+        config = VigiaMCPConfig(evidence_dir=evidence_dir)
         result = collect_window(config, {"path": str(evidence_dir / "auth.jsonl")})
         assert "auth:E001" in result.get("content_preview", "") or "auth:E001" in str(result)
 
     def test_verify_custody_computes_a_real_sha256_through_vigia(self, evidence_dir):
         import hashlib
 
-        config = VigiaMCPConfig(vigia_repo_path=VIGIA_REPO_PATH, evidence_dir=evidence_dir)
+        config = VigiaMCPConfig(evidence_dir=evidence_dir)
         target = evidence_dir / "auth.jsonl"
         result = verify_custody(config, {"path": str(target)})
         assert result["sha256"] == hashlib.sha256(target.read_bytes()).hexdigest()
@@ -104,7 +100,7 @@ class TestAgainstRealVigiaBridge:
         test_zaynor_mcp_client.py's equivalent list_files test): the
         bridge returns a normal response whose content reports rejection.
         """
-        config = VigiaMCPConfig(vigia_repo_path=VIGIA_REPO_PATH, evidence_dir=evidence_dir)
-        result = collect_window(config, {"path": str(VIGIA_REPO_PATH / "vigia_agent.py")})
+        config = VigiaMCPConfig(evidence_dir=evidence_dir)
+        result = collect_window(config, {"path": "/etc/passwd"})
         rendered = str(result).lower()
         assert "blocked" in rendered or "error" in rendered or "escapes" in rendered

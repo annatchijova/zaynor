@@ -352,3 +352,42 @@ def test_models_lists_suggestions_without_requiring_any_of_them(capsys):
     names = {model["name"] for model in payload["suggested"]}
     assert "llama3.2:1b" in names
     assert payload["env_var"] == "ZAYNOR_OLLAMA_MODEL"
+
+
+def test_report_md_and_html_render_from_a_real_analyzed_case(tmp_path, capsys):
+    _, _, output_root = _analyzed_case(tmp_path, capsys)
+    out_md = tmp_path / "report.md"
+    assert main([
+        "report", "--case-id", "INC-CLI-AUDIT", "--output-root", str(output_root),
+        "--format", "md", "--out", str(out_md),
+    ]) == 0
+    capsys.readouterr()
+    text = out_md.read_text()
+    assert "INC-CLI-AUDIT" in text
+    assert "ABSTAIN" in text
+
+    out_html = tmp_path / "report.html"
+    assert main([
+        "report", "--case-id", "INC-CLI-AUDIT", "--output-root", str(output_root),
+        "--format", "html", "--out", str(out_html),
+    ]) == 0
+    assert "INC-CLI-AUDIT" in out_html.read_text()
+
+
+def test_report_defaults_the_output_path_under_output_root(tmp_path, capsys):
+    _, _, output_root = _analyzed_case(tmp_path, capsys)
+    assert main([
+        "report", "--case-id", "INC-CLI-AUDIT", "--output-root", str(output_root), "--format", "md",
+    ]) == 0
+    printed = capsys.readouterr().out.strip()
+    assert printed == str(output_root / "INC-CLI-AUDIT" / "report.md")
+    assert Path(printed).is_file()
+
+
+def test_report_rejects_a_case_id_that_was_never_analyzed(tmp_path, capsys):
+    output_root = tmp_path / "outputs"
+    output_root.mkdir()
+    assert main([
+        "report", "--case-id", "INC-NEVER-ANALYZED", "--output-root", str(output_root), "--format", "md",
+    ]) == 2
+    assert "error de entrada" in capsys.readouterr().err
