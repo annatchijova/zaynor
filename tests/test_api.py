@@ -96,18 +96,22 @@ def test_health_and_models(tmp_path):
 
 
 def test_cases_lists_only_analyzed_cases(tmp_path, capsys):
+    """`verdict`/`updated_at` come from the derived index `_run_analyze`
+    writes (GAP-08) -- a real, non-authoritative hint for display, not a
+    re-verification. `verification`/`seal_status` stay NOT_CHECKED/UNKNOWN
+    regardless: the index is never treated as proof.
+    """
     output_root = _analyzed_case(tmp_path, capsys)
     cases = _route(create_app(output_root=output_root), "/cases")()["cases"]
-    assert cases == [{
-        "case_id": "INC-API-CASE",
-        "name": None,
-        "has_result": True,
-        "has_seal": True,
-        "verification": "NOT_CHECKED",
-        "verdict": "UNKNOWN",
-        "seal_status": "UNKNOWN",
-        "updated_at": None,
-    }]
+    assert len(cases) == 1
+    case = cases[0]
+    assert case["case_id"] == "INC-API-CASE"
+    assert case["has_result"] is True
+    assert case["has_seal"] is True
+    assert case["verification"] == "NOT_CHECKED"
+    assert case["seal_status"] == "UNKNOWN"
+    assert case["verdict"] == "ABSTAIN"
+    assert case["updated_at"] is not None
 
 
 def test_cases_do_not_claim_verification_from_file_presence(tmp_path):

@@ -22,6 +22,7 @@ from dataclasses import asdict, replace
 from pathlib import Path
 from typing import Any, Sequence
 
+from zaynor.argentina_time import format_argentina
 from zaynor.correlation import correlate, open_case
 from zaynor.case_freezer import freeze_case
 from zaynor.detection import CORRELATION_WINDOW_SECONDS, detect_suspicious_privileged_login
@@ -317,8 +318,16 @@ def _run_analyze(args: argparse.Namespace) -> int:
     result_path = output_root / args.case_id / "result.json"
     seal = seal_authoritative_result(result)
     seal_path = output_root / args.case_id / "result.seal.json"
-    _atomic_json_write(result_path, result)
-    _atomic_json_write(seal_path, seal)
+    # Architecture audit finding (GAP-05): this used to write result.json
+    # and result.seal.json *before* appending RESULT_SEALED. A crash in
+    # that window left a fully verifiable, sealed MALICE-verdict result on
+    # disk with no audit-trail entry ever recording that it was sealed --
+    # the one artifact this pipeline cares most about, silently missing
+    # from its own history. Appending the audit entry first instead means
+    # the only reachable partial state is the opposite and detectable one:
+    # a RESULT_SEALED entry whose files never landed, which
+    # compute_case_audit can (and, per GAP-01, now does) recognize as an
+    # incomplete analyze rather than mistaking it for a healthy case.
     with postmortem_span(args.case_id, "zaynor.result_sealed") as span:
         sealed_entry = audit.append(
             "RESULT_SEALED",
@@ -326,6 +335,9 @@ def _run_analyze(args: argparse.Namespace) -> int:
             reason="authoritative result sealed",
         )
         annotate_with_audit_entry(span, sealed_entry)
+    _atomic_json_write(result_path, result)
+    _atomic_json_write(seal_path, seal)
+    _write_case_index_entry(output_root, args.case_id, result, seal)
     _emit({"result": result, "seal": seal, "result_path": str(result_path), "seal_path": str(seal_path)}, as_json=args.json)
     return 0
 
@@ -409,6 +421,72 @@ def load_verified_stored_case(
     return result, seal
 
 
+def _case_index_path(output_root: Path) -> Path:
+    return output_root / "index.json"
+
+
+def _case_index_entry(case_id: str, result: Any, seal: AuthoritySeal) -> dict[str, Any]:
+    return {
+        "case_id": case_id,
+        "verdict": result.verdict,
+        "result_sha256": seal.sha256,
+        "updated_at": format_argentina(),
+    }
+
+
+def _write_case_index_entry(output_root: Path, case_id: str, result: Any, seal: AuthoritySeal) -> None:
+    """Update one case's row in the derived, non-authoritative case index.
+
+    Architecture audit finding (GAP-08): `GET /cases` had nothing to show
+    per case except `NOT_CHECKED`/`UNKNOWN` placeholders, because listing
+    verdicts would otherwise mean fully re-verifying every case on every
+    page load. This index is explicitly NOT a source of truth -- it is
+    never read by `compute_case_audit`, `chat`, or `report`, only by the
+    listing route, and `zaynor reindex` can always regenerate it byte-for-
+    byte from the real, sealed results on disk (see `_rebuild_case_index`).
+    """
+    index_path = _case_index_path(output_root)
+    try:
+        index = json.loads(index_path.read_text(encoding="utf-8")) if index_path.is_file() else {}
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        index = {}
+    if not isinstance(index, dict):
+        index = {}
+    index[case_id] = _case_index_entry(case_id, result, seal)
+    _atomic_json_write(index_path, index)
+
+
+def _rebuild_case_index(output_root: Path) -> dict[str, Any]:
+    """Rebuild the derived case index from scratch, from the real sealed
+    results on disk -- nothing about it is read from the index it replaces.
+    A case whose result/seal no longer verifies is simply omitted, not
+    reported: the index only ever claims what it could re-derive.
+    """
+    index: dict[str, Any] = {}
+    if output_root.is_dir():
+        for entry in sorted(output_root.iterdir()):
+            if not entry.is_dir() or entry.is_symlink():
+                continue
+            result_path = entry / "result.json"
+            seal_path = entry / "result.seal.json"
+            if not result_path.is_file() or not seal_path.is_file():
+                continue
+            try:
+                result, seal = load_verified_stored_case(entry.name, result_path, seal_path)
+            except CliInputError:
+                continue
+            index[entry.name] = _case_index_entry(entry.name, result, seal)
+    _atomic_json_write(_case_index_path(output_root), index)
+    return index
+
+
+def _run_reindex(args: argparse.Namespace) -> int:
+    output_root = _directory_path(args.output_root)
+    index = _rebuild_case_index(output_root)
+    _emit({"cases_indexed": len(index), "index_path": str(_case_index_path(output_root))}, as_json=args.json)
+    return 0
+
+
 def compute_case_audit(case_id: str, cases_root: Path, output_root: Path) -> dict[str, Any]:
     """Re-verify a case's manifest, snapshot, evidence, bundle, and sealed
     result from scratch, without trusting any producer-side state.
@@ -425,6 +503,7 @@ def compute_case_audit(case_id: str, cases_root: Path, output_root: Path) -> dic
         "snapshot": "FAILED",
         "evidence": "FAILED",
         "engine": "UNKNOWN",
+        "chain": "FAILED",
         "result": "FAILED",
         "seal": "FAILED",
         "verdict": "UNKNOWN",
@@ -479,6 +558,35 @@ def compute_case_audit(case_id: str, cases_root: Path, output_root: Path) -> dic
             raise CliInputError("result snapshot hash does not match current evidence")
         if result.integrity.get("authorized_case_id") != case_id:
             raise CliInputError("result authorized case_id does not match selected case")
+
+        # Architecture audit finding (GAP-01): every other artifact here
+        # gets re-verified from scratch, but the hash-chained audit trail
+        # -- the one artifact whose whole purpose is proving this case
+        # wasn't quietly altered -- was never even asked. A case with a
+        # truncated, forged, or entirely deleted audit.jsonl used to come
+        # back "overall: VERIFIED" with nobody having looked at it. A real
+        # analyzed case always has one (`_run_freeze`/`_run_analyze` both
+        # append to it); its absence is itself suspicious, not neutral, so
+        # it fails closed the same as a chain that doesn't verify. A
+        # legitimately degraded but honest chain (hash-only mode, no HMAC
+        # key configured) still counts as verified -- the caveat travels
+        # in the message, per CLAUDE.md 5.3 (a WARN is not a FAIL).
+        from zaynor.audit_log import AuditLog
+
+        audit_log_path = case_dir / "audit.jsonl"
+        chain_ok, chain_detail = AuditLog.verify_with_report(audit_log_path, case_id=case_id)
+        if not chain_ok:
+            raise CliInputError(f"audit trail does not verify: {chain_detail}")
+        if not audit_log_path.is_file():
+            raise CliInputError("no audit trail found for this case")
+        sealed_entries = [
+            entry for entry in AuditLog.load_entries(audit_log_path)
+            if entry.get("action") == "RESULT_SEALED"
+        ]
+        if not any(entry.get("detail", {}).get("result_sha256") == seal.sha256 for entry in sealed_entries):
+            raise CliInputError("audit trail has no RESULT_SEALED entry matching the stored seal")
+        report["chain"] = f"VERIFIED ({chain_detail})" if "hash-only" in chain_detail or "not verified" in chain_detail else "VERIFIED"
+
         report.update(
             {
                 "result": "VERIFIED",
@@ -759,6 +867,13 @@ def build_parser() -> argparse.ArgumentParser:
     audit_trail_parser.add_argument("--cases-root", required=True)
     audit_trail_parser.add_argument("--json", action="store_true", help="emitir JSON estable")
     audit_trail_parser.set_defaults(handler=_run_audit_trail)
+
+    reindex_parser = subparsers.add_parser(
+        "reindex", help="reconstruir el índice derivado de casos (no autoritativo) desde cero"
+    )
+    reindex_parser.add_argument("--output-root", required=True)
+    reindex_parser.add_argument("--json", action="store_true", help="emitir JSON estable")
+    reindex_parser.set_defaults(handler=_run_reindex)
 
     chat_parser = subparsers.add_parser(
         "chat", help="preguntar sobre un caso ya analizado, narrado por un LLM local y verificado contra el sello"

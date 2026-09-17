@@ -8,7 +8,7 @@ pipeline") for the stage boundaries.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, ClassVar
 
 
 @dataclass(frozen=True)
@@ -106,6 +106,17 @@ class CaseManifest:
 class EvidenceRef:
     """Stable reference to frozen evidence, including its lineage."""
 
+    # Architecture audit finding (GAP-02): `authority_seal.py::_typed` used
+    # to embed `f"{__module__}.{__qualname__}"` in the canonical, sealed
+    # payload for every dataclass reachable from a sealed result. Moving
+    # this class to a different module -- a plain import-hygiene refactor,
+    # not a data change -- would have invalidated every previously-sealed
+    # result's digest, indistinguishable from real tampering. A literal,
+    # explicitly-chosen name decouples the digest from where the code
+    # happens to live. ClassVar: not a dataclass field, never touches
+    # `fields()`/the constructor.
+    _CANONICAL_TYPE_NAME: ClassVar[str] = "zaynor.evidence_ref"
+
     artifact: str
     lineage_id: str
 
@@ -113,6 +124,8 @@ class EvidenceRef:
 @dataclass(frozen=True)
 class AuthoritativeFinding:
     """ZAYNOR-owned finding contract translated from VIGÍA output."""
+
+    _CANONICAL_TYPE_NAME: ClassVar[str] = "zaynor.authoritative_finding"
 
     finding_id: str
     state: str
@@ -123,9 +136,25 @@ class AuthoritativeFinding:
     nist: dict[str, Any] | None = None
 
 
+# Architecture audit finding (GAP-02), the other half: `CANONICALIZE_VERSION`
+# in authority_seal.py versions the canonicalization *algorithm*, not the
+# *shape* of this dataclass. Adding a field here (even with a default) makes
+# a historical result rehydrate with that field present, produce different
+# canonical bytes than whatever sealed it originally, and fail with the
+# exact same "authoritative result seal mismatch" a real tamper produces --
+# no way to tell the two apart. Bump this string, deliberately, whenever a
+# field is added, removed, or renamed on this class or on `AuthoritativeFinding`/
+# `EvidenceRef`; `verify_authoritative_result` checks it before the digest
+# comparison and raises a distinct, named error when it differs, instead of
+# folding a schema change into a generic "mismatch".
+RESULT_SCHEMA_VERSION = "zaynor-result-v1"
+
+
 @dataclass(frozen=True)
 class ZaynorAuthoritativeResult:
     """Stable authority-boundary contract; no VIGÍA object crosses it."""
+
+    _CANONICAL_TYPE_NAME: ClassVar[str] = "zaynor.authoritative_result"
 
     case_id: str
     engine: dict[str, str]
@@ -139,3 +168,4 @@ class ZaynorAuthoritativeResult:
     provenance: tuple[dict[str, Any], ...] = ()
     integrity: dict[str, Any] = field(default_factory=dict)
     audit_refs: tuple[str, ...] = ()
+    schema_version: str = RESULT_SCHEMA_VERSION

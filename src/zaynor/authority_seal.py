@@ -14,12 +14,30 @@ from dataclasses import dataclass, fields, is_dataclass
 from fractions import Fraction
 from typing import Any, Mapping
 
+from zaynor.schemas import RESULT_SCHEMA_VERSION
 
 CANONICALIZE_VERSION = "zaynor-authority-v1"
 
 
 class SealError(ValueError):
     """Raised when an authority result cannot be sealed or verified."""
+
+
+class SchemaVersionMismatch(SealError):
+    """Architecture audit finding (GAP-02): `CANONICALIZE_VERSION` versions
+    the canonicalization *algorithm*, never the *shape* of the sealed
+    dataclass -- adding, removing, or renaming a field on
+    `ZaynorAuthoritativeResult` silently changed the canonical bytes for
+    every already-sealed result while `CANONICALIZE_VERSION` stayed
+    "zaynor-authority-v1", producing the exact same generic
+    "authoritative result seal mismatch" a real tamper produces. This is
+    raised instead, before that generic check ever runs, whenever a
+    result's own `schema_version` field disagrees with what this binary
+    currently expects (`RESULT_SCHEMA_VERSION`) -- an honest, distinct
+    outcome instead of an indistinguishable one. It only catches this from
+    the point `schema_version` started being persisted forward; it cannot
+    retroactively identify data that predates the field entirely.
+    """
 
 
 def _typed(value: Any) -> dict[str, Any]:
@@ -46,9 +64,16 @@ def _typed(value: Any) -> dict[str, Any]:
     if isinstance(value, str):
         return {"type": "str", "value": value}
     if is_dataclass(value) and not isinstance(value, type):
+        # Architecture audit finding (GAP-02): a bare `__module__.__qualname__`
+        # ties the sealed digest to where the class happens to live in the
+        # source tree. A class opts out of that by declaring its own
+        # `_CANONICAL_TYPE_NAME`; anything that doesn't falls back to the
+        # old, location-dependent name unchanged.
+        canonical_name = getattr(type(value), "_CANONICAL_TYPE_NAME", None)
+        name = canonical_name if isinstance(canonical_name, str) else f"{type(value).__module__}.{type(value).__qualname__}"
         return {
             "type": "dataclass",
-            "name": f"{type(value).__module__}.{type(value).__qualname__}",
+            "name": name,
             "fields": {
                 field.name: _typed(getattr(value, field.name))
                 for field in fields(value)
@@ -101,6 +126,12 @@ def verify_authoritative_result(result: Any, seal: AuthoritySeal) -> bool:
 
     if seal.canonicalize_version != CANONICALIZE_VERSION:
         raise SealError("unsupported canonicalization version")
+    stored_schema_version = getattr(result, "schema_version", None)
+    if stored_schema_version is not None and stored_schema_version != RESULT_SCHEMA_VERSION:
+        raise SchemaVersionMismatch(
+            f"result was sealed under schema_version {stored_schema_version!r}, "
+            f"this binary expects {RESULT_SCHEMA_VERSION!r}"
+        )
     expected = seal_authoritative_result(result).sha256
     if not isinstance(seal.sha256, str) or len(seal.sha256) != 64:
         raise SealError("invalid SHA-256 seal")

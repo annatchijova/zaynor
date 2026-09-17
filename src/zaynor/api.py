@@ -50,7 +50,7 @@ from zaynor.agents.ollama_client import OllamaClient, OllamaError
 from zaynor.agents.policy import declared_tool_capability
 from zaynor.argentina_time import format_argentina
 from zaynor.audit_log import AuditLog
-from zaynor.cli import CliInputError, _SAFE_CASE_ID, _load_case_manifest, compute_case_audit, load_verified_stored_case
+from zaynor.cli import CliInputError, _SAFE_CASE_ID, _case_index_path, _load_case_manifest, compute_case_audit, load_verified_stored_case
 from zaynor.framework_context import build_consult_package
 from zaynor.frozen_snapshot import FrozenSnapshotError, _validated_entries
 from zaynor.schemas import AuthoritativeFinding, ZaynorAuthoritativeResult
@@ -280,6 +280,7 @@ def _audit_status_payload(audit_report: dict[str, Any]) -> dict[str, Any]:
         "manifest": _verification_status(audit_report["manifest"]),
         "snapshot": _verification_status(audit_report["snapshot"]),
         "evidence": _verification_status(str(audit_report["evidence"])),
+        "chain": _verification_status(str(audit_report.get("chain", "UNKNOWN"))),
         "result": _verification_status(audit_report["result"]),
         "seal": _verification_status(audit_report["seal"]),
         "provenance": audit_report["provenance"] if audit_report["provenance"] in ("PRESENT", "EMPTY") else "UNKNOWN",
@@ -527,7 +528,7 @@ def _load_case_for_overview(
     if cases_root is None:
         audit_report = {
             "case_id": case_id, "manifest": "UNKNOWN", "snapshot": "UNKNOWN", "evidence": "UNKNOWN",
-            "engine": "UNKNOWN", "result": "VERIFIED", "seal": "VERIFIED", "verdict": result.verdict,
+            "engine": "UNKNOWN", "chain": "UNKNOWN", "result": "VERIFIED", "seal": "VERIFIED", "verdict": result.verdict,
             "confidence": result.integrity.get("confidence", "UNKNOWN"), "findings": len(result.findings),
             "unknowns": list(result.unknowns), "provenance": "UNKNOWN", "overall": "UNKNOWN",
         }
@@ -605,6 +606,23 @@ def create_app(
     def list_cases() -> dict[str, Any]:
         if not output_root.is_dir():
             return {"cases": []}
+        # Architecture audit finding (GAP-08): listing used to have no
+        # derived read model at all, so every field but the filenames
+        # already on disk was a hardcoded placeholder -- correct, since it
+        # never claimed a verification it didn't do, but it meant a
+        # verdict could only ever be shown by re-verifying the whole case.
+        # This index (written by `_run_analyze`, rebuildable byte-for-byte
+        # by `zaynor reindex`) is explicitly NOT authoritative: `verdict`/
+        # `updated_at` come from it when present, but `verification` and
+        # `seal_status` stay NOT_CHECKED/UNKNOWN regardless -- an index hit
+        # is a hint for display, never a substitute for `compute_case_audit`.
+        index_path = _case_index_path(output_root)
+        try:
+            index = json.loads(index_path.read_text(encoding="utf-8")) if index_path.is_file() else {}
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+            index = {}
+        if not isinstance(index, dict):
+            index = {}
         cases = sorted(
             [
                 {
@@ -613,9 +631,9 @@ def create_app(
                     "has_result": (entry / "result.json").is_file(),
                     "has_seal": (entry / "result.seal.json").is_file(),
                     "verification": "NOT_CHECKED",
-                    "verdict": "UNKNOWN",
+                    "verdict": index.get(entry.name, {}).get("verdict", "UNKNOWN") if isinstance(index.get(entry.name), dict) else "UNKNOWN",
                     "seal_status": "UNKNOWN",
-                    "updated_at": None,
+                    "updated_at": index.get(entry.name, {}).get("updated_at") if isinstance(index.get(entry.name), dict) else None,
                 }
                 for entry in output_root.iterdir()
                 if entry.is_dir()

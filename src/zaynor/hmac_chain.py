@@ -62,3 +62,19 @@ def resolve_hmac_key() -> bytes | None:
 def compute_entry_hmac(key: bytes, entry_hash: str) -> str:
     """HMAC-SHA256 of one entry's own (unkeyed) hash."""
     return hmac.new(key, entry_hash.encode("utf-8"), hashlib.sha256).hexdigest()
+
+
+def key_id(key: bytes) -> str:
+    """A short, public fingerprint of an HMAC key -- never the key itself.
+
+    Architecture audit finding (GAP-06): entries carried `entry_hmac` but
+    no identifier of which key produced it. Rotating the key made every
+    entry signed under the old one indistinguishable from a forged chain
+    ("wrong key or forged chain" was the only message `verify_with_report`
+    could give). This does not implement rotation (accepting more than one
+    live key is a product decision this fix does not make) -- it gives a
+    human reading a failed verification something to act on: "signed with
+    key <id>, verifying against a different key" instead of a blanket
+    accusation of forgery.
+    """
+    return hashlib.sha256(key).hexdigest()[:16]

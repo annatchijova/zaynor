@@ -51,12 +51,14 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import os
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from zaynor.argentina_time import format_argentina
-from zaynor.hmac_chain import compute_entry_hmac, resolve_hmac_key
+from zaynor.hmac_chain import compute_entry_hmac, key_id as _key_id, resolve_hmac_key
 
 _GENESIS_PREFIX = b"ZAYNOR_AUDIT_GENESIS:"
 
@@ -130,6 +132,7 @@ class AuditEntry:
     prev_hash: str
     entry_hash: str
     entry_hmac: str | None = None
+    key_id: str | None = None
 
 
 class AuditLog:
@@ -161,8 +164,13 @@ class AuditLog:
         _reject_symlink(self._path)
         if not self._path.exists():
             return 0, self._genesis
-        seq = 0
-        prev_hash = self._genesis
+        # Architecture audit finding (GAP-10): this used to walk the log to
+        # recover seq/prev_hash without ever recomputing a single hash --
+        # appending onto a tampered chain would silently extend it, sealing
+        # the earlier tampering inside otherwise-legitimate history. A full
+        # `verify_with_report` here is the same cost as the read this
+        # method already did, and fails the append closed instead of
+        # continuing on top of a chain that does not verify.
         with self._path.open("r", encoding="utf-8") as handle:
             for line in handle:
                 line = line.strip()
@@ -174,6 +182,24 @@ class AuditLog:
                         f"audit log at {self._path} belongs to case "
                         f"{record.get('case_id')!r}, not {self._case_id!r} — refusing to graft"
                     )
+        # Verified structurally (hash links, entry_hash, tail anchor), not
+        # against this session's own HMAC key: a log that started
+        # hash-only and only later had a key configured is a legitimate
+        # transition, not tampering, and must still be resumable. The
+        # stricter "does this key sign the whole chain" policy check stays
+        # available through an explicit `verify_with_report(..., hmac_key=...)`
+        # call (what `zaynor audit-trail` and the API route actually run).
+        ok, detail = AuditLog.verify_with_report(self._path, case_id=self._case_id, hmac_key=None)
+        if not ok:
+            raise ValueError(f"audit log at {self._path} does not verify, refusing to append onto it: {detail}")
+        seq = 0
+        prev_hash = self._genesis
+        with self._path.open("r", encoding="utf-8") as handle:
+            for line in handle:
+                line = line.strip()
+                if not line:
+                    continue
+                record = json.loads(line)
                 seq = record["seq"]
                 prev_hash = record["entry_hash"]
         return seq, prev_hash
@@ -201,10 +227,22 @@ class AuditLog:
         if self._hmac_key is not None:
             entry_hmac = compute_entry_hmac(self._hmac_key, entry_hash)
             record["entry_hmac"] = entry_hmac
+            record["key_id"] = _key_id(self._hmac_key)
             tail_anchor["chain_tip_hmac"] = compute_entry_hmac(self._hmac_key, entry_hash)
+            tail_anchor["key_id"] = record["key_id"]
 
+        # Architecture audit finding (GAP-03): append + fsync must land
+        # before the tail anchor is updated, or a crash between the two
+        # writes leaves the anchor pointing at an entry the file doesn't
+        # have (real truncation) or the file holding an entry the anchor
+        # doesn't know about yet (a recoverable crash window, not
+        # tampering) -- and until now neither write was durable on its
+        # own, so either ordering of "what actually landed on disk" was
+        # possible regardless of which one this code wrote first.
         with self._path.open("a", encoding="utf-8") as handle:
             handle.write(_canonical(record) + "\n")
+            handle.flush()
+            os.fsync(handle.fileno())
 
         # Tail anchor, written OUTSIDE the truncatable array: an attacker
         # who deletes the last line(s) of the JSONL file must also update
@@ -213,8 +251,19 @@ class AuditLog:
         # current tip. `chain_tip_hmac`, when a key is configured, closes
         # the residual gap plain SHA-256 leaves: recomputable by anyone
         # with write access, same limit as `entry_hash` without
-        # `entry_hmac`.
-        self._tail_path.write_text(_canonical(tail_anchor), encoding="utf-8")
+        # `entry_hmac`. Written via tempfile + fsync + os.replace (same
+        # discipline as `cli.py::_atomic_json_write`) so a crash never
+        # leaves it half-written or missing outright.
+        encoded_tail = _canonical(tail_anchor)
+        with tempfile.NamedTemporaryFile(
+            dir=self._tail_path.parent, prefix=f".{self._tail_path.name}.", mode="w",
+            encoding="utf-8", delete=False,
+        ) as handle:
+            handle.write(encoded_tail)
+            handle.flush()
+            os.fsync(handle.fileno())
+            temp_path = Path(handle.name)
+        os.replace(temp_path, self._tail_path)
 
         self._seq = seq
         self._prev_hash = entry_hash
@@ -315,7 +364,9 @@ class AuditLog:
                     if key is not None and not hmac.compare_digest(
                         compute_entry_hmac(key, expected_hash), entry_hmac
                     ):
-                        return False, f"entry_hmac mismatch at seq={record['seq']} (wrong key or forged chain)"
+                        signed_with = record.get("key_id")
+                        hint = f", entry was signed with key_id={signed_with!r}" if signed_with else ""
+                        return False, f"entry_hmac mismatch at seq={record['seq']} (wrong key or forged chain{hint})"
                 else:
                     saw_any_missing_hmac = True
                     if key is not None and saw_any_hmac:
@@ -337,7 +388,9 @@ class AuditLog:
         tail_hmac = tail.get("chain_tip_hmac")
         if tail_hmac is not None and key is not None:
             if not hmac.compare_digest(compute_entry_hmac(key, last_hash), tail_hmac):
-                return False, "tail anchor entry_hmac mismatch (wrong key or forged tail)"
+                signed_with = tail.get("key_id")
+                hint = f", tail was signed with key_id={signed_with!r}" if signed_with else ""
+                return False, f"tail anchor entry_hmac mismatch (wrong key or forged tail{hint})"
 
         caveats = []
         if not saw_any_hmac:
