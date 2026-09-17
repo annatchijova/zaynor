@@ -51,6 +51,10 @@ class ChatRequest(BaseModel):
     stream: bool = False
 
 
+class CaseChatRequest(BaseModel):
+    question: str
+
+
 class ApiError(Exception):
     def __init__(self, status_code: int, code: str, message: str, error_type: str):
         self.status_code = status_code
@@ -85,6 +89,49 @@ def _parse_request(raw: str) -> tuple[str | None, str | None]:
     if separator and first_line.strip().lower().startswith("case_id:"):
         return first_line.split(":", 1)[1].strip(), rest.strip()
     return None, None
+
+
+def _narrate_stored_case(
+    case_id: str,
+    question: str,
+    *,
+    output_root: Path,
+    ollama_host: str,
+    model: str,
+    timeout_seconds: int,
+):
+    """Shared load-verify-narrate path for both the OpenAI-compat chat
+    endpoint and the per-case REST chat endpoint -- one seal-verified,
+    hallucination-guarded narration path, not two.
+
+    Raises `ApiError` for every failure mode; never returns a narration
+    that skipped the guard.
+    """
+    if not _SAFE_CASE_ID.fullmatch(case_id):
+        raise ApiError(400, "invalid_case_id", "case_id is invalid", "invalid_request_error")
+    if not question or not question.strip():
+        raise ApiError(400, "malformed_request", "question is required", "invalid_request_error")
+    case_dir = output_root / case_id
+    if (
+        case_dir.is_symlink()
+        or not case_dir.is_dir()
+        or not (case_dir / "result.json").is_file()
+        or not (case_dir / "result.seal.json").is_file()
+    ):
+        raise ApiError(404, "case_not_found", "case is not available", "not_found_error")
+    try:
+        result, seal = load_verified_stored_case(
+            case_id, case_dir / "result.json", case_dir / "result.seal.json"
+        )
+        client = OllamaClient(host=ollama_host, model=model, timeout_seconds=timeout_seconds)
+        return answer_question(question, result=result, seal=seal, client=client, audience=Audience.SENIOR)
+    except CliInputError:
+        raise ApiError(422, "invalid_authority", "stored result or seal could not be verified", "authority_error") from None
+    except OllamaError:
+        raise ApiError(503, "ollama_unavailable", "local narration service is unavailable", "service_unavailable") from None
+    except Exception:
+        logger.exception("unexpected failure while narrating stored case")
+        raise ApiError(500, "internal_error", "internal server error", "server_error") from None
 
 
 def create_app(
@@ -147,6 +194,33 @@ def create_app(
         )
         return {"cases": cases}
 
+    @app.post("/cases/{case_id}/chat")
+    def case_chat(case_id: str, req: CaseChatRequest) -> dict[str, Any]:
+        """Ask any question about one sealed case -- the REST-shaped
+        counterpart to `/v1/chat/completions`, used by the Next.js
+        frontend's `HttpApiClient.explain()`. Same guarded narration path,
+        no restriction on what can be asked beyond what
+        `answer_question`/`Mentor.chat_checked` already enforce.
+        """
+        checked = _narrate_stored_case(
+            case_id, req.question,
+            output_root=output_root, ollama_host=ollama_host, model=model, timeout_seconds=timeout_seconds,
+        )
+        # finding_refs/evidence_refs: no structured-citation extraction
+        # exists on this narration path yet -- an honest empty list, not a
+        # fabricated one, matching the sealed result's own vocabulary.
+        return {
+            "narrative": checked.safe_narration,
+            "finding_refs": [],
+            "evidence_refs": [],
+            "certainty": "LIMITED" if checked.suspicious else "AUTHORIZED",
+            "disclaimer": (
+                f"{checked.claims_hallucinated} unsupported claim(s) removed out of {checked.claims_total}."
+                if checked.suspicious
+                else "Narración verificada contra el resultado sellado."
+            ),
+        }
+
     @app.post("/v1/chat/completions")
     def chat_completions(req: ChatRequest) -> dict[str, Any]:
         if req.model != _MODEL_ID:
@@ -159,31 +233,10 @@ def create_app(
         case_id, question = _parse_request(user_messages[-1].content)
         if not case_id or not question or not question.strip():
             raise ApiError(400, "malformed_request", "case_id and question are required", "invalid_request_error")
-        if not _SAFE_CASE_ID.fullmatch(case_id):
-            raise ApiError(400, "invalid_case_id", "case_id is invalid", "invalid_request_error")
-        case_dir = output_root / case_id
-        if (
-            case_dir.is_symlink()
-            or not case_dir.is_dir()
-            or not (case_dir / "result.json").is_file()
-            or not (case_dir / "result.seal.json").is_file()
-        ):
-            raise ApiError(404, "case_not_found", "case is not available", "not_found_error")
-        try:
-            result, seal = load_verified_stored_case(
-                case_id, case_dir / "result.json", case_dir / "result.seal.json"
-            )
-            client = OllamaClient(host=ollama_host, model=model, timeout_seconds=timeout_seconds)
-            checked = answer_question(
-                question, result=result, seal=seal, client=client, audience=Audience.SENIOR
-            )
-        except CliInputError:
-            raise ApiError(422, "invalid_authority", "stored result or seal could not be verified", "authority_error") from None
-        except OllamaError:
-            raise ApiError(503, "ollama_unavailable", "local narration service is unavailable", "service_unavailable") from None
-        except Exception:
-            logger.exception("unexpected failure while narrating stored case")
-            raise ApiError(500, "internal_error", "internal server error", "server_error") from None
+        checked = _narrate_stored_case(
+            case_id, question,
+            output_root=output_root, ollama_host=ollama_host, model=model, timeout_seconds=timeout_seconds,
+        )
         content = checked.safe_narration
         if checked.suspicious:
             content += (

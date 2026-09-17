@@ -6,7 +6,7 @@ from pathlib import Path
 
 from zaynor.agents.ollama_client import OllamaClient, OllamaError
 from zaynor.authority_seal import seal_authoritative_result
-from zaynor.api import ApiError, ChatRequest, create_app
+from zaynor.api import ApiError, CaseChatRequest, ChatRequest, create_app
 from zaynor.cli import main
 from zaynor.schemas import ZaynorAuthoritativeResult
 
@@ -19,6 +19,10 @@ def _route(app, path: str):
 
 def _chat(app, payload):
     return _route(app, "/v1/chat/completions")(ChatRequest.model_validate(payload))
+
+
+def _case_chat(app, case_id, question):
+    return _route(app, "/cases/{case_id}/chat")(case_id, CaseChatRequest(question=question))
 
 
 def _api_error(call):
@@ -217,6 +221,60 @@ def test_chat_completions_rejects_malformed_input(tmp_path):
     }))
     assert error.status_code == 400
     assert error.code == "malformed_request"
+
+
+def test_case_chat_answers_any_question_about_a_known_case(tmp_path, capsys, monkeypatch):
+    """The per-case REST chat route the frontend uses -- same guarded
+    narration path as /v1/chat/completions, no restriction on the question
+    beyond what answer_question/Mentor.chat_checked already enforce.
+    """
+    output_root = _analyzed_case(tmp_path, capsys)
+    monkeypatch.setattr(
+        OllamaClient, "generate", lambda self, *, system, prompt: "The verdict is ABSTAIN, based on the sealed result."
+    )
+    body = _case_chat(create_app(output_root=output_root), "INC-API-CASE", "What happened here, in your own words?")
+    assert body["narrative"] == "The verdict is ABSTAIN, based on the sealed result."
+    assert body["certainty"] == "AUTHORIZED"
+    assert body["finding_refs"] == []
+    assert body["evidence_refs"] == []
+    assert "Narración verificada" in body["disclaimer"]
+
+
+def test_case_chat_flags_a_certainty_downgrade_for_a_hallucinated_claim(tmp_path, capsys, monkeypatch):
+    output_root = _analyzed_case(tmp_path, capsys)
+    monkeypatch.setattr(OllamaClient, "generate", lambda self, *, system, prompt: "The verdict is MALICE.")
+    body = _case_chat(create_app(output_root=output_root), "INC-API-CASE", "What is the verdict?")
+    assert body["certainty"] == "LIMITED"
+    assert "MALICE" not in body["narrative"]
+    assert "unsupported claim" in body["disclaimer"]
+
+
+def test_case_chat_rejects_an_unknown_case(tmp_path):
+    error = _api_error(lambda: _case_chat(create_app(output_root=tmp_path / "outputs"), "NEVER-ANALYZED", "Verdict?"))
+    assert error.status_code == 404
+    assert error.code == "case_not_found"
+
+
+def test_case_chat_rejects_an_empty_question(tmp_path):
+    output_root = _stored_case(tmp_path)
+    error = _api_error(lambda: _case_chat(create_app(output_root=output_root), "CASE-API", "   "))
+    assert error.status_code == 400
+    assert error.code == "malformed_request"
+
+
+def test_case_chat_rejects_tampered_stored_result_before_ollama(tmp_path, monkeypatch):
+    output_root = _stored_case(tmp_path)
+    result_path = output_root / "CASE-API" / "result.json"
+    payload = json.loads(result_path.read_text())
+    payload["verdict"] = "MALICE"
+    result_path.write_text(json.dumps(payload))
+    calls = []
+    monkeypatch.setattr(OllamaClient, "generate", lambda *args, **kwargs: calls.append(True) or "The verdict is MALICE.")
+
+    error = _api_error(lambda: _case_chat(create_app(output_root=output_root), "CASE-API", "Verdict?"))
+    assert error.status_code == 422
+    assert error.code == "invalid_authority"
+    assert calls == []
 
 
 def test_chat_completions_rejects_an_unknown_case_id(tmp_path):
