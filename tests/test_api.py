@@ -6,7 +6,7 @@ from pathlib import Path
 
 from zaynor.agents.ollama_client import OllamaClient, OllamaError
 from zaynor.authority_seal import seal_authoritative_result
-from zaynor.api import ApiError, CaseChatRequest, ChatRequest, create_app
+from zaynor.api import ApiError, CaseChatRequest, ChatRequest, InvestigationProposalRequest, create_app
 from zaynor.cli import main
 from zaynor.schemas import ZaynorAuthoritativeResult
 
@@ -383,4 +383,139 @@ def test_get_case_report_rejects_an_unsupported_format(tmp_path, capsys):
     output_root = _analyzed_case(tmp_path, capsys)
     app = create_app(output_root=output_root)
     error = _api_error(lambda: _route(app, "/cases/{case_id}/reports/{fmt}")("INC-API-CASE", "docx"))
+    assert error.status_code == 400
+
+
+def test_rest_errors_use_the_flat_shape_the_frontend_actually_parses(tmp_path):
+    """Regression: REST routes previously rendered ApiError with the
+    OpenAI-nested {error:{message,type,code}} shape over real HTTP, which
+    contracts.ts's parseApiError (flat {code,message,request_id}) never
+    recognizes -- every REST error silently fell back to a generic
+    per-status message. Exercised through the real ASGI/HTTP layer (not
+    a direct route-function call), since that is exactly the layer the
+    bug lived in.
+    """
+    from fastapi.testclient import TestClient
+
+    app = create_app(output_root=tmp_path / "outputs")
+    client = TestClient(app)
+
+    response = client.get("/cases/NEVER-ANALYZED")
+    assert response.status_code == 404
+    body = response.json()
+    assert body == {"code": "CASE_NOT_FOUND", "message": "case is not available", "request_id": None}
+
+
+def test_openai_chat_errors_keep_the_nested_shape(tmp_path):
+    from fastapi.testclient import TestClient
+
+    app = create_app(output_root=tmp_path / "outputs")
+    client = TestClient(app)
+
+    response = client.post("/v1/chat/completions", json={"model": "not-zaynor", "messages": []})
+    assert response.status_code == 400
+    body = response.json()
+    assert body["error"]["code"] == "unsupported_model"
+    assert "code" not in body
+
+
+def _propose(app, case_id, question):
+    return _route(app, "/cases/{case_id}/investigations/proposals")(
+        case_id, InvestigationProposalRequest(question=question)
+    )
+
+
+def _valid_proposal_json(*, requested_tool="verify_custody", arguments=None, case_id="INC-API-CASE"):
+    return json.dumps({
+        "proposal_id": "P-001",
+        "case_id": case_id,
+        "question": "What does the auth log say?",
+        "rationale": "Checking for evidence of the login anomaly.",
+        "requested_tool": requested_tool,
+        "arguments": arguments if arguments is not None else {},
+        "information_sought": "Recomputed hash of the auth log.",
+    })
+
+
+def test_propose_investigation_runs_a_real_deterministic_tool_call(tmp_path, capsys, monkeypatch):
+    """The LLM only proposes (via a mocked but strictly-parsed JSON turn);
+    the tool call itself is real: an actual subprocess call into VIGIA's
+    vendored MCP bridge (generate_forensic_hash), not a mock.
+
+    VIGIA's bridge tools require an absolute path confined under
+    VIGIA_EVIDENCE_DIR, confirmed against test_zaynor_mcp_client.py's own
+    real (non-mocked) calls -- a relative path resolves against the
+    bridge subprocess's cwd (the engine repo), not the evidence dir, and
+    fails closed as PATH_TRAVERSAL.
+    """
+    output_root = _analyzed_case(tmp_path, capsys)
+    cases_root = tmp_path / "cases"
+    evidence_path = str(cases_root / "INC-API-CASE" / "evidence" / "collected" / "auth.jsonl")
+    monkeypatch.setattr(
+        OllamaClient, "generate",
+        lambda self, *, system, prompt: _valid_proposal_json(arguments={"path": evidence_path}),
+    )
+
+    app = create_app(output_root=output_root, cases_root=cases_root)
+    body = _propose(app, "INC-API-CASE", "What does the auth log say?")
+
+    assert body["requested_tool"] == "verify_custody"
+    assert body["status"] == "EXECUTED"
+    assert body["capability"] == "read:custody"
+    assert "arguments" not in body
+    assert isinstance(body["arguments_digest"], str) and len(body["arguments_digest"]) == 64
+
+    summary = _route(app, "/cases/{case_id}/investigation")("INC-API-CASE")
+    assert summary["status"] == "OPEN"
+    assert len(summary["proposals"]) == 1
+    assert len(summary["observations"]) == 1
+    observation = summary["observations"][0]
+    assert observation["status"] == "OBSERVED"
+    assert "sha256" in json.dumps(observation["payload"])
+
+
+def test_propose_investigation_persists_across_requests(tmp_path, capsys, monkeypatch):
+    output_root = _analyzed_case(tmp_path, capsys)
+    cases_root = tmp_path / "cases"
+    monkeypatch.setattr(OllamaClient, "generate", lambda self, *, system, prompt: _valid_proposal_json())
+    app = create_app(output_root=output_root, cases_root=cases_root)
+
+    _propose(app, "INC-API-CASE", "What does the auth log say?")
+    # A brand-new app instance (simulating a fresh request against the
+    # same on-disk state) still sees the persisted proposal.
+    second_app = create_app(output_root=output_root, cases_root=cases_root)
+    summary = _route(second_app, "/cases/{case_id}/investigation")("INC-API-CASE")
+    assert len(summary["proposals"]) == 1
+
+
+def test_propose_investigation_rejects_a_tool_outside_the_investigator_manifest(tmp_path, capsys, monkeypatch):
+    output_root = _analyzed_case(tmp_path, capsys)
+    cases_root = tmp_path / "cases"
+    monkeypatch.setattr(
+        OllamaClient, "generate",
+        lambda self, *, system, prompt: _valid_proposal_json(requested_tool="collect_endpoint_window", arguments={}),
+    )
+    app = create_app(output_root=output_root, cases_root=cases_root)
+
+    error = _api_error(lambda: _propose(app, "INC-API-CASE", "Collect endpoint telemetry"))
+    assert error.status_code == 422
+    assert error.code == "policy_rejected"
+
+    # Nothing was persisted -- a rejected proposal never reaches the ledger.
+    summary = _route(app, "/cases/{case_id}/investigation")("INC-API-CASE")
+    assert summary["proposals"] == []
+
+
+def test_propose_investigation_requires_cases_root(tmp_path, capsys):
+    output_root = _analyzed_case(tmp_path, capsys)
+    app = create_app(output_root=output_root)  # no cases_root configured
+    error = _api_error(lambda: _propose(app, "INC-API-CASE", "What does the auth log say?"))
+    assert error.status_code == 500
+
+
+def test_propose_investigation_rejects_an_empty_question(tmp_path, capsys):
+    output_root = _analyzed_case(tmp_path, capsys)
+    cases_root = tmp_path / "cases"
+    app = create_app(output_root=output_root, cases_root=cases_root)
+    error = _api_error(lambda: _propose(app, "INC-API-CASE", "   "))
     assert error.status_code == 400

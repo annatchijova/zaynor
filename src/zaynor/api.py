@@ -32,11 +32,24 @@ from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, Field, model_validator
 
 from zaynor.agents.chat_service import answer_question
+from zaynor.agents.consult_tools import ConsultTools
 from zaynor.agents.contracts import Audience
+from zaynor.agents.dispatcher_tools import DEFAULT_HUNT_CATALOG
+from zaynor.agents.investigation_contracts import (
+    AuthorizedFacts,
+    InvestigationContractError,
+    InvestigationSession,
+)
+from zaynor.agents.investigation_runner import BoundedInvestigator, InvestigationRunnerError
+from zaynor.agents.investigator_tools import InvestigatorToolAdapter
 from zaynor.agents.ollama_client import OllamaClient, OllamaError
+from zaynor.agents.policy import declared_tool_capability
+from zaynor.argentina_time import format_argentina
 from zaynor.cli import CliInputError, _SAFE_CASE_ID, _load_case_manifest, compute_case_audit, load_verified_stored_case
+from zaynor.framework_context import build_consult_package
 from zaynor.frozen_snapshot import FrozenSnapshotError, _validated_entries
 from zaynor.schemas import AuthoritativeFinding, ZaynorAuthoritativeResult
+from zaynor.zaynor_mcp_client import VigiaMCPConfig
 
 _MODEL_ID = "zaynor-forensic"
 _MAX_CHAT_MESSAGES = 64
@@ -67,7 +80,26 @@ class CaseChatRequest(BaseModel):
     question: str
 
 
+class InvestigationProposalRequest(BaseModel):
+    question: str
+
+
 class ApiError(Exception):
+    """Raised by both the OpenAI-compat surface and the REST surface.
+
+    `code` is an internal, free-form identifier (asserted on directly by
+    tests) -- it is NOT the wire-level code either surface sends. Each
+    surface renders its own wire shape: `_openai_error_response` (nested,
+    for `/v1/chat/completions`, matching the OpenAI error shape OpenWebUI
+    expects) or `_rest_error_response` (flat `{code, message,
+    request_id}`, matching `contracts.ts`'s `ApiError` the Next.js
+    frontend actually parses -- the REST routes below were, until this
+    fix, rendering the nested OpenAI shape for every one of them, which
+    `parseApiError` never recognizes, so every REST error silently fell
+    back to a generic per-status message instead of anything this file
+    actually says).
+    """
+
     def __init__(self, status_code: int, code: str, message: str, error_type: str):
         self.status_code = status_code
         self.code = code
@@ -75,7 +107,31 @@ class ApiError(Exception):
         self.error_type = error_type
 
 
-def _error_response(error: ApiError) -> JSONResponse:
+_REST_ERROR_CODES = {
+    "invalid_case_id": "INVALID_REQUEST",
+    "invalid_request": "INVALID_REQUEST",
+    "malformed_request": "INVALID_REQUEST",
+    "case_not_found": "CASE_NOT_FOUND",
+    "invalid_authority": "SEAL_VERIFICATION_FAILED",
+    "audit_failed": "AUDIT_FAILED",
+    "ollama_unavailable": "OLLAMA_UNAVAILABLE",
+    "policy_rejected": "POLICY_REJECTED",
+    "internal_error": "INTERNAL_ERROR",
+}
+
+
+def _rest_error_response(error: ApiError) -> JSONResponse:
+    return JSONResponse(
+        status_code=error.status_code,
+        content={
+            "code": _REST_ERROR_CODES.get(error.code, "INTERNAL_ERROR"),
+            "message": error.message,
+            "request_id": None,
+        },
+    )
+
+
+def _openai_error_response(error: ApiError) -> JSONResponse:
     return JSONResponse(
         status_code=error.status_code,
         content={
@@ -227,18 +283,114 @@ def _audit_status_payload(audit_report: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _empty_investigation_payload() -> dict[str, Any]:
-    """No investigation session is persisted anywhere in the backend today
-    (`InvestigationSession`/`BoundedInvestigator` are real and tested but
-    unwired to any CLI/API command -- see agents/README.md). This is the
-    honest reflection of that: every case has NOT_STARTED, not a
-    fabricated in-progress session.
+def _investigation_state_path(output_root: Path, case_id: str) -> Path:
+    return output_root / case_id / "investigation.json"
+
+
+def _load_investigation_state(case_id: str, output_root: Path, base_result_sha256: str) -> dict[str, Any]:
+    """Load the persisted investigation ledger for one sealed result
+    version. A ledger bound to a DIFFERENT base_result_sha256 (the case
+    was re-analyzed since) is discarded, not reused -- an investigation
+    over a stale result version is not evidence about the current one.
+
+    `proposal_created_at`/`observation_recorded_at` are tracked alongside
+    the session rather than inside it deliberately: `InvestigationSession`
+    only carries what its own hash covers, and a wall-clock timestamp is
+    exactly the kind of thing CLAUDE.md 5.2 keeps out of a sealed/hashed
+    payload (see `audit_log.py`'s `created_at` for the same reasoning
+    applied to a different ledger).
     """
+    path = _investigation_state_path(output_root, case_id)
+    if path.is_file():
+        try:
+            raw = json.loads(path.read_text(encoding="utf-8"))
+            session = InvestigationSession.from_dict(raw["session"])
+        except (OSError, json.JSONDecodeError, KeyError, InvestigationContractError):
+            session = None
+        else:
+            if session.base_result_sha256 == base_result_sha256:
+                return {
+                    "session": session,
+                    "proposal_created_at": dict(raw.get("proposal_created_at", {})),
+                    "observation_recorded_at": dict(raw.get("observation_recorded_at", {})),
+                }
     return {
-        "session_id": None,
-        "status": "NOT_STARTED",
-        "proposals": [],
-        "observations": [],
+        "session": InvestigationSession(f"SESSION-{case_id}", case_id, base_result_sha256),
+        "proposal_created_at": {},
+        "observation_recorded_at": {},
+    }
+
+
+def _save_investigation_state(case_id: str, output_root: Path, state: dict[str, Any]) -> None:
+    path = _investigation_state_path(output_root, case_id)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        "session": state["session"].as_dict(),
+        "proposal_created_at": state["proposal_created_at"],
+        "observation_recorded_at": state["observation_recorded_at"],
+    }
+    path.write_text(json.dumps(payload, ensure_ascii=False, sort_keys=True, indent=2), encoding="utf-8")
+
+
+def _proposal_payload(proposal: Any, *, status: str, created_at: str) -> dict[str, Any]:
+    raw = proposal.as_dict()
+    del raw["arguments"]
+    effect, resource = declared_tool_capability(proposal.requested_tool)
+    raw["capability"] = f"{effect.value}:{resource}"
+    raw["arguments_digest"] = proposal.arguments_digest
+    raw["status"] = status
+    raw["created_at"] = created_at
+    return raw
+
+
+_OBSERVATION_STATUS_MAP = {"OBSERVED": "OBSERVED", "REJECTED": "REJECTED", "ERROR": "FAILED"}
+
+
+def _observation_payload(observation: Any, *, recorded_at: str) -> dict[str, Any]:
+    raw = observation.as_dict()
+    return {
+        "observation_id": raw["observation_id"],
+        "case_id": raw["case_id"],
+        "proposal_id": raw["proposal_id"],
+        "tool_name": raw["tool_name"],
+        "capability": f"{raw['capability_effect']}:{raw['resource']}",
+        "arguments_digest": raw["arguments_digest"],
+        "payload_sha256": raw["payload_sha256"],
+        "payload": raw["payload"],
+        "status": _OBSERVATION_STATUS_MAP.get(raw["status"], "FAILED"),
+        "recorded_at": recorded_at,
+    }
+
+
+def _investigation_summary_payload(state: dict[str, Any]) -> dict[str, Any]:
+    """Every proposal persisted in the session already has a matching
+    observation: `BoundedInvestigator.execute()` only ever writes
+    `self._session` back on the success path (propose + policy-check +
+    tool-call + record_observation all succeeded) -- a policy-rejected or
+    malformed proposal never reaches the persisted ledger at all (the API
+    route returns an error for that request instead), so "EXECUTED" is
+    the only status a persisted proposal can honestly have today.
+    """
+    session: InvestigationSession = state["session"]
+    proposals = [
+        _proposal_payload(
+            proposal, status="EXECUTED",
+            created_at=state["proposal_created_at"].get(proposal.proposal_id, "UNKNOWN"),
+        )
+        for proposal in session.proposals
+    ]
+    observations = [
+        _observation_payload(
+            observation,
+            recorded_at=state["observation_recorded_at"].get(observation.observation_id, "UNKNOWN"),
+        )
+        for observation in session.observations
+    ]
+    return {
+        "session_id": session.session_id if session.proposals else None,
+        "status": "OPEN" if session.proposals else "NOT_STARTED",
+        "proposals": proposals,
+        "observations": observations,
         "authoritative_result_unchanged": True,
     }
 
@@ -338,12 +490,22 @@ def create_app(
     app = FastAPI(title="ZAYNOR Forensic Intelligence API", version="1.0")
 
     @app.exception_handler(ApiError)
-    def api_error_handler(_request: Request, exc: ApiError) -> JSONResponse:
-        return _error_response(exc)
+    def api_error_handler(request: Request, exc: ApiError) -> JSONResponse:
+        # /v1/chat/completions is OpenAI-compat (OpenWebUI expects the
+        # nested {error:{message,type,code}} shape); every REST route
+        # below (the Next.js frontend's HttpApiClient) expects the flat
+        # {code,message,request_id} shape contracts.ts actually parses.
+        # Dispatching on the real request path here -- rather than
+        # inside each route -- keeps every route's raise sites (and the
+        # tests that call them directly and assert on the raised
+        # ApiError's own .code) unchanged.
+        if request.url.path == "/v1/chat/completions":
+            return _openai_error_response(exc)
+        return _rest_error_response(exc)
 
     @app.exception_handler(RequestValidationError)
     def request_validation_handler(_request: Request, _exc: RequestValidationError) -> JSONResponse:
-        return _error_response(ApiError(400, "malformed_request", "request body is invalid", "invalid_request_error"))
+        return _rest_error_response(ApiError(400, "malformed_request", "request body is invalid", "invalid_request_error"))
 
     app.add_middleware(
         CORSMiddleware,
@@ -401,7 +563,9 @@ def create_app(
                 "canonicalize_version": seal.canonicalize_version,
             },
             "audit": _audit_status_payload(audit_report),
-            "investigation": _empty_investigation_payload(),
+            "investigation": _investigation_summary_payload(
+                _load_investigation_state(case_id, output_root, seal.sha256)
+            ),
         }
 
     @app.get("/cases/{case_id}/result")
@@ -427,8 +591,61 @@ def create_app(
 
     @app.get("/cases/{case_id}/investigation")
     def get_case_investigation(case_id: str) -> dict[str, Any]:
-        _load_case_for_overview(case_id, output_root=output_root, cases_root=cases_root)
-        return _empty_investigation_payload()
+        _, seal, _ = _load_case_for_overview(case_id, output_root=output_root, cases_root=cases_root)
+        return _investigation_summary_payload(_load_investigation_state(case_id, output_root, seal.sha256))
+
+    @app.post("/cases/{case_id}/investigations/proposals")
+    def propose_investigation(case_id: str, req: InvestigationProposalRequest) -> dict[str, Any]:
+        """The one path where a local LLM is allowed to choose what to
+        look at next -- and the one place that choice matters most.
+
+        Same architecture VIGIA's own agents use, adapted: the LLM
+        proposes exactly one question (`BoundedInvestigator.propose`,
+        risk: it might propose something ungrounded); a deterministic
+        policy gate (`agents.policy.authorize_tool`) decides whether the
+        requested tool call is even allowed for INVESTIGATOR, never by
+        trusting the model's own justification; if allowed, the tool call
+        itself is deterministic (VIGIA's real MCP bridge --
+        `read_evidence`/`generate_forensic_hash` via
+        `investigator_tools.py`, no LLM inside it); the result comes back
+        as an untrusted `ObservationEnvelope`, never a finding. Narration
+        (a separate, already-guarded path) is the only place the LLM's
+        prose reaches a human.
+        """
+        if cases_root is None:
+            raise ApiError(500, "internal_error", "investigation is not configured on this server", "server_error")
+        if not req.question or not req.question.strip():
+            raise ApiError(400, "malformed_request", "question is required", "invalid_request_error")
+        result, seal, _ = _load_case_for_overview(case_id, output_root=output_root, cases_root=cases_root)
+        evidence_dir = cases_root / case_id / "evidence"
+
+        try:
+            facts = AuthorizedFacts.from_sealed_result(result, seal)
+        except (CliInputError, ValueError):
+            raise ApiError(422, "invalid_authority", "stored result or seal could not be verified", "authority_error") from None
+
+        state = _load_investigation_state(case_id, output_root, seal.sha256)
+        package, package_seal = build_consult_package(result, seal)
+        consult = ConsultTools(package, package_seal, hunts=DEFAULT_HUNT_CATALOG)
+        mcp_config = VigiaMCPConfig(evidence_dir=evidence_dir)
+        adapter = InvestigatorToolAdapter(mcp_config, consult)
+        client = OllamaClient(host=ollama_host, model=model, timeout_seconds=timeout_seconds)
+        investigator = BoundedInvestigator(client, state["session"], facts, adapter.handlers())
+
+        try:
+            new_session, proposal, observation = investigator.propose_and_execute(question=req.question)
+        except OllamaError:
+            raise ApiError(503, "ollama_unavailable", "local narration service is unavailable", "service_unavailable") from None
+        except InvestigationRunnerError as exc:
+            raise ApiError(422, "policy_rejected", str(exc), "investigation_error") from None
+
+        now = format_argentina()
+        state["session"] = new_session
+        state["proposal_created_at"][proposal.proposal_id] = now
+        state["observation_recorded_at"][observation.observation_id] = now
+        _save_investigation_state(case_id, output_root, state)
+
+        return _proposal_payload(proposal, status="EXECUTED", created_at=now)
 
     @app.get("/cases/{case_id}/reports/{fmt}")
     def get_case_report(case_id: str, fmt: str) -> dict[str, Any]:
