@@ -26,7 +26,11 @@ both real ingestion paths Zaynor uses:
   memory, USB, shellbag, amcache — run against the real 2019-OWL Digital
   Corpora image).
 
-79 files, ~41,000 lines. See `docs/red-team/2026-09-16-round-14-vendored-engine.md`
+The vendored tree also includes the unmodified `vigia.sift.fsevents_parser`
+and `vigia.sift.sans_phase` modules from the same source checkout for the
+planned memory/macOS and SANS-context paths. These modules are helpers only;
+they do not decide or override a ZAYNOR verdict. See
+`docs/red-team/2026-09-16-round-14-vendored-engine.md`
 in the Zaynor repository for the full trace methodology and the
 side-by-side induction confirming this copy behaves identically to the
 upstream checkout.
