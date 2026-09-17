@@ -32,3 +32,27 @@ def test_unallowlisted_call_is_rejected_before_connection(tmp_path):
     )
     with pytest.raises(AuxiliaryMCPError, match="not allowlisted"):
         asyncio.run(client.call_tool("mneme_reinforce", {}))
+
+
+def test_protected_environment_overrides_are_rejected(tmp_path):
+    config = AuxiliaryMCPConfig(
+        "mneme", tmp_path / "server.py", MNEME_TOOLS, tmp_path / "db.sqlite",
+        extra_env={"PYTHONPATH": "/tmp/hostile"},
+    )
+    with pytest.raises(AuxiliaryMCPError, match="protected"):
+        config.server_params()
+
+
+def test_tool_timeout_fails_closed(tmp_path):
+    class HangingSession:
+        async def call_tool(self, name, arguments):
+            await asyncio.sleep(1)
+
+    config = AuxiliaryMCPConfig(
+        "mneme", tmp_path / "server.py", MNEME_TOOLS, tmp_path / "db.sqlite",
+        timeout_seconds=0.01,
+    )
+    client = AuxiliaryMCPClient(config)
+    client._session = HangingSession()
+    with pytest.raises(AuxiliaryMCPError, match="timed out"):
+        asyncio.run(client.call_tool("mneme_info", {}))

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import asyncio
 from contextlib import AsyncExitStack
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -27,8 +28,13 @@ CRONOS_TOOLS = frozenset({
 # deliberately narrow ZAYNOR surface; authority, grants, claims, and state
 # mutation tools stay outside ordinary agent/chat access.
 MNEME_TOOLS = frozenset({
-    "mneme_store", "mneme_recall", "mneme_custody_chain",
+    "mneme_custody_chain",
     "mneme_verify_bundle", "mneme_info",
+})
+
+_PROTECTED_ENV_KEYS = frozenset({
+    "PYTHONPATH", "PYTHONHOME", "PYTHONSTARTUP", "PATH", "LD_PRELOAD",
+    "CRONOS_DB_PATH", "MNEME_DB_PATH", "SLACK_BOT_TOKEN",
 })
 
 
@@ -39,9 +45,15 @@ class AuxiliaryMCPConfig:
     allowed_tools: frozenset[str]
     database_path: Path
     python_executable: str = "python3"
+    timeout_seconds: float = 30.0
     extra_env: dict[str, str] = field(default_factory=dict)
 
     def server_params(self) -> StdioServerParameters:
+        if self.timeout_seconds <= 0:
+            raise AuxiliaryMCPError("auxiliary MCP timeout_seconds must be positive")
+        collisions = _PROTECTED_ENV_KEYS & self.extra_env.keys()
+        if collisions:
+            raise AuxiliaryMCPError(f"extra_env cannot override protected keys: {sorted(collisions)}")
         if self.server_script.is_symlink():
             raise AuxiliaryMCPError(f"{self.name} MCP server cannot be a symlink")
         script = self.server_script.resolve()
@@ -81,17 +93,23 @@ class AuxiliaryMCPClient:
     async def __aenter__(self) -> "AuxiliaryMCPClient":
         self._stack = AsyncExitStack()
         try:
-            read, write = await self._stack.enter_async_context(
-                stdio_client(self._config.server_params())
-            )
-            self._session = await self._stack.enter_async_context(ClientSession(read, write))
-            await self._session.initialize()
+            await asyncio.wait_for(self._connect(), self._config.timeout_seconds)
         except Exception as exc:
-            await self._stack.aclose()
+            try:
+                await asyncio.wait_for(self._stack.aclose(), 1.0)
+            except Exception:
+                pass
             self._stack = None
             self._session = None
             raise AuxiliaryMCPError(f"{self._config.name} MCP initialization failed") from exc
         return self
+
+    async def _connect(self) -> None:
+        read, write = await self._stack.enter_async_context(
+            stdio_client(self._config.server_params())
+        )
+        self._session = await self._stack.enter_async_context(ClientSession(read, write))
+        await self._session.initialize()
 
     async def __aexit__(self, exc_type, exc, tb) -> None:
         if self._stack is not None:
@@ -102,7 +120,10 @@ class AuxiliaryMCPClient:
     async def list_tools(self) -> list[str]:
         if self._session is None:
             raise AuxiliaryMCPError("auxiliary MCP client is not connected")
-        result = await self._session.list_tools()
+        try:
+            result = await asyncio.wait_for(self._session.list_tools(), self._config.timeout_seconds)
+        except asyncio.TimeoutError as exc:
+            raise AuxiliaryMCPError(f"{self._config.name} MCP list_tools timed out") from exc
         return [tool.name for tool in result.tools if tool.name in self._config.allowed_tools]
 
     async def call_tool(self, name: str, arguments: dict[str, Any]) -> Any:
@@ -110,7 +131,12 @@ class AuxiliaryMCPClient:
             raise AuxiliaryMCPError(f"tool {name!r} is not allowlisted for {self._config.name}")
         if self._session is None:
             raise AuxiliaryMCPError("auxiliary MCP client is not connected")
-        result = await self._session.call_tool(name, arguments)
+        try:
+            result = await asyncio.wait_for(
+                self._session.call_tool(name, arguments), self._config.timeout_seconds
+            )
+        except asyncio.TimeoutError as exc:
+            raise AuxiliaryMCPError(f"{self._config.name} MCP tool timed out") from exc
         if result.isError:
             raise AuxiliaryMCPError(f"{self._config.name} MCP tool failed")
         return result.content
