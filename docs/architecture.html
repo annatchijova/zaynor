@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ZAYNOR — Arquitectura</title>
+  <script type="module">
+    import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+    mermaid.initialize({ startOnLoad: true, securityLevel: "strict", theme: "dark" });
+  </script>
+  <style>
+    :root { color-scheme: dark; }
+    body { margin: 0; background: #0c1117; color: #e6edf3; font: 16px system-ui, sans-serif; }
+    main { max-width: 1440px; margin: auto; padding: 2rem clamp(1rem, 4vw, 4rem); }
+    h1 { letter-spacing: .04em; }
+    p { color: #a9b7c5; max-width: 72rem; line-height: 1.6; }
+    a { color: #67d5e6; }
+    .diagram { overflow-x: auto; margin: 2rem 0; padding: 1rem; border: 1px solid #263442; border-radius: 10px; background: #111a24; }
+    .mermaid { min-width: 900px; }
+  </style>
+</head>
+<body>
+  <main>
+    <p><a href="https://github.com/annatchijova/zaynor">ZAYNOR en GitHub</a></p>
+    <h1>Arquitectura de ZAYNOR</h1>
+    <p>La IA propone qué investigar. La evidencia congelada y el motor determinista deciden qué puede afirmarse.</p>
+    <div class="diagram">
+      <div class="mermaid">
+        flowchart TD
+          A["Incidente declarado + evidencia recolectada"] --> B["Freeze del caso<br/>manifest + hashes + case_id"]
+          B --> C["Motor determinista<br/>análisis autoritativo"]
+          C --> D["Resultado sellado<br/>MALICE · SUSPICION · ABSTAIN · UNKNOWN · BENIGN"]
+          D --> E["Contexto MITRE / NIST / D3FEND<br/>anota, nunca decide"]
+          E --> F(("IA local / Ollama"))
+          F -->|pregunta de investigación| G["Capability + policy gate"]
+          G --> H["MCP read-only tipado"]
+          H --> I["Observation / nueva evidencia no confiable"]
+          I --> J["Freeze de nueva evidencia"]
+          J -.->|reanálisis determinista| C
+          D --> K["Chat analista junior"]
+          D --> L["Vista técnica senior"]
+          D --> M["Reporte Markdown / HTML / PDF"]
+          X["Log, ticket o artefacto con prompt injection"] -. dato, nunca instrucción .-> C
+          classDef authority fill:#275d38,stroke:#6ee7a0,color:#fff
+          classDef agent fill:#204a73,stroke:#67d5e6,color:#fff
+          classDef hostile fill:#642b35,stroke:#ff8898,color:#fff,stroke-dasharray:5 5
+          class B,C,D,E,J authority
+          class F,G,H,I,K,L,M agent
+          class X hostile
+      </div>
+    </div>
+    <p>La narración del LLM no puede modificar el resultado autoritativo ni crear findings o hipótesis autoritativas.</p>
+  </main>
+</body>
+</html>
