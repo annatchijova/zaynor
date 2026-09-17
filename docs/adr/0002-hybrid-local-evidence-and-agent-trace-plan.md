@@ -139,6 +139,14 @@ authoritative verdict. This keeps the integration compatible with their MCP
 servers without importing their server instructions or optional side effects
 (for example Slack posting or agent-directed filesystem writes).
 
+The local MCP transport is now verified with `src/zaynor/auxiliary_mcp_client.py`.
+CRONOS exposes its 10 trace tools; MNEME currently exposes 26 tools, but
+ZAYNOR exposes only five memory/custody tools through its allowlist. Both
+servers run their stdio entrypoints on Trio because the installed MCP SDK's
+asyncio stdio path hangs before `initialize` in this environment. The server
+interpreter is configurable and must come from an environment where the
+declared dependencies are installed.
+
 ## Revisit trigger
 
 Reopen this ADR if:
