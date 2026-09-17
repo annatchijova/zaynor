@@ -55,12 +55,12 @@ export default function AboutPage() {
 
       <section aria-labelledby="audiences-title" className={styles.section}>
         <div className={styles.sectionHeading}>
-          <p className={styles.eyebrow}>Dos audiencias, un mismo resultado sellado</p>
-          <h2 id="audiences-title">Senior en la terminal, junior en el chat</h2>
+          <p className={styles.eyebrow}>Dos formas de llegar al mismo resultado sellado</p>
+          <h2 id="audiences-title">Terminal para verificar, asistencia para preguntar</h2>
         </div>
         <div className={styles.branchGrid}>
           <article className={styles.seniorBranch}>
-            <h3>Analista senior — CLI</h3>
+            <h3>CLI</h3>
             <p>
               <code>zaynor freeze</code> → <code>zaynor analyze</code> → <code>zaynor audit</code>.
               Acceso directo al resultado sellado, sin narración de por medio, para quien quiere
@@ -68,11 +68,12 @@ export default function AboutPage() {
             </p>
           </article>
           <article className={styles.juniorBranch}>
-            <h3>Analista junior — chat</h3>
+            <h3>Asistencia — chat</h3>
             <p>
               Le pregunta al caso en lenguaje natural. La respuesta se narra a partir del
               resultado ya sellado, con cada afirmación verificada contra ese resultado antes de
-              mostrarse — lo que no se puede sostener, se marca y se retira.
+              mostrarse — lo que no se puede sostener, se marca y se retira. No es una consola
+              &ldquo;para juniors&rdquo;: senior o junior la usan según la pregunta, no según el rol.
             </p>
           </article>
         </div>

@@ -109,6 +109,53 @@
   margin-block-start: var(--space-10);
 }
 
+.composerHint {
+  max-inline-size: 65ch;
+  margin: 0 0 var(--space-4);
+  color: var(--color-text-muted);
+}
+
+.composer {
+  display: flex;
+  gap: var(--space-3);
+  align-items: start;
+}
+
+.composer textarea {
+  flex: 1;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-raised);
+  color: inherit;
+  font: inherit;
+  resize: vertical;
+}
+
+.composer button {
+  padding: var(--space-3) var(--space-5);
+  border: 1px solid var(--color-integrity);
+  background: var(--color-integrity-soft);
+  color: inherit;
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  white-space: nowrap;
+}
+
+.composer button:disabled {
+  opacity: 0.5;
+}
+
+.composerError {
+  margin: var(--space-3) 0 0;
+  color: var(--color-danger);
+}
+
+@media (max-width: 48rem) {
+  .composer {
+    flex-direction: column;
+  }
+}
+
 .sectionHeading {
   margin-block-end: var(--space-5);
 }

@@ -82,8 +82,6 @@ test("sends investigation proposals only to the dedicated policy-gated endpoint"
 
   const result = await client.proposeInvestigation("CASE-001", {
     question: "¿Existe una aprobación de cambio?",
-    requested_tool: "query_change_records",
-    arguments: { host: "srv-files-01" },
   });
 
   assert.equal(result.proposal_id, proposal.proposal_id);
@@ -91,7 +89,25 @@ test("sends investigation proposals only to the dedicated policy-gated endpoint"
   assert.equal(requestInit?.method, "POST");
   assert.deepEqual(JSON.parse(String(requestInit?.body)), {
     question: "¿Existe una aprobación de cambio?",
-    requested_tool: "query_change_records",
-    arguments: { host: "srv-files-01" },
   });
+});
+
+test("resolves the report download_url against the backend's own origin, not the frontend's", async () => {
+  // The backend returns a path relative to itself. Used as-is in a link's
+  // href, it resolves against whatever origin the PAGE is served from
+  // (the frontend), which 404s whenever frontend and backend run on
+  // different ports/origins -- the normal deployment shape.
+  const client = new HttpApiClient({
+    baseUrl: "http://127.0.0.1:8420",
+    fetchImplementation: async () =>
+      jsonResponse({
+        format: "md",
+        content_type: "text/markdown; charset=utf-8",
+        download_url: "/cases/CASE-001/reports/md/download",
+      }),
+  });
+
+  const report = await client.getReport("CASE-001", "md");
+
+  assert.equal(report.download_url, "http://127.0.0.1:8420/cases/CASE-001/reports/md/download");
 });

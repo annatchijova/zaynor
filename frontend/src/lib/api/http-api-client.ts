@@ -533,7 +533,14 @@ export class HttpApiClient implements ZaynorApiClient {
   }
 
   async getReport(caseId: string, format: ReportFormat): Promise<ReportArtifact> {
-    return this.#getCaseResource(caseId, `/reports/${format}`, parseReportArtifact);
+    const artifact = await this.#getCaseResource(caseId, `/reports/${format}`, parseReportArtifact);
+    // The backend returns download_url as a path relative to itself
+    // (`/cases/{id}/reports/{fmt}/download`). Used as-is in an <a href>,
+    // it resolves against the FRONTEND's own origin, not the backend's --
+    // a 404 whenever they run on different ports (the normal case:
+    // frontend on :3000, `zaynor serve` on :8420). Resolve it against this
+    // client's own baseUrl before handing it to any component.
+    return { ...artifact, download_url: new URL(artifact.download_url, this.#baseUrl).toString() };
   }
 
   async #getCaseResource<T>(caseId: string, suffix: string, parser: (payload: unknown) => T): Promise<T> {

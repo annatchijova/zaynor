@@ -11,7 +11,7 @@ const navigation = [
   { href: `/cases/${caseId}`, label: "Caso" },
   { href: `/cases/${caseId}/evidence`, label: "Evidencia" },
   { href: `/cases/${caseId}/audit`, label: "Auditoría" },
-  { href: `/cases/${caseId}/chat`, label: "Junior" },
+  { href: `/cases/${caseId}/chat`, label: "Asistencia" },
   { href: `/cases/${caseId}/senior`, label: "Senior" },
   { href: `/cases/${caseId}/investigation`, label: "Investigación" },
   { href: `/architecture`, label: "Arquitectura" },

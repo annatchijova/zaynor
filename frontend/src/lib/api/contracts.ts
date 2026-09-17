@@ -177,9 +177,13 @@ export interface InvestigationSummary {
 }
 
 export interface InvestigationRequest {
+  // Matches the real backend contract exactly: POST
+  // /cases/{case_id}/investigations/proposals only ever accepts a
+  // question. The LLM proposes which tool to call and with what
+  // arguments; a human does not pick them here. (Older code in this
+  // client sent `requested_tool`/`arguments` too — the backend's Pydantic
+  // model silently ignored them, since it never declared those fields.)
   readonly question: string;
-  readonly requested_tool: string;
-  readonly arguments: Readonly<Record<string, JsonValue>>;
 }
 
 export interface NarrativeAnswer {

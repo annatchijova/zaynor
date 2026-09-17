@@ -168,7 +168,7 @@ export function JuniorChat({ caseId, sealStatus, verdict }: JuniorChatProps) {
       <div className={styles.console}>
         <header className={styles.consoleHeader}>
           <div>
-            <span className={styles.eyebrow}>Consola junior</span>
+            <span className={styles.eyebrow}>Consola de asistencia</span>
             <h1>
               Consultá el caso <span className={styles.thin}>— sin alterar su resultado</span>
             </h1>
