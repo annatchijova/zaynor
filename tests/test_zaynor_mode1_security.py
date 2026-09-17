@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import hashlib
-import json
 import sys
 import textwrap
 from pathlib import Path
@@ -9,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from zaynor.adapter import AdapterError
+from zaynor.schemas import CaseManifest
 from zaynor.zaynor_mode1_executor import (
     Mode1ExecutionError,
     run_vigia_mode1,
@@ -132,8 +131,8 @@ def test_rejects_unknown_verdict_at_translation_boundary():
         translate_mode1_bundle("CASE", {"case_id": "CASE", "agent_verdict": "BOGUS"})
 
 
-def _manifest_with_hashes(*hashes: str) -> "CaseManifest":
-    from zaynor.schemas import CaseManifest, ManifestEntry
+def _manifest_with_hashes(*hashes: str) -> CaseManifest:
+    from zaynor.schemas import ManifestEntry
 
     return CaseManifest(
         case_id="CASE",

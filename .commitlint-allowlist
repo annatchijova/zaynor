@@ -1,0 +1,13 @@
+# ZAYNOR commit-message allowlist (grandfathered pre-gate history)
+#
+# `scripts/commitlint.py` accepts every header on `main` as of 2026-09-17
+# EXCEPT the four lines listed below. They predate the Conventional Commits
+# gate (AGENTS.md section 4) and are kept here so the gate's own history
+# stays auditable: the tool is honest about what it grandfathers.
+#
+# Format: one exact commit header per line. Lines starting with `#` and
+# blank lines are ignored.
+docs+feat: agents/README.md architecture map, wire DISPATCHER for real
+Add CLAUDE.md engineering discipline guide
+Add SKILLS repo content under skills/
+Initial commit

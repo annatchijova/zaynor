@@ -143,7 +143,6 @@ def check_structured_output(
         authorized = result.integrity.get(key)
         if str(presented[key]) != str(authorized):
             raise AuthorityGuardError(f"presented {key} does not match authority")
-    authorized_ids = _ids(data["fractures"]) | _ids(data["hypotheses"])
     for key in ("fractures", "hypotheses"):
         if not isinstance(presented[key], list) or not all(isinstance(item, str) for item in presented[key]):
             raise AuthorityGuardError(f"presented {key} must be a list of ids")

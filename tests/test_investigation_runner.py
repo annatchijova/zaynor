@@ -3,12 +3,11 @@ from fractions import Fraction
 
 import pytest
 
-from zaynor.agents.contracts import AgentRole, CapabilityEffect
+from zaynor.agents.contracts import CapabilityEffect
 from zaynor.agents.investigation_contracts import AuthorizedFacts, InvestigationSession, ObservationStatus
 from zaynor.agents.investigation_runner import BoundedInvestigator, InvestigationRunnerError, parse_proposal
 from zaynor.agents.ollama_client import OllamaClient
 from zaynor.authority_seal import seal_authoritative_result
-from zaynor.framework_context import AuthoritativePackage, FrameworkContext
 from zaynor.schemas import AuthoritativeFinding, EvidenceRef, ZaynorAuthoritativeResult
 
 
