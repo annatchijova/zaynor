@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { type FormEvent, type KeyboardEvent, useEffect, useRef, useState } from "react";
+import { type FormEvent, type KeyboardEvent, useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 import { IntegrityBadge } from "@/components/ui/integrity-badge";
 import { VerdictPill } from "@/components/ui/verdict-pill";
@@ -38,6 +38,18 @@ interface JuniorChatProps {
   readonly caseId: string;
   readonly sealStatus: VerificationStatus;
   readonly verdict: Verdict;
+}
+
+function subscribeToHydration() {
+  return () => undefined;
+}
+
+function getClientHydrationSnapshot() {
+  return true;
+}
+
+function getServerHydrationSnapshot() {
+  return false;
 }
 
 function EvidenceCitations({ caseId, references }: { readonly caseId: string; readonly references: readonly EvidenceRef[] }) {
@@ -102,6 +114,7 @@ function AssistantAnswer({
 
 export function JuniorChat({ caseId, sealStatus, verdict }: JuniorChatProps) {
   const [messages, setMessages] = useState<readonly ChatMessage[]>([]);
+  const isReady = useSyncExternalStore(subscribeToHydration, getClientHydrationSnapshot, getServerHydrationSnapshot);
   const [question, setQuestion] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<NarrationErrorPresentation | null>(null);
@@ -226,7 +239,7 @@ export function JuniorChat({ caseId, sealStatus, verdict }: JuniorChatProps) {
             {suggestedQuestions.map((suggestedQuestion) => (
               <button
                 className={styles.chip}
-                disabled={isSending}
+                disabled={!isReady || isSending}
                 key={suggestedQuestion}
                 onClick={() => void sendQuestion(suggestedQuestion)}
                 type="button"
@@ -243,7 +256,7 @@ export function JuniorChat({ caseId, sealStatus, verdict }: JuniorChatProps) {
           </label>
           <textarea
             aria-describedby="junior-question-hint"
-            disabled={isSending}
+            disabled={!isReady || isSending}
             enterKeyHint="send"
             id="junior-question"
             maxLength={500}
@@ -255,7 +268,7 @@ export function JuniorChat({ caseId, sealStatus, verdict }: JuniorChatProps) {
             rows={1}
             value={question}
           />
-          <button disabled={isSending} type="submit">
+          <button disabled={!isReady || isSending} type="submit">
             {isSending ? "Consultando…" : "Enviar"}
           </button>
         </form>

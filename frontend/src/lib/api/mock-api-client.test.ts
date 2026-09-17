@@ -54,6 +54,26 @@ test("returns bounded narration only for prepared questions", async () => {
   assert.deepEqual(answer.finding_refs, ["F001", "F002"]);
 });
 
+test("returns checked narratives for every suggested assistance question", async () => {
+  const api = new MockApiClient();
+  const suggestedQuestions = [
+    "¿Qué encontró el motor y con qué evidencia lo sostiene?",
+    "¿Por qué el sistema llegó a este veredicto?",
+    "¿Qué preguntas todavía quedan sin responder?",
+    "¿Qué debería revisar primero como analista?",
+    "¿Este resultado podría cambiar con más evidencia?",
+  ];
+
+  const answers = await Promise.all(suggestedQuestions.map((question) => api.explain("CASE-001", question)));
+
+  assert.equal(answers.length, suggestedQuestions.length);
+  assert.ok(answers.every((answer) => answer.disclaimer === "Esta explicación no modifica el veredicto autoritativo."));
+  assert.deepEqual(
+    answers.map((answer) => answer.certainty),
+    ["AUTHORIZED", "AUTHORIZED", "AUTHORIZED", "LIMITED", "LIMITED"],
+  );
+});
+
 test("models unavailable and rejected narration as typed non-authoritative failures", async () => {
   const unavailableClient = new MockApiClient(unavailableNarrationMockDataset);
   const rejectedClient = new MockApiClient(rejectedNarrationMockDataset);

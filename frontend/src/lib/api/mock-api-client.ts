@@ -81,6 +81,19 @@ function normalizeQuestion(question: string): string {
 function narrativeKey(question: string): string | null {
   const normalizedQuestion = normalizeQuestion(question);
 
+  const suggestedQuestionKeys: Readonly<Record<string, string>> = {
+    "¿qué encontró el motor y con qué evidencia lo sostiene?": "supporting_evidence",
+    "¿por qué el sistema llegó a este veredicto?": "why_suspicious",
+    "¿qué preguntas todavía quedan sin responder?": "unknowns",
+    "¿qué debería revisar primero como analista?": "next_step",
+    "¿este resultado podría cambiar con más evidencia?": "next_step",
+  };
+
+  const suggestedKey = suggestedQuestionKeys[normalizedQuestion];
+  if (suggestedKey) {
+    return suggestedKey;
+  }
+
   if (normalizedQuestion.includes("qué pasó") || normalizedQuestion.includes("que paso")) {
     return "what_happened";
   }

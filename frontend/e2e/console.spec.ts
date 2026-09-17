@@ -27,6 +27,23 @@ test("keeps the primary mock journey within the authority boundary", async ({ pa
   await expect(page.getByText("AUTHORITATIVE_RESULT_UNCHANGED")).toBeVisible();
 });
 
+test("returns authority-bounded answers for every suggested assistance question", async ({ page }) => {
+  const suggestedQuestions = [
+    "¿Qué encontró el motor y con qué evidencia lo sostiene?",
+    "¿Por qué el sistema llegó a este veredicto?",
+    "¿Qué preguntas todavía quedan sin responder?",
+    "¿Qué debería revisar primero como analista?",
+    "¿Este resultado podría cambiar con más evidencia?",
+  ];
+
+  for (const question of suggestedQuestions) {
+    await page.goto("/cases/CASE-001/chat");
+    await page.getByRole("button", { name: question }).click();
+    await expect(page.getByLabel("Respuesta narrativa verificada")).toBeVisible();
+    await expect(page.getByText("Esta explicación no modifica el veredicto autoritativo.")).toBeVisible();
+  }
+});
+
 test("has no automatically detectable accessibility violations on core screens", async ({ page }) => {
   for (const path of ["/", "/cases/CASE-001", "/cases/CASE-001/evidence", "/cases/CASE-001/chat", "/cases/CASE-001/investigation"]) {
     await page.goto(path);
@@ -40,7 +57,7 @@ test("keeps the primary mobile workflow within the viewport", async ({ page }) =
 
   await page.setViewportSize({ width: 375, height: 812 });
 
-  for (const path of ["/", "/cases/CASE-001", "/cases/CASE-001/evidence", "/cases/CASE-001/investigation"]) {
+  for (const path of ["/", "/cases/CASE-001", "/cases/CASE-001/evidence", "/cases/CASE-001/chat", "/cases/CASE-001/investigation"]) {
     await page.goto(path);
     const hasHorizontalOverflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
     expect(hasHorizontalOverflow).toBe(false);
