@@ -289,6 +289,13 @@ integrando.
 
 ## Documentación
 
+- [`INSTALL.md`](./INSTALL.md) — instalación paso a paso, con Ollama,
+  extras opcionales y el flujo completo de un caso.
+- [`docs/demo-lab/README.md`](./docs/demo-lab/README.md) — laboratorio local
+  de demostración: ruta DFIR con Velociraptor y ruta AIOps con
+  OpenTelemetry/Prometheus/Loki/Tempo/Grafana, ambas alimentando el pipeline
+  determinista de Zaynor (`freeze` → `analyze` → `audit`), con instrucciones
+  verificadas para modo offline y en vivo.
 - [`docs/extra_arenaai.md`](./docs/extra_arenaai.md) — posición formal del
   producto, usuarios, demo, alcance y criterios de aceptación.
 - [`AGENTS.md`](./AGENTS.md) — contratos de integración con VIGÍA y límites de

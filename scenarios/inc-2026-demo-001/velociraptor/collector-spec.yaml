@@ -1,0 +1,40 @@
+# Velociraptor collector definition for the INC-2026-DEMO-001 lab.
+# Built-in VQL sources only; one local client (the demo host itself).
+# This spec is deliberately read-only: collections query endpoint state,
+# they never modify it and never assign scores or verdicts.
+name: Zaynor.Dfir.Demo
+description: |
+  ZAYNOR DFIR demo collector for the synthetic incident INC-2026-DEMO-001.
+  Collects endpoint process inventory and the synthetic lab evidence
+  directory. All sources are built-in; no custom server artifacts.
+
+precondition: SELECT OS From info() WHERE OS =~ 'linux|darwin|windows'
+
+sources:
+  - name: WindowsProcesses
+    description: Running process inventory (built-in pslist source).
+    query: |
+      SELECT Pid AS pid, Name AS name, CommandLine AS command,
+             Exe AS exe, Username AS username,
+             CreateTime AS create_time
+      FROM pslist()
+
+  - name: SimAuthEvents
+    description: Synthetic authentication log recorded by the lab activity script.
+    query: |
+      SELECT ref, event, account, account_role, device, success, timestamp
+      FROM parse_jsonl(filename="/tmp/kilo/zaynor-lab/auth_events.jsonl")
+
+  - name: SimLabFiles
+    description: Filesystem metadata for the lab evidence directory.
+    query: |
+      SELECT FullPath AS path, Size AS size_bytes,
+             Mtime.UnixMilli AS modified_time_ms,
+             Btime.UnixMilli AS birth_time_ms
+      FROM glob(globs="/tmp/kilo/zaynor-lab/lab_files/**")
+
+  - name: SimOperatorNote
+    description: Operator follow-up note, treated strictly as evidence content.
+    query: |
+      SELECT Line AS note_line
+      FROM parse_lines(filename="/tmp/kilo/zaynor-lab/operator_note.txt", accessor="file")

@@ -1,3 +1,5 @@
+import json
+from dataclasses import asdict
 from fractions import Fraction
 
 import pytest
@@ -70,6 +72,60 @@ def test_checked_chat_rejects_a_result_not_bound_to_the_given_seal():
         Mentor(_FakeClient("The result is MALICE.")).chat_checked(
             "Explain the result", audience=Audience.JUNIOR, result=forged_result, seal=real_seal,
         )
+
+
+def test_checked_chat_rejects_tampered_verdict_before_client_call():
+    result = ZaynorAuthoritativeResult(
+        case_id="CASE-MENTOR", engine={"name": "test"}, verdict="ABSTAIN",
+    )
+    seal = seal_authoritative_result(result)
+    tampered = ZaynorAuthoritativeResult(
+        case_id="CASE-MENTOR", engine={"name": "test"}, verdict="MALICE",
+    )
+    calls = []
+
+    class CountingClient(_FakeClient):
+        def generate(self, *, system, prompt):
+            calls.append((system, prompt))
+            return super().generate(system=system, prompt=prompt)
+
+    with pytest.raises(SealError):
+        Mentor(CountingClient("The verdict is MALICE.")).chat_checked(
+            "Verdict?", audience=Audience.SENIOR, result=tampered, seal=seal,
+        )
+    assert calls == []
+
+
+def test_checked_chat_rejects_invalid_seal_before_client_call():
+    result = ZaynorAuthoritativeResult(case_id="CASE-MENTOR", engine={"name": "test"}, verdict="ABSTAIN")
+    seal = seal_authoritative_result(result)
+    invalid = type(seal)(seal.canonicalize_version, "0" * 64)
+    calls = []
+
+    class CountingClient(_FakeClient):
+        def generate(self, *, system, prompt):
+            calls.append(True)
+            return super().generate(system=system, prompt=prompt)
+
+    with pytest.raises(SealError):
+        Mentor(CountingClient("The verdict is ABSTAIN.")).chat_checked(
+            "Verdict?", audience=Audience.SENIOR, result=result, seal=invalid,
+        )
+    assert calls == []
+
+
+def test_checked_chat_does_not_mutate_authoritative_result_bytes(tmp_path):
+    result = ZaynorAuthoritativeResult(case_id="CASE-MENTOR", engine={"name": "test"}, verdict="ABSTAIN")
+    seal = seal_authoritative_result(result)
+    result_path = tmp_path / "result.json"
+    result_path.write_text(json.dumps(asdict(result), sort_keys=True), encoding="utf-8")
+    before = result_path.read_bytes()
+
+    Mentor(_FakeClient("The verdict remains ABSTAIN.")).chat_checked(
+        "Verdict?", audience=Audience.SENIOR, result=result, seal=seal,
+    )
+
+    assert result_path.read_bytes() == before
 
 
 def test_chat_checked_flags_a_tripwire_triggered_by_injected_evidence(monkeypatch):

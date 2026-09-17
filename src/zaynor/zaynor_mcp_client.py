@@ -32,6 +32,7 @@ module.
 
 from __future__ import annotations
 
+import asyncio
 import os
 import sys
 import urllib.parse
@@ -129,6 +130,12 @@ class VigiaMCPConfig:
     ollama_host: str = "http://127.0.0.1:11434"
     ollama_model: str = "deepseek-r1:8b"
     extra_env: dict[str, str] = field(default_factory=dict)
+    # Red-team round 21 (R21-02, confirmed by induction: a real hang >20s
+    # in `initialize` when the transport did not respond): every awaited
+    # MCP call is now bounded by this deadline. Not swapping the asyncio
+    # backend to dodge the problem, per that report's own guidance --
+    # `asyncio.wait_for` around the same real subprocess.
+    timeout_seconds: float = 30.0
 
     def __post_init__(self) -> None:
         _local_ollama_url(self.ollama_host)
@@ -193,7 +200,12 @@ class VigiaMCPClient:
                 stdio_client(self._config.server_params())
             )
             session = await self._stack.enter_async_context(ClientSession(read, write))
-            await session.initialize()
+            try:
+                await asyncio.wait_for(session.initialize(), timeout=self._config.timeout_seconds)
+            except asyncio.TimeoutError as exc:
+                raise VigiaMCPError(
+                    f"VIGÍA bridge did not complete initialize() within {self._config.timeout_seconds}s"
+                ) from exc
         except Exception:
             await self._stack.aclose()
             self._stack = None
@@ -213,18 +225,31 @@ class VigiaMCPClient:
         return self._session
 
     async def list_tools(self) -> list[str]:
-        result = await self._require_session().list_tools()
+        try:
+            result = await asyncio.wait_for(
+                self._require_session().list_tools(), timeout=self._config.timeout_seconds
+            )
+        except asyncio.TimeoutError as exc:
+            raise VigiaMCPError(
+                f"VIGÍA bridge did not respond to list_tools within {self._config.timeout_seconds}s"
+            ) from exc
         return [tool.name for tool in result.tools]
 
     async def call_tool(self, name: str, arguments: dict[str, Any]) -> Any:
         """Call one allowlisted VIGÍA tool by name and return its content.
 
-        Raises `VigiaMCPError` on a protocol-level error (`isError=True`) or
-        if the tool is not present on this bridge — never returns a
-        malformed or partial result silently.
+        Raises `VigiaMCPError` on a protocol-level error (`isError=True`),
+        if the tool is not present on this bridge, or if the bridge does
+        not respond within `timeout_seconds` — never returns a malformed,
+        partial, or indefinitely-pending result silently.
         """
         session = self._require_session()
-        result = await session.call_tool(name, arguments)
+        try:
+            result = await asyncio.wait_for(session.call_tool(name, arguments), timeout=self._config.timeout_seconds)
+        except asyncio.TimeoutError as exc:
+            raise VigiaMCPError(
+                f"VIGÍA tool {name!r} did not respond within {self._config.timeout_seconds}s"
+            ) from exc
         if result.isError:
             raise VigiaMCPError(f"VIGÍA tool {name!r} returned an error: {result.content!r}")
         return result.content

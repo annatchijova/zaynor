@@ -12,7 +12,7 @@ import json
 import pytest
 
 from zaynor.audit_log import AuditLog, genesis_hash
-from zaynor.hmac_chain import resolve_hmac_key
+from zaynor.hmac_chain import key_id, resolve_hmac_key
 
 KEY_A = bytes.fromhex("aa" * 32)
 KEY_B = bytes.fromhex("bb" * 32)
@@ -137,6 +137,77 @@ def test_reopening_an_audit_log_under_a_different_case_id_is_refused(tmp_path):
         AuditLog(path, case_id="CASE-B")
 
 
+def test_reopening_a_tampered_log_refuses_to_append_onto_it(tmp_path):
+    """Architecture audit finding (GAP-10): appending used to trust the
+    last line's seq/entry_hash without recomputing anything -- extending a
+    chain whose earlier history was rewritten would silently seal the
+    tampering inside otherwise-legitimate-looking history from that point
+    on. Reopening for a second append must fail closed instead.
+    """
+    path = tmp_path / "audit.jsonl"
+    AuditLog(path, case_id="CASE-1").append("CASE_FROZEN", {"x": 1}, reason="frozen")
+    record = json.loads(path.read_text().strip())
+    record["reason"] = "tampered after the fact"
+    path.write_text(json.dumps(record) + "\n")
+
+    with pytest.raises(ValueError, match="does not verify"):
+        AuditLog(path, case_id="CASE-1").append("RESULT_SEALED", {"x": 2}, reason="sealed")
+
+
+def test_hash_only_chain_can_transition_to_hmac_mode_without_being_rejected(tmp_path):
+    """A log that started before ZAYNOR_HMAC_KEY was ever configured is
+    legitimate history, not tampering -- reopening it with a key for the
+    first time must be allowed to append, even though `_resume` now
+    verifies the chain before continuing (GAP-10).
+    """
+    path = tmp_path / "audit.jsonl"
+    AuditLog(path, case_id="CASE-1").append("CASE_FROZEN", {"x": 1}, reason="frozen")
+    entry = AuditLog(path, case_id="CASE-1", hmac_key=KEY_A).append(
+        "RESULT_SEALED", {"x": 2}, reason="sealed"
+    )
+    assert entry.key_id is not None
+
+
+def test_entry_hmac_mismatch_message_names_the_signing_key(tmp_path):
+    """GAP-06: a bare 'wrong key or forged chain' gives a human nothing to
+    act on when the real explanation is an ordinary key rotation. The
+    entry's own key_id must be surfaced so the two cases are
+    distinguishable by inspection.
+    """
+    path = tmp_path / "audit.jsonl"
+    entry = AuditLog(path, case_id="CASE-1", hmac_key=KEY_A).append(
+        "CASE_FROZEN", {"x": 1}, reason="frozen"
+    )
+    assert entry.key_id == key_id(KEY_A)
+
+    ok, message = AuditLog.verify_with_report(path, case_id="CASE-1", hmac_key=KEY_B)
+    assert not ok
+    assert entry.key_id in message
+
+
+def test_append_fsyncs_the_log_and_writes_the_tail_anchor_atomically(tmp_path, monkeypatch):
+    """GAP-03: the JSONL append and the tail-anchor rewrite were two
+    separate, non-durable writes -- a crash between them left the anchor
+    inconsistent with the log in a way `verify_with_report` cannot tell
+    apart from real truncation. Confirms fsync is actually called, and
+    that the tail anchor lands via tempfile+replace (never a half-written
+    file at the real path).
+    """
+    import os as os_module
+
+    path = tmp_path / "audit.jsonl"
+    fsync_calls = []
+    real_fsync = os_module.fsync
+    monkeypatch.setattr(os_module, "fsync", lambda fd: (fsync_calls.append(fd), real_fsync(fd))[1])
+
+    AuditLog(path, case_id="CASE-1").append("CASE_FROZEN", {"x": 1}, reason="frozen")
+
+    assert len(fsync_calls) == 2  # once for the JSONL append, once for the tail anchor
+    tail_path = path.with_suffix(path.suffix + ".tail")
+    assert tail_path.exists()
+    assert not any(p.name.startswith(f".{tail_path.name}.") for p in tmp_path.iterdir())
+
+
 def test_append_rejects_an_unknown_action(tmp_path):
     log = AuditLog(tmp_path / "audit.jsonl", case_id="CASE-1")
     with pytest.raises(ValueError, match="unknown audit action"):
@@ -172,4 +243,65 @@ def test_tampering_with_created_at_breaks_the_hash(tmp_path):
 
     ok, message = AuditLog.verify_with_report(path, case_id="CASE-1")
     assert not ok
-    assert "entry_hash mismatch" in message
+
+
+def test_append_rejects_a_symlink_swapped_in_after_construction(tmp_path):
+    """A real audit.jsonl exists at construction time (so `_resume()`
+    passes cleanly), then gets replaced by a symlink before the next
+    `append()` -- the check must be repeated on every write, not only
+    once at `__init__`.
+    """
+    outside_target = tmp_path / "outside.txt"
+    outside_target.write_text("")
+    audit_path = tmp_path / "case" / "audit.jsonl"
+    audit_path.parent.mkdir()
+
+    log = AuditLog(audit_path, case_id="CASE-SYMLINK")
+    audit_path.unlink(missing_ok=True)
+    audit_path.symlink_to(outside_target)
+
+    with pytest.raises(ValueError, match="symlink"):
+        log.append("CASE_FROZEN", {"x": 1}, reason="frozen")
+    assert outside_target.read_text() == ""
+
+
+def test_construction_rejects_a_pre_placed_symlink_on_read(tmp_path):
+    outside_target = tmp_path / "outside.txt"
+    outside_target.write_text("not an audit log")
+    audit_path = tmp_path / "case" / "audit.jsonl"
+    audit_path.parent.mkdir()
+    audit_path.symlink_to(outside_target)
+
+    with pytest.raises(ValueError, match="symlink"):
+        AuditLog(audit_path, case_id="CASE-SYMLINK")
+
+
+def test_load_entries_and_verify_reject_a_pre_placed_symlink(tmp_path):
+    outside_target = tmp_path / "outside.txt"
+    outside_target.write_text('{"not":"real"}\n')
+    audit_path = tmp_path / "audit.jsonl"
+    audit_path.symlink_to(outside_target)
+
+    with pytest.raises(ValueError, match="symlink"):
+        AuditLog.load_entries(audit_path)
+    with pytest.raises(ValueError, match="symlink"):
+        AuditLog.verify_with_report(audit_path, case_id="CASE-SYMLINK")
+
+
+def test_verify_with_report_rejects_an_oversized_log(tmp_path):
+    path = tmp_path / "audit.jsonl"
+    log = AuditLog(path, case_id="CASE-BIG")
+    for _ in range(5):
+        log.append("TOOL_INVOKED", {"x": 1}, reason="synthetic bulk entry for a size-cap test")
+
+    import zaynor.audit_log as audit_log_module
+
+    original_limit = audit_log_module._MAX_AUDIT_LOG_BYTES
+    audit_log_module._MAX_AUDIT_LOG_BYTES = 10
+    try:
+        with pytest.raises(ValueError, match="exceeded"):
+            AuditLog.verify_with_report(path, case_id="CASE-BIG")
+        with pytest.raises(ValueError, match="exceeded"):
+            AuditLog.load_entries(path)
+    finally:
+        audit_log_module._MAX_AUDIT_LOG_BYTES = original_limit

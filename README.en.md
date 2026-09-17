@@ -287,6 +287,8 @@ of the product being integrated now.
 
 ## Documentation
 
+- [`INSTALL.md`](./INSTALL.md) — step-by-step installation, Ollama setup,
+  optional extras, and the full case workflow. Spanish only for now.
 - [`docs/extra_arenaai.md`](./docs/extra_arenaai.md) — formal product
   position, users, demo, scope, and acceptance criteria.
 - [`AGENTS.md`](./AGENTS.md) — VIGÍA integration contracts and authority limits

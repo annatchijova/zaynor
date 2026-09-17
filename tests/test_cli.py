@@ -113,6 +113,37 @@ def test_analyze_and_audit_a_single_vigia_case_json_file(tmp_path, capsys):
     assert json.loads(capsys.readouterr().out)["overall"] == "VERIFIED"
 
 
+def test_audit_trail_shows_the_real_chain_from_freeze_and_analyze(tmp_path, capsys):
+    _, cases_root, _ = _analyzed_case(tmp_path, capsys)
+
+    assert main([
+        "audit-trail", "--case-id", "INC-CLI-AUDIT", "--cases-root", str(cases_root), "--json",
+    ]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["chain_valid"] is True
+    assert payload["total_entries"] == 3
+    assert [entry["action"] for entry in payload["entries"]] == ["CASE_FROZEN", "ENGINE_INVOKED", "RESULT_SEALED"]
+    assert payload["entries"][0]["case_id"] == "INC-CLI-AUDIT"
+
+
+def test_audit_trail_fails_closed_on_a_tampered_entry(tmp_path, capsys):
+    _, cases_root, _ = _analyzed_case(tmp_path, capsys)
+    log_path = cases_root / "INC-CLI-AUDIT" / "audit.jsonl"
+    lines = log_path.read_text(encoding="utf-8").splitlines()
+    tampered = json.loads(lines[0])
+    tampered["reason"] = "tampered after the fact"
+    lines[0] = json.dumps(tampered)
+    log_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    exit_code = main([
+        "audit-trail", "--case-id", "INC-CLI-AUDIT", "--cases-root", str(cases_root), "--json",
+    ])
+    payload = json.loads(capsys.readouterr().out)
+    assert exit_code == 1
+    assert payload["chain_valid"] is False
+    assert "entry_hash mismatch" in payload["chain_detail"]
+
+
 def test_case_cli_emits_reproducible_json(capsys):
     assert main(["case", "--fixture", str(FIXTURE), "--json"]) == 0
     first = capsys.readouterr().out
@@ -241,11 +272,23 @@ def test_audit_accepts_untouched_stored_case_and_source_mutation(tmp_path, capsy
     assert json.loads(capsys.readouterr().out)["overall"] == "VERIFIED"
 
 
+def test_audit_reports_chain_verified_for_a_real_analyzed_case(tmp_path, capsys):
+    _, cases_root, output_root = _analyzed_case(tmp_path, capsys)
+    assert main([
+        "audit", "--case-id", "INC-CLI-AUDIT", "--cases-root", str(cases_root),
+        "--output-root", str(output_root), "--json",
+    ]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["overall"] == "VERIFIED"
+    assert payload["chain"].startswith("VERIFIED")
+
+
 def test_audit_fails_closed_for_each_stored_artifact_tamper(tmp_path, capsys):
     _, cases_root, output_root = _analyzed_case(tmp_path, capsys)
     output_case = output_root / "INC-CLI-AUDIT"
     targets = {
         "evidence": cases_root / "INC-CLI-AUDIT" / "evidence" / "collected" / "auth.jsonl",
+        "audit_trail": cases_root / "INC-CLI-AUDIT" / "audit.jsonl",
         "manifest": cases_root / "INC-CLI-AUDIT" / "manifest.json",
         "bundle": output_case / "bundle.json",
         "sidecar": output_case / "bundle.json.sha256",
@@ -277,6 +320,27 @@ def test_audit_fails_closed_for_each_stored_artifact_tamper(tmp_path, capsys):
         target.write_bytes(original)
         if name == "evidence":
             target.chmod(0o400)
+
+
+def test_audit_fails_closed_when_the_audit_trail_is_entirely_missing(tmp_path, capsys):
+    """Architecture audit finding (GAP-01): `AuditLog.verify_with_report`
+    reports `True, "no log file"` for an absent chain -- correct for a log
+    that never had a reason to exist, but `zaynor audit` used to never ask
+    at all, so a case whose entire audit.jsonl was deleted still came back
+    `overall: VERIFIED`. A real analyzed case always has one; its absence
+    must fail closed, not report cleanly.
+    """
+    _, cases_root, output_root = _analyzed_case(tmp_path, capsys)
+    (cases_root / "INC-CLI-AUDIT" / "audit.jsonl").unlink()
+    (cases_root / "INC-CLI-AUDIT" / "audit.jsonl.tail").unlink()
+
+    assert main([
+        "audit", "--case-id", "INC-CLI-AUDIT", "--cases-root", str(cases_root),
+        "--output-root", str(output_root), "--json",
+    ]) == 1
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["overall"] == "FAILED"
+    assert "no audit trail found" in payload["error"]
 
 
 def test_chat_narrates_the_sealed_verdict_and_verifies_it(tmp_path, capsys, monkeypatch):

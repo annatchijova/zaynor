@@ -51,11 +51,11 @@ def _inventory(root: Path) -> set[str]:
     files: set[str] = set()
     for path in root.rglob("*"):
         if path.is_symlink():
-            raise FrozenSnapshotError(f"frozen evidence contains symlink: {path}")
+            raise FrozenSnapshotError(f"frozen evidence contains symlink: {path.relative_to(root)}")
         if path.is_file():
             files.add(path.relative_to(root).as_posix())
         elif not path.is_dir():
-            raise FrozenSnapshotError(f"frozen evidence contains non-regular entry: {path}")
+            raise FrozenSnapshotError(f"frozen evidence contains non-regular entry: {path.relative_to(root)}")
     return files
 
 
@@ -86,7 +86,7 @@ def _snapshot_digest(root: Path) -> str:
     digest = hashlib.sha256()
     for path in sorted(root.rglob("*")):
         if path.is_symlink():
-            raise FrozenSnapshotError(f"snapshot contains symlink: {path}")
+            raise FrozenSnapshotError(f"snapshot contains symlink: {path.relative_to(root)}")
         if path.is_file():
             digest.update(path.relative_to(root).as_posix().encode("utf-8"))
             digest.update(bytes.fromhex(sha256_file(path)))

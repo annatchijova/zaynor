@@ -40,3 +40,25 @@ repos:
         args: ["--maxkb=500"]
         # Evidence fixtures and generated reports are intentionally large;
         # the gate applies to new code and docs, not the corpus.
+
+  # ZAYNOR demo-lab gates (stdlib-only, no network at hook runtime).
+  # - py-compile: syntax gate for every staged Python file outside the
+  #   vendored/corpus trees — catches what a typing slip would leave for CI.
+  # - lab-tests: the DFIR/AIOps integration tests via
+  #   scripts/run_lab_tests.py, which uses pytest when installed and falls
+  #   back to its built-in stdlib runner on a bare clone. Triggered only
+  #   when demo-lab code or its tests change.
+  - repo: local
+    hooks:
+      - id: py-compile
+        name: python3 -m py_compile (staged python)
+        entry: python3 -m py_compile
+        language: system
+        types: [python]
+        exclude: ^(vendor/|casos/|results/|\.kilo/)
+      - id: lab-tests
+        name: demo-lab integration tests (stdlib runner)
+        entry: python3 scripts/run_lab_tests.py
+        language: system
+        pass_filenames: false
+        files: ^(tools/|scripts/(demo_dfir|demo_aiops|generate_aiops_scenario|run_lab_tests)\.py|tests/(test_velociraptor_adapter|test_aiops_aggregator)\.py|conftest\.py)

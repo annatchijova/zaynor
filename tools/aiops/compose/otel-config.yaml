@@ -1,0 +1,66 @@
+# ZAYNOR AIOps demo: OTel Collector configuration.
+# Receivers collect application telemetry; exporters ship it to the local
+# backends. Nothing here interprets or scores evidence.
+receivers:
+  zipkin:
+    endpoint: 0.0.0.0:9411
+
+  filelog/app:
+    include: [/var/log/app/*.jsonl]
+    start_at: beginning
+    operators:
+      - type: json_parser
+        parse_from: body
+      - type: add
+        field: attributes["loki.attribute.labels"]
+        value: service
+
+  prometheus/scrape:
+    config:
+      scrape_configs:
+        - job_name: demo-api
+          scrape_interval: 5s
+          static_configs:
+            - targets: ["demo-api:8000"]
+              labels:
+                service: demo-api
+                environment: lab
+
+processors:
+  batch:
+    timeout: 2s
+
+  resource/logs:
+    attributes:
+      - key: service.name
+        value: demo-api
+        action: upsert
+
+exporters:
+  otlp/tempo:
+    endpoint: tempo:4317
+    tls:
+      insecure: true
+
+  prometheusremotewrite:
+    endpoint: http://prometheus:9090/api/v1/write
+    tls:
+      insecure: true
+
+  loki:
+    endpoint: http://loki:3100/loki/api/v1/push
+
+service:
+  pipelines:
+    traces:
+      receivers: [zipkin]
+      processors: [batch]
+      exporters: [otlp/tempo]
+    metrics:
+      receivers: [prometheus/scrape]
+      processors: [batch]
+      exporters: [prometheusremotewrite]
+    logs:
+      receivers: [filelog/app]
+      processors: [resource/logs, batch]
+      exporters: [loki]

@@ -18,8 +18,12 @@ seal-verified chat path, not two.
 
 from __future__ import annotations
 
+import contextlib
+import fcntl
 import json
 import logging
+import os
+import tempfile
 import time
 import uuid
 from pathlib import Path
@@ -45,7 +49,8 @@ from zaynor.agents.investigator_tools import InvestigatorToolAdapter
 from zaynor.agents.ollama_client import OllamaClient, OllamaError
 from zaynor.agents.policy import declared_tool_capability
 from zaynor.argentina_time import format_argentina
-from zaynor.cli import CliInputError, _SAFE_CASE_ID, _load_case_manifest, compute_case_audit, load_verified_stored_case
+from zaynor.audit_log import AuditLog
+from zaynor.cli import CliInputError, _SAFE_CASE_ID, _case_index_path, _load_case_manifest, compute_case_audit, load_verified_stored_case
 from zaynor.framework_context import build_consult_package
 from zaynor.frozen_snapshot import FrozenSnapshotError, _validated_entries
 from zaynor.schemas import AuthoritativeFinding, ZaynorAuthoritativeResult
@@ -275,6 +280,7 @@ def _audit_status_payload(audit_report: dict[str, Any]) -> dict[str, Any]:
         "manifest": _verification_status(audit_report["manifest"]),
         "snapshot": _verification_status(audit_report["snapshot"]),
         "evidence": _verification_status(str(audit_report["evidence"])),
+        "chain": _verification_status(str(audit_report.get("chain", "UNKNOWN"))),
         "result": _verification_status(audit_report["result"]),
         "seal": _verification_status(audit_report["seal"]),
         "provenance": audit_report["provenance"] if audit_report["provenance"] in ("PRESENT", "EMPTY") else "UNKNOWN",
@@ -283,8 +289,48 @@ def _audit_status_payload(audit_report: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+class InvestigationLedgerCorrupted(ValueError):
+    """The persisted investigation ledger exists but cannot be trusted.
+
+    Red team round 21 (R21-03): the previous version caught every load
+    failure (bad JSON, a missing key, a contract violation) and silently
+    fell back to a brand-new empty session -- indistinguishable from
+    NOT_STARTED, which turns real data loss into a state that looks
+    clean. CLAUDE.md 5.3 is explicit that a degraded read must never look
+    like a correct one; this type exists so callers can tell "no
+    investigation has run yet" apart from "one ran and the record of it
+    is now unreadable."
+    """
+
+
 def _investigation_state_path(output_root: Path, case_id: str) -> Path:
     return output_root / case_id / "investigation.json"
+
+
+@contextlib.contextmanager
+def _investigation_write_lock(output_root: Path, case_id: str):
+    """Serialize the load -> propose_and_execute -> save cycle per case_id.
+
+    Red team round 22 (R22-01, CONFIRMED BY INDUCTION): `propose_investigation`
+    had no lock at all. Two concurrent requests for the same case both load
+    the same stale ledger, both really execute their MCP tool call, and
+    whichever `os.replace` runs last wins -- the other request's real,
+    already-executed observation is silently dropped, indistinguishable
+    from "never asked". An `flock` held across the whole critical section
+    (not just the final atomic write, which was already correct on its
+    own) turns that race into ordinary serialization: the second request
+    simply loads the *updated* ledger the first one just saved.
+    """
+    lock_path = output_root / case_id / "investigation.lock"
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    if lock_path.exists() and lock_path.is_symlink():
+        raise ApiError(500, "internal_error", "investigation lock path must not be a symlink", "server_error")
+    with open(lock_path, "a", encoding="utf-8") as handle:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
 
 
 def _load_investigation_state(case_id: str, output_root: Path, base_result_sha256: str) -> dict[str, Any]:
@@ -299,21 +345,26 @@ def _load_investigation_state(case_id: str, output_root: Path, base_result_sha25
     exactly the kind of thing CLAUDE.md 5.2 keeps out of a sealed/hashed
     payload (see `audit_log.py`'s `created_at` for the same reasoning
     applied to a different ledger).
+
+    Raises `InvestigationLedgerCorrupted` if the file exists but cannot
+    be parsed/validated -- a missing file is legitimately NOT_STARTED; an
+    unreadable one is not the same thing and must not be treated as it.
     """
     path = _investigation_state_path(output_root, case_id)
     if path.is_file():
         try:
             raw = json.loads(path.read_text(encoding="utf-8"))
             session = InvestigationSession.from_dict(raw["session"])
-        except (OSError, json.JSONDecodeError, KeyError, InvestigationContractError):
-            session = None
-        else:
-            if session.base_result_sha256 == base_result_sha256:
-                return {
-                    "session": session,
-                    "proposal_created_at": dict(raw.get("proposal_created_at", {})),
-                    "observation_recorded_at": dict(raw.get("observation_recorded_at", {})),
-                }
+        except (OSError, json.JSONDecodeError, KeyError, InvestigationContractError) as exc:
+            raise InvestigationLedgerCorrupted(
+                f"investigation ledger for {case_id!r} exists but could not be read: {exc}"
+            ) from exc
+        if session.base_result_sha256 == base_result_sha256:
+            return {
+                "session": session,
+                "proposal_created_at": dict(raw.get("proposal_created_at", {})),
+                "observation_recorded_at": dict(raw.get("observation_recorded_at", {})),
+            }
     return {
         "session": InvestigationSession(f"SESSION-{case_id}", case_id, base_result_sha256),
         "proposal_created_at": {},
@@ -321,15 +372,44 @@ def _load_investigation_state(case_id: str, output_root: Path, base_result_sha25
     }
 
 
+def _load_investigation_state_or_error(case_id: str, output_root: Path, base_result_sha256: str) -> dict[str, Any]:
+    """Route wrapper: every caller wants the same fail-closed behavior on
+    a corrupted ledger, an `ApiError` the global handler already renders.
+    """
+    try:
+        return _load_investigation_state(case_id, output_root, base_result_sha256)
+    except InvestigationLedgerCorrupted as exc:
+        logger.error(str(exc))
+        raise ApiError(500, "internal_error", str(exc), "server_error") from None
+
+
 def _save_investigation_state(case_id: str, output_root: Path, state: dict[str, Any]) -> None:
+    """Write the ledger via temp-file + fsync + os.replace, matching
+    `cli.py`'s `_atomic_json_write` -- a crash mid-write leaves the
+    original file (or nothing) intact, never a truncated one. Closes
+    R21-03's atomicity gap; combined with `InvestigationLedgerCorrupted`
+    above, a corrupted read is now a real signal something went wrong
+    externally (manual edit, disk fault), not something this function's
+    own writes can cause anymore.
+    """
     path = _investigation_state_path(output_root, case_id)
     path.parent.mkdir(parents=True, exist_ok=True)
+    if path.exists() and path.is_symlink():
+        raise ApiError(500, "internal_error", "investigation ledger path must not be a symlink", "server_error")
     payload = {
         "session": state["session"].as_dict(),
         "proposal_created_at": state["proposal_created_at"],
         "observation_recorded_at": state["observation_recorded_at"],
     }
-    path.write_text(json.dumps(payload, ensure_ascii=False, sort_keys=True, indent=2), encoding="utf-8")
+    encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True, indent=2)
+    with tempfile.NamedTemporaryFile(
+        dir=path.parent, prefix=f".{path.name}.", mode="w", encoding="utf-8", delete=False
+    ) as handle:
+        handle.write(encoded)
+        handle.flush()
+        os.fsync(handle.fileno())
+        temp_path = Path(handle.name)
+    os.replace(temp_path, path)
 
 
 def _proposal_payload(proposal: Any, *, status: str, created_at: str) -> dict[str, Any]:
@@ -448,7 +528,7 @@ def _load_case_for_overview(
     if cases_root is None:
         audit_report = {
             "case_id": case_id, "manifest": "UNKNOWN", "snapshot": "UNKNOWN", "evidence": "UNKNOWN",
-            "engine": "UNKNOWN", "result": "VERIFIED", "seal": "VERIFIED", "verdict": result.verdict,
+            "engine": "UNKNOWN", "chain": "UNKNOWN", "result": "VERIFIED", "seal": "VERIFIED", "verdict": result.verdict,
             "confidence": result.integrity.get("confidence", "UNKNOWN"), "findings": len(result.findings),
             "unknowns": list(result.unknowns), "provenance": "UNKNOWN", "overall": "UNKNOWN",
         }
@@ -526,6 +606,23 @@ def create_app(
     def list_cases() -> dict[str, Any]:
         if not output_root.is_dir():
             return {"cases": []}
+        # Architecture audit finding (GAP-08): listing used to have no
+        # derived read model at all, so every field but the filenames
+        # already on disk was a hardcoded placeholder -- correct, since it
+        # never claimed a verification it didn't do, but it meant a
+        # verdict could only ever be shown by re-verifying the whole case.
+        # This index (written by `_run_analyze`, rebuildable byte-for-byte
+        # by `zaynor reindex`) is explicitly NOT authoritative: `verdict`/
+        # `updated_at` come from it when present, but `verification` and
+        # `seal_status` stay NOT_CHECKED/UNKNOWN regardless -- an index hit
+        # is a hint for display, never a substitute for `compute_case_audit`.
+        index_path = _case_index_path(output_root)
+        try:
+            index = json.loads(index_path.read_text(encoding="utf-8")) if index_path.is_file() else {}
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+            index = {}
+        if not isinstance(index, dict):
+            index = {}
         cases = sorted(
             [
                 {
@@ -534,9 +631,9 @@ def create_app(
                     "has_result": (entry / "result.json").is_file(),
                     "has_seal": (entry / "result.seal.json").is_file(),
                     "verification": "NOT_CHECKED",
-                    "verdict": "UNKNOWN",
+                    "verdict": index.get(entry.name, {}).get("verdict", "UNKNOWN") if isinstance(index.get(entry.name), dict) else "UNKNOWN",
                     "seal_status": "UNKNOWN",
-                    "updated_at": None,
+                    "updated_at": index.get(entry.name, {}).get("updated_at") if isinstance(index.get(entry.name), dict) else None,
                 }
                 for entry in output_root.iterdir()
                 if entry.is_dir()
@@ -561,7 +658,7 @@ def create_app(
             },
             "audit": _audit_status_payload(audit_report),
             "investigation": _investigation_summary_payload(
-                _load_investigation_state(case_id, output_root, seal.sha256)
+                _load_investigation_state_or_error(case_id, output_root, seal.sha256)
             ),
         }
 
@@ -574,6 +671,26 @@ def create_app(
     def get_case_audit(case_id: str) -> dict[str, Any]:
         _, _, audit_report = _load_case_for_overview(case_id, output_root=output_root, cases_root=cases_root)
         return _audit_status_payload(audit_report)
+
+    @app.get("/cases/{case_id}/audit-trail")
+    def get_case_audit_trail(case_id: str) -> dict[str, Any]:
+        if not _SAFE_CASE_ID.fullmatch(case_id):
+            raise ApiError(400, "invalid_case_id", "case_id is invalid", "invalid_request_error")
+        if cases_root is None:
+            raise ApiError(500, "internal_error", "audit trail is not configured on this server", "server_error")
+        case_dir = cases_root / case_id
+        if case_dir.is_symlink() or not case_dir.is_dir():
+            raise ApiError(404, "case_not_found", "case is not available", "not_found_error")
+        log_path = case_dir / "audit.jsonl"
+        chain_valid, chain_detail = AuditLog.verify_with_report(log_path, case_id=case_id)
+        entries = AuditLog.load_entries(log_path)
+        return {
+            "case_id": case_id,
+            "chain_valid": chain_valid,
+            "chain_detail": chain_detail,
+            "total_entries": len(entries),
+            "entries": entries,
+        }
 
     @app.get("/cases/{case_id}/evidence")
     def get_case_evidence(case_id: str) -> dict[str, Any]:
@@ -589,7 +706,7 @@ def create_app(
     @app.get("/cases/{case_id}/investigation")
     def get_case_investigation(case_id: str) -> dict[str, Any]:
         _, seal, _ = _load_case_for_overview(case_id, output_root=output_root, cases_root=cases_root)
-        return _investigation_summary_payload(_load_investigation_state(case_id, output_root, seal.sha256))
+        return _investigation_summary_payload(_load_investigation_state_or_error(case_id, output_root, seal.sha256))
 
     @app.post("/cases/{case_id}/investigations/proposals")
     def propose_investigation(case_id: str, req: InvestigationProposalRequest) -> dict[str, Any]:
@@ -621,26 +738,27 @@ def create_app(
         except (CliInputError, ValueError):
             raise ApiError(422, "invalid_authority", "stored result or seal could not be verified", "authority_error") from None
 
-        state = _load_investigation_state(case_id, output_root, seal.sha256)
-        package, package_seal = build_consult_package(result, seal)
-        consult = ConsultTools(package, package_seal, hunts=DEFAULT_HUNT_CATALOG)
-        mcp_config = VigiaMCPConfig(evidence_dir=evidence_dir)
-        adapter = InvestigatorToolAdapter(mcp_config, consult)
-        client = OllamaClient(host=ollama_host, model=model, timeout_seconds=timeout_seconds)
-        investigator = BoundedInvestigator(client, state["session"], facts, adapter.handlers())
+        with _investigation_write_lock(output_root, case_id):
+            state = _load_investigation_state_or_error(case_id, output_root, seal.sha256)
+            package, package_seal = build_consult_package(result, seal)
+            consult = ConsultTools(package, package_seal, hunts=DEFAULT_HUNT_CATALOG)
+            mcp_config = VigiaMCPConfig(evidence_dir=evidence_dir)
+            adapter = InvestigatorToolAdapter(mcp_config, consult)
+            client = OllamaClient(host=ollama_host, model=model, timeout_seconds=timeout_seconds)
+            investigator = BoundedInvestigator(client, state["session"], facts, adapter.handlers())
 
-        try:
-            new_session, proposal, observation = investigator.propose_and_execute(question=req.question)
-        except OllamaError:
-            raise ApiError(503, "ollama_unavailable", "local narration service is unavailable", "service_unavailable") from None
-        except InvestigationRunnerError as exc:
-            raise ApiError(422, "policy_rejected", str(exc), "investigation_error") from None
+            try:
+                new_session, proposal, observation = investigator.propose_and_execute(question=req.question)
+            except OllamaError:
+                raise ApiError(503, "ollama_unavailable", "local narration service is unavailable", "service_unavailable") from None
+            except InvestigationRunnerError as exc:
+                raise ApiError(422, "policy_rejected", str(exc), "investigation_error") from None
 
-        now = format_argentina()
-        state["session"] = new_session
-        state["proposal_created_at"][proposal.proposal_id] = now
-        state["observation_recorded_at"][observation.observation_id] = now
-        _save_investigation_state(case_id, output_root, state)
+            now = format_argentina()
+            state["session"] = new_session
+            state["proposal_created_at"][proposal.proposal_id] = now
+            state["observation_recorded_at"][observation.observation_id] = now
+            _save_investigation_state(case_id, output_root, state)
 
         return _proposal_payload(proposal, status="EXECUTED", created_at=now)
 

@@ -96,18 +96,22 @@ def test_health_and_models(tmp_path):
 
 
 def test_cases_lists_only_analyzed_cases(tmp_path, capsys):
+    """`verdict`/`updated_at` come from the derived index `_run_analyze`
+    writes (GAP-08) -- a real, non-authoritative hint for display, not a
+    re-verification. `verification`/`seal_status` stay NOT_CHECKED/UNKNOWN
+    regardless: the index is never treated as proof.
+    """
     output_root = _analyzed_case(tmp_path, capsys)
     cases = _route(create_app(output_root=output_root), "/cases")()["cases"]
-    assert cases == [{
-        "case_id": "INC-API-CASE",
-        "name": None,
-        "has_result": True,
-        "has_seal": True,
-        "verification": "NOT_CHECKED",
-        "verdict": "UNKNOWN",
-        "seal_status": "UNKNOWN",
-        "updated_at": None,
-    }]
+    assert len(cases) == 1
+    case = cases[0]
+    assert case["case_id"] == "INC-API-CASE"
+    assert case["has_result"] is True
+    assert case["has_seal"] is True
+    assert case["verification"] == "NOT_CHECKED"
+    assert case["seal_status"] == "UNKNOWN"
+    assert case["verdict"] == "ABSTAIN"
+    assert case["updated_at"] is not None
 
 
 def test_cases_do_not_claim_verification_from_file_presence(tmp_path):
@@ -333,6 +337,39 @@ def test_get_case_audit_reuses_compute_case_audit(tmp_path, capsys):
     assert audit["seal"] == "VERIFIED"
 
 
+def test_get_case_audit_trail_returns_the_real_hash_chain(tmp_path, capsys):
+    output_root = _analyzed_case(tmp_path, capsys)
+    cases_root = tmp_path / "cases"
+    app = create_app(output_root=output_root, cases_root=cases_root)
+    trail = _route(app, "/cases/{case_id}/audit-trail")("INC-API-CASE")
+    assert trail["chain_valid"] is True
+    assert trail["total_entries"] == 3
+    assert [entry["action"] for entry in trail["entries"]] == ["CASE_FROZEN", "ENGINE_INVOKED", "RESULT_SEALED"]
+
+
+def test_get_case_audit_trail_fails_closed_on_a_tampered_entry(tmp_path, capsys):
+    output_root = _analyzed_case(tmp_path, capsys)
+    cases_root = tmp_path / "cases"
+    log_path = cases_root / "INC-API-CASE" / "audit.jsonl"
+    lines = log_path.read_text(encoding="utf-8").splitlines()
+    tampered = json.loads(lines[-1])
+    tampered["reason"] = "tampered after the fact"
+    lines[-1] = json.dumps(tampered)
+    log_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    app = create_app(output_root=output_root, cases_root=cases_root)
+    trail = _route(app, "/cases/{case_id}/audit-trail")("INC-API-CASE")
+    assert trail["chain_valid"] is False
+    assert "entry_hash mismatch" in trail["chain_detail"]
+
+
+def test_get_case_audit_trail_requires_cases_root(tmp_path, capsys):
+    output_root = _analyzed_case(tmp_path, capsys)
+    app = create_app(output_root=output_root)  # no cases_root configured
+    error = _api_error(lambda: _route(app, "/cases/{case_id}/audit-trail")("INC-API-CASE"))
+    assert error.status_code == 500
+
+
 def test_get_case_evidence_reflects_the_real_frozen_manifest(tmp_path, capsys):
     output_root = _analyzed_case(tmp_path, capsys)
     cases_root = tmp_path / "cases"
@@ -474,6 +511,55 @@ def test_propose_investigation_runs_a_real_deterministic_tool_call(tmp_path, cap
     assert "sha256" in json.dumps(observation["payload"])
 
 
+def test_propose_investigation_serializes_concurrent_requests_for_the_same_case(tmp_path, capsys, monkeypatch):
+    """Red team round 22 (R22-01, CONFIRMED BY INDUCTION): before
+    `_investigation_write_lock` was added, `propose_investigation` was a
+    plain load -> compute -> save cycle with no lock at all. Two
+    concurrent requests for the same case_id both loaded the same stale
+    ledger, both really executed their MCP tool call, and whichever
+    `os.replace` ran last silently discarded the other's real,
+    already-executed observation -- a lost update reproduced with real
+    threads and a real subprocess call into VIGIA's vendored MCP bridge,
+    no fault injection needed. This confirms the fix: both real,
+    genuinely concurrent requests now persist, because the second one
+    blocks on the per-case flock until the first has saved, then loads
+    the *updated* ledger instead of the stale one.
+    """
+    from concurrent.futures import ThreadPoolExecutor
+
+    output_root = _analyzed_case(tmp_path, capsys)
+    cases_root = tmp_path / "cases"
+    evidence_path = str(cases_root / "INC-API-CASE" / "evidence" / "collected" / "auth.jsonl")
+    app = create_app(output_root=output_root, cases_root=cases_root)
+
+    def fake_generate(self, *, system, prompt):
+        proposal_id = "P-AAA" if "Question A" in prompt else "P-BBB"
+        return json.dumps({
+            "proposal_id": proposal_id,
+            "case_id": "INC-API-CASE",
+            "question": "irrelevant, the real prompt carries it",
+            "rationale": "concurrency induction test",
+            "requested_tool": "verify_custody",
+            "arguments": {"path": evidence_path},
+            "information_sought": "recomputed hash",
+        })
+
+    monkeypatch.setattr(OllamaClient, "generate", fake_generate)
+
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        future_a = pool.submit(_propose, app, "INC-API-CASE", "Question A")
+        future_b = pool.submit(_propose, app, "INC-API-CASE", "Question B")
+        result_a = future_a.result(timeout=30)
+        result_b = future_b.result(timeout=30)
+
+    assert result_a["status"] == "EXECUTED"
+    assert result_b["status"] == "EXECUTED"
+
+    summary = _route(app, "/cases/{case_id}/investigation")("INC-API-CASE")
+    assert len(summary["proposals"]) == 2
+    assert len(summary["observations"]) == 2
+
+
 def test_propose_investigation_persists_across_requests(tmp_path, capsys, monkeypatch):
     output_root = _analyzed_case(tmp_path, capsys)
     cases_root = tmp_path / "cases"
@@ -519,3 +605,53 @@ def test_propose_investigation_rejects_an_empty_question(tmp_path, capsys):
     app = create_app(output_root=output_root, cases_root=cases_root)
     error = _api_error(lambda: _propose(app, "INC-API-CASE", "   "))
     assert error.status_code == 400
+
+
+def test_get_case_investigation_fails_closed_on_a_corrupted_ledger(tmp_path, capsys):
+    """Red team round 21 (R21-03): a truncated/unreadable
+    investigation.json used to be caught and silently treated as a fresh,
+    empty session -- data loss disguised as NOT_STARTED. It must now
+    surface as a real error instead.
+    """
+    output_root = _analyzed_case(tmp_path, capsys)
+    ledger_path = output_root / "INC-API-CASE" / "investigation.json"
+    ledger_path.write_text("{not valid json", encoding="utf-8")
+
+    app = create_app(output_root=output_root)
+    error = _api_error(lambda: _route(app, "/cases/{case_id}/investigation")("INC-API-CASE"))
+    assert error.status_code == 500
+    assert "could not be read" in error.message
+
+
+def test_propose_investigation_writes_the_ledger_atomically(tmp_path, capsys, monkeypatch):
+    """R21-03: the ledger is written via temp-file + os.replace, not a
+    direct write -- confirmed by observing that a NamedTemporaryFile is
+    actually created next to the target path during the write.
+    """
+    import tempfile as tempfile_module
+
+    output_root = _analyzed_case(tmp_path, capsys)
+    cases_root = tmp_path / "cases"
+    evidence_path = str(cases_root / "INC-API-CASE" / "evidence" / "collected" / "auth.jsonl")
+    monkeypatch.setattr(
+        OllamaClient, "generate",
+        lambda self, *, system, prompt: _valid_proposal_json(arguments={"path": evidence_path}),
+    )
+
+    seen_temp_names = []
+    real_named_temp_file = tempfile_module.NamedTemporaryFile
+
+    def _spying_named_temp_file(*args, **kwargs):
+        handle = real_named_temp_file(*args, **kwargs)
+        seen_temp_names.append(handle.name)
+        return handle
+
+    monkeypatch.setattr(tempfile_module, "NamedTemporaryFile", _spying_named_temp_file)
+    app = create_app(output_root=output_root, cases_root=cases_root)
+    _propose(app, "INC-API-CASE", "What does the auth log say?")
+
+    ledger_path = output_root / "INC-API-CASE" / "investigation.json"
+    assert any(Path(name).parent == ledger_path.parent for name in seen_temp_names)
+    assert ledger_path.is_file()
+    # The temp file is gone -- os.replace consumed it, it was not left behind.
+    assert not any(Path(name).exists() for name in seen_temp_names)

@@ -5,7 +5,7 @@ import pytest
 
 from zaynor.adapter import AdapterError, ZaynorMode1Adapter
 from zaynor.case_freezer import _content_sha256, _sealed_at_sha256, freeze_case
-from zaynor.frozen_snapshot import FrozenSnapshotError, materialize_frozen_snapshot
+from zaynor.frozen_snapshot import FrozenSnapshotError, _inventory, materialize_frozen_snapshot
 from zaynor.hash_utils import sha256_file
 from zaynor.schemas import CaseManifest, ManifestEntry
 
@@ -67,6 +67,25 @@ def test_mutation_after_initial_hash_fails_closed_on_private_snapshot(tmp_path):
 
     # The live frozen case was never handed to the subprocess.
     assert original.read_text() == "original frozen bytes"
+
+
+def test_inventory_symlink_error_does_not_leak_the_absolute_server_path(tmp_path):
+    """Red team round 22 (R22-03, CONFIRMED BY INDUCTION): the error used
+    to interpolate the absolute `Path`, so it always contained the
+    server's real `cases_root` prefix (str(tmp_path) here stands in for
+    that). `api.py`'s get_case_evidence forwards this string verbatim to
+    an HTTP client, so this must stay a case-relative path.
+    """
+    evidence = tmp_path / "cases" / "CASE-LEAK" / "evidence"
+    evidence.mkdir(parents=True)
+    (evidence / "collected").mkdir()
+    (evidence / "collected" / "real.log").write_text("x")
+    (evidence / "collected" / "evil_link").symlink_to(evidence / "collected" / "real.log")
+
+    with pytest.raises(FrozenSnapshotError) as excinfo:
+        _inventory(evidence)
+    assert "evil_link" in str(excinfo.value)
+    assert str(tmp_path) not in str(excinfo.value)
 
 
 def test_manifest_binds_the_complete_authorized_evidence_set(tmp_path):

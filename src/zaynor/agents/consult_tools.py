@@ -65,6 +65,7 @@ class ConsultTools:
         return {
             "mitre": [asdict(annotation) for annotation in self._package.framework.mitre],
             "nist": [asdict(annotation) for annotation in self._package.framework.nist],
+            "owasp": [asdict(annotation) for annotation in self._package.framework.owasp],
             "changes_verdict": False,
         }
 
