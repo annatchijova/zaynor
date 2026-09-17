@@ -249,12 +249,21 @@ same correlation store.
 ## Tests
 
 ```bash
+python3 scripts/run_lab_tests.py   # dependency-free: uses pytest when installed,
+                                   # falls back to a built-in stdlib runner
+# or, with pytest installed:
 pytest -q tests/test_velociraptor_adapter.py tests/test_aiops_aggregator.py
 ```
 
 They cover: window_hash derivation lockstep, fail-closed tamper checks,
 custody roles, deterministic mapping, per-window correlation, boundary
 label absence, and the Grafana rules-API ingestion path.
+
+CI runs the same gates on every PR: ruff (including `tools/`), the pytest
+suite, the commitlint full-history gate, and the demo-lab smoke job above
+(both offline demos through the real freeze/analyze/audit pipeline,
+asserting a sealed verdict). The same lab tests hook into
+`.pre-commit-config.yaml`, so a staged demo-lab change cannot skip them.
 
 ## Layout
 
@@ -270,6 +279,7 @@ tools/aiops/
                             bounded telemetry windows, bundle staging
     aggregator/evidence.py  telemetry windows -> ZAYNOR evidence profiles
     compose/                docker-compose + OTel/Prom/Loki/Tempo/Grafana
+scripts/run_lab_tests.py    dependency-free lab test runner (CI + pre-commit)
 scenarios/inc-2026-demo-001/velociraptor/   DFIR lab: activity simulation,
                                             collector spec, capture
 scenarios/inc-2026-aiops-001/               AIOps lab: alerts + window
