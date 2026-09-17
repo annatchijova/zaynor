@@ -1,0 +1,74 @@
+{
+  "case_id": "VIGIA-ANDROID11-001",
+  "snapshot": {
+    "status": "VERIFIED",
+    "manifest_sha256": "e91e9e84890ca27c00919e2f9c1bc04f3a78a4d2030bf956be7546d11428c5e0",
+    "evidence_set_sha256": "78e813623834d601a4880d01de05f2e2584a26cbae14dd538c402fe1d336e2af",
+    "artifact_count": 1,
+    "sealed_at": "2026-09-17T16:07:15.177197+00:00"
+  },
+  "authoritative_result": {
+    "case_id": "VIGIA-ANDROID11-001",
+    "verdict": "ABSTAIN",
+    "confidence": "UNKNOWN",
+    "findings": [
+      {
+        "finding_id": "F-VIGIA-ANDROID11-001",
+        "state": "ABSTAIN",
+        "rationale": "[MOTOR] Label-blind selection: ABSTAIN_DETECTED. INTAKE / INCOMPLETE ANALYSIS: evidence acquired but its content was not extracted/analyzed, or no user evidence was recovered — insufficient analysis to assert benignity. NOISE would overclaim a clean",
+        "evidence_refs": [
+          {
+            "artifact": "ANDROID11-ART-001",
+            "lineage_id": "ANDROID11-ART-001"
+          },
+          {
+            "artifact": "ANDROID11-ART-002",
+            "lineage_id": "ANDROID11-ART-002"
+          }
+        ],
+        "lineage_ids": [
+          "ANDROID11-ART-001",
+          "ANDROID11-ART-002"
+        ],
+        "mitre": null,
+        "nist": null
+      }
+    ],
+    "unknowns": [],
+    "hypotheses": [],
+    "fractures": [],
+    "signals": [],
+    "result_sha256": "292adb575ceb63701f20ad47320d8b4ae49cb7c060f10bb2f1072e4df32e863f",
+    "engine": {
+      "name": "vigia_agent",
+      "version": "1.0.0-SANS-2026",
+      "configuration_hash": "707372981e4168872cbfd349c3bb3a7700605907fd92dce6fe5211036e0c75a8"
+    },
+    "audit_refs": [
+      "0aed4562994f1a7409e066de293af46acdec4a78135d1617dcae79e1675daa35"
+    ]
+  },
+  "seal": {
+    "status": "VERIFIED",
+    "result_sha256": "292adb575ceb63701f20ad47320d8b4ae49cb7c060f10bb2f1072e4df32e863f",
+    "canonicalize_version": "zaynor-authority-v1"
+  },
+  "audit": {
+    "status": "VERIFIED",
+    "manifest": "VERIFIED",
+    "snapshot": "VERIFIED",
+    "evidence": "VERIFIED",
+    "result": "VERIFIED",
+    "seal": "VERIFIED",
+    "provenance": "EMPTY",
+    "checked_at": "2026-09-17T16:07:15.177197+00:00",
+    "detail": null
+  },
+  "investigation": {
+    "session_id": null,
+    "status": "NOT_STARTED",
+    "proposals": [],
+    "observations": [],
+    "authoritative_result_unchanged": true
+  }
+}

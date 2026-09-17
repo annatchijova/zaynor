@@ -342,6 +342,7 @@ function parseCaseSummary(value: unknown, path: string): CaseSummary {
   const record = requireRecord(value, path);
   return {
     case_id: requireString(record.case_id, `${path}.case_id`),
+    name: requireNullableString(record.name, `${path}.name`),
     verdict: requireEnum(record.verdict, verdicts, `${path}.verdict`) as Verdict,
     seal_status: requireEnum(record.seal_status, verificationStatuses, `${path}.seal_status`),
     updated_at: requireNullableString(record.updated_at, `${path}.updated_at`),

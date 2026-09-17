@@ -1,0 +1,15 @@
+[
+  {
+    "evidence_id": "VIGIA-FLAREON-6.json",
+    "type": "json",
+    "source": "manifest congelado",
+    "relative_path": "VIGIA-FLAREON-6.json",
+    "sha256": "0aa330007ee63619d4fda987c40cc90971553d1a677399883fa7ae57a6742d75",
+    "size_bytes": 27259,
+    "manifest_status": "VERIFIED",
+    "lineage_id": "VIGIA-FLAREON-6.json",
+    "provenance": [],
+    "finding_refs": [],
+    "metadata": {}
+  }
+]

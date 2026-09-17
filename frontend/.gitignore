@@ -4,3 +4,4 @@ coverage/
 *.tsbuildinfo
 .env*.local
 next-env.d.ts
+.vercel

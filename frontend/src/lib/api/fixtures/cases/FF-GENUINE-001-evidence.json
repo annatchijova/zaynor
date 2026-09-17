@@ -1,0 +1,15 @@
+[
+  {
+    "evidence_id": "FF-GENUINE-001.json",
+    "type": "json",
+    "source": "manifest congelado",
+    "relative_path": "FF-GENUINE-001.json",
+    "sha256": "3900f5762b64d74ac1a090a10f3ae0e50b9b071cfc50d122dbda6d3953a076d2",
+    "size_bytes": 7951,
+    "manifest_status": "VERIFIED",
+    "lineage_id": "FF-GENUINE-001.json",
+    "provenance": [],
+    "finding_refs": [],
+    "metadata": {}
+  }
+]

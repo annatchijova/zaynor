@@ -1,0 +1,15 @@
+[
+  {
+    "evidence_id": "case_093_deepfake_estilo.json",
+    "type": "json",
+    "source": "manifest congelado",
+    "relative_path": "case_093_deepfake_estilo.json",
+    "sha256": "debe84d8bfbd46fa82b3750d77fec2f5fd303383ea74f26dacf9affef44f26a0",
+    "size_bytes": 4032,
+    "manifest_status": "VERIFIED",
+    "lineage_id": "case_093_deepfake_estilo.json",
+    "provenance": [],
+    "finding_refs": [],
+    "metadata": {}
+  }
+]

@@ -61,7 +61,8 @@ export default async function OverviewPage() {
               <li key={caseSummary.case_id}>
                 <Link href={`/cases/${caseSummary.case_id}`}>
                   <div>
-                    <span className={styles.caseId}>{caseSummary.case_id}</span>
+                    <span className={styles.caseId}>{caseSummary.name ?? caseSummary.case_id}</span>
+                    {caseSummary.name ? <span className={styles.caseTime}>{caseSummary.case_id}</span> : null}
                     <span className={styles.caseTime}>
                       Actualizado: {formatDateTime(caseSummary.updated_at)}
                     </span>

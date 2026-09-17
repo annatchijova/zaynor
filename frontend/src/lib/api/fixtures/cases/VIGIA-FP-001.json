@@ -1,0 +1,74 @@
+{
+  "case_id": "VIGIA-FP-001",
+  "snapshot": {
+    "status": "VERIFIED",
+    "manifest_sha256": "e2254c4c2be9e340be514bf02fc7246399ed13544c5979a12d4bf6146c9be89e",
+    "evidence_set_sha256": "57a8aedd820b38a6b88325be50d12b5d11f75b2780f488dec6d3f0f78f7872ee",
+    "artifact_count": 1,
+    "sealed_at": "2026-09-17T16:07:10.045815+00:00"
+  },
+  "authoritative_result": {
+    "case_id": "VIGIA-FP-001",
+    "verdict": "ABSTAIN",
+    "confidence": "UNKNOWN",
+    "findings": [
+      {
+        "finding_id": "F-VIGIA-FP-001",
+        "state": "ABSTAIN",
+        "rationale": "[MOTOR] Label-blind selection: UNDETERMINED. Anomaly without sufficient structural support (score=0.0804)",
+        "evidence_refs": [
+          {
+            "artifact": "fp001_01",
+            "lineage_id": "fp001_01"
+          },
+          {
+            "artifact": "fp001_02",
+            "lineage_id": "fp001_02"
+          }
+        ],
+        "lineage_ids": [
+          "fp001_01",
+          "fp001_02"
+        ],
+        "mitre": null,
+        "nist": null
+      }
+    ],
+    "unknowns": [],
+    "hypotheses": [],
+    "fractures": [],
+    "signals": [],
+    "result_sha256": "c15dd5fd60019d3cca863a7d06f5c2f915978cc907b05d7d07c10072a06f5d53",
+    "engine": {
+      "name": "vigia_agent",
+      "version": "1.0.0-SANS-2026",
+      "configuration_hash": "3db603e35b3393a065acb67e2fdc10d7a438686b20fe7667b4ea4d963fa66eba"
+    },
+    "audit_refs": [
+      "eadbf5325644ba5407485521b6598ee1f5d504373cfe4bd557f699dfe54996c0"
+    ]
+  },
+  "seal": {
+    "status": "VERIFIED",
+    "result_sha256": "c15dd5fd60019d3cca863a7d06f5c2f915978cc907b05d7d07c10072a06f5d53",
+    "canonicalize_version": "zaynor-authority-v1"
+  },
+  "audit": {
+    "status": "VERIFIED",
+    "manifest": "VERIFIED",
+    "snapshot": "VERIFIED",
+    "evidence": "VERIFIED",
+    "result": "VERIFIED",
+    "seal": "VERIFIED",
+    "provenance": "EMPTY",
+    "checked_at": "2026-09-17T16:07:10.045815+00:00",
+    "detail": null
+  },
+  "investigation": {
+    "session_id": null,
+    "status": "NOT_STARTED",
+    "proposals": [],
+    "observations": [],
+    "authoritative_result_unchanged": true
+  }
+}

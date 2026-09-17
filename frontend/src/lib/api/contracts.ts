@@ -32,6 +32,7 @@ export interface EvidenceRef {
 
 export interface CaseSummary {
   readonly case_id: string;
+  readonly name: string | null;
   readonly verdict: Verdict;
   readonly seal_status: VerificationStatus;
   readonly updated_at: string | null;

@@ -1,0 +1,15 @@
+[
+  {
+    "evidence_id": "case_083_sacrificio_del_peon.json",
+    "type": "json",
+    "source": "manifest congelado",
+    "relative_path": "case_083_sacrificio_del_peon.json",
+    "sha256": "9518392475727ed07b9f44d551a9fd9b577a1fae785fbe756b6c62b50246fc18",
+    "size_bytes": 4274,
+    "manifest_status": "VERIFIED",
+    "lineage_id": "case_083_sacrificio_del_peon.json",
+    "provenance": [],
+    "finding_refs": [],
+    "metadata": {}
+  }
+]

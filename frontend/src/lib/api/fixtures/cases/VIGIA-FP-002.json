@@ -1,0 +1,74 @@
+{
+  "case_id": "VIGIA-FP-002",
+  "snapshot": {
+    "status": "VERIFIED",
+    "manifest_sha256": "aae4a9f0ad69010863a2f4f98445853e200472a62398499b99d15180ba7f32b0",
+    "evidence_set_sha256": "07e2c9dfda5c9e1b5e45ee1e39020cf43404dd90a8b8e6b5f97bb8bcd53522a9",
+    "artifact_count": 1,
+    "sealed_at": "2026-09-17T16:07:10.688081+00:00"
+  },
+  "authoritative_result": {
+    "case_id": "VIGIA-FP-002",
+    "verdict": "UNKNOWN",
+    "confidence": "UNKNOWN",
+    "findings": [
+      {
+        "finding_id": "F-VIGIA-FP-002",
+        "state": "UNKNOWN",
+        "rationale": "[MOTOR] Label-blind selection: NO_SEMIOTIC_ANOMALY_DETECTED. Insufficient evidence of malicious intent (score=0.0448)",
+        "evidence_refs": [
+          {
+            "artifact": "fp002_01",
+            "lineage_id": "fp002_01"
+          },
+          {
+            "artifact": "fp002_02",
+            "lineage_id": "fp002_02"
+          }
+        ],
+        "lineage_ids": [
+          "fp002_01",
+          "fp002_02"
+        ],
+        "mitre": null,
+        "nist": null
+      }
+    ],
+    "unknowns": [],
+    "hypotheses": [],
+    "fractures": [],
+    "signals": [],
+    "result_sha256": "3626708db7ff25096f3c46f1d7cf76e785110f5d9460e9da43757ea6a94ed23d",
+    "engine": {
+      "name": "vigia_agent",
+      "version": "1.0.0-SANS-2026",
+      "configuration_hash": "e33ad3f915bf8b6ddb8c894bf3c9744bb88a2ca89e20230fa2f49f4f51084616"
+    },
+    "audit_refs": [
+      "72e23d9c38c436de4feb6566920df9a01fd406891f60ecd455b0d612aaa7037c"
+    ]
+  },
+  "seal": {
+    "status": "VERIFIED",
+    "result_sha256": "3626708db7ff25096f3c46f1d7cf76e785110f5d9460e9da43757ea6a94ed23d",
+    "canonicalize_version": "zaynor-authority-v1"
+  },
+  "audit": {
+    "status": "VERIFIED",
+    "manifest": "VERIFIED",
+    "snapshot": "VERIFIED",
+    "evidence": "VERIFIED",
+    "result": "VERIFIED",
+    "seal": "VERIFIED",
+    "provenance": "EMPTY",
+    "checked_at": "2026-09-17T16:07:10.688081+00:00",
+    "detail": null
+  },
+  "investigation": {
+    "session_id": null,
+    "status": "NOT_STARTED",
+    "proposals": [],
+    "observations": [],
+    "authoritative_result_unchanged": true
+  }
+}

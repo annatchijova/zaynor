@@ -1,0 +1,84 @@
+{
+  "case_id": "case_008_paranoia_perimetro",
+  "snapshot": {
+    "status": "VERIFIED",
+    "manifest_sha256": "82b64669c85d4e92077f8b5ded05268a93da4b1270323670459c234e414e7639",
+    "evidence_set_sha256": "a50fb5dc75e1ab9f5282cb96d78d4a63ec788c98dc803565a078cc202a32149d",
+    "artifact_count": 1,
+    "sealed_at": "2026-09-17T16:06:10.959343+00:00"
+  },
+  "authoritative_result": {
+    "case_id": "case_008_paranoia_perimetro",
+    "verdict": "MALICE",
+    "confidence": "UNKNOWN",
+    "findings": [
+      {
+        "finding_id": "F-case_008_paranoia_perimetro",
+        "state": "MALICE",
+        "rationale": "[MOTOR] Label-blind selection: MALICIOUS_INTENT_DETECTED. Intent score 0.4551 exceeds MALICE threshold — corroboration branch: cross-domain (2 domains, 4 artifacts) (B-068 gate, R4-3 v2)",
+        "evidence_refs": [
+          {
+            "artifact": "a008_01",
+            "lineage_id": "a008_01"
+          },
+          {
+            "artifact": "a008_02",
+            "lineage_id": "a008_02"
+          },
+          {
+            "artifact": "a008_03",
+            "lineage_id": "a008_03"
+          },
+          {
+            "artifact": "a008_04",
+            "lineage_id": "a008_04"
+          }
+        ],
+        "lineage_ids": [
+          "a008_01",
+          "a008_02",
+          "a008_03",
+          "a008_04"
+        ],
+        "mitre": null,
+        "nist": null
+      }
+    ],
+    "unknowns": [],
+    "hypotheses": [],
+    "fractures": [],
+    "signals": [],
+    "result_sha256": "64382f18f7c368bd59f4f11abc8d3504879f66a2eb8a8410a9687f1e71a1fdcc",
+    "engine": {
+      "name": "vigia_agent",
+      "version": "1.0.0-SANS-2026",
+      "configuration_hash": "1da151d0deaeba5a3bc0429a0a660d9aeee404933e58070003c4f077bf0d0de7"
+    },
+    "audit_refs": [
+      "6c5e5535d7c4eaa031609395be196361085b2f6f02e766f8de1c2dae09b93475"
+    ]
+  },
+  "seal": {
+    "status": "VERIFIED",
+    "result_sha256": "64382f18f7c368bd59f4f11abc8d3504879f66a2eb8a8410a9687f1e71a1fdcc",
+    "canonicalize_version": "zaynor-authority-v1"
+  },
+  "audit": {
+    "status": "VERIFIED",
+    "manifest": "VERIFIED",
+    "snapshot": "VERIFIED",
+    "evidence": "VERIFIED",
+    "result": "VERIFIED",
+    "seal": "VERIFIED",
+    "provenance": "EMPTY",
+    "checked_at": "2026-09-17T16:06:10.959343+00:00",
+    "detail": null
+  },
+  "investigation": {
+    "session_id": null,
+    "status": "NOT_STARTED",
+    "proposals": [],
+    "observations": [],
+    "authoritative_result_unchanged": true
+  }
+}

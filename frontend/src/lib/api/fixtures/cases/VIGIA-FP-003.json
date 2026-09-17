@@ -1,0 +1,79 @@
+{
+  "case_id": "VIGIA-FP-003",
+  "snapshot": {
+    "status": "VERIFIED",
+    "manifest_sha256": "df5cbbffee3758b33d2faaccd43ec426919759effa222e4af111d6c838064b78",
+    "evidence_set_sha256": "4d96ad1addaad65de942e7d9dd025deed1ef9bf77aa6b083347d7d5ad1586606",
+    "artifact_count": 1,
+    "sealed_at": "2026-09-17T16:07:11.328086+00:00"
+  },
+  "authoritative_result": {
+    "case_id": "VIGIA-FP-003",
+    "verdict": "SUSPICION",
+    "confidence": "UNKNOWN",
+    "findings": [
+      {
+        "finding_id": "F-VIGIA-FP-003",
+        "state": "SUSPICION",
+        "rationale": "[MOTOR] Label-blind selection: SUSPICION_DETECTED. Significant signal with structural support (score=0.1762)",
+        "evidence_refs": [
+          {
+            "artifact": "fp003_01",
+            "lineage_id": "fp003_01"
+          },
+          {
+            "artifact": "fp003_02",
+            "lineage_id": "fp003_02"
+          },
+          {
+            "artifact": "fp003_03",
+            "lineage_id": "fp003_03"
+          }
+        ],
+        "lineage_ids": [
+          "fp003_01",
+          "fp003_02",
+          "fp003_03"
+        ],
+        "mitre": null,
+        "nist": null
+      }
+    ],
+    "unknowns": [],
+    "hypotheses": [],
+    "fractures": [],
+    "signals": [],
+    "result_sha256": "cffea3dbd8e108e55d440cf173fa81b9e0d5415bb505e7e24d80dcb582cf03ba",
+    "engine": {
+      "name": "vigia_agent",
+      "version": "1.0.0-SANS-2026",
+      "configuration_hash": "d2cde6f99f7ee9121a4b524400e04bc664105b9739dc6f08316ec2d9799c8368"
+    },
+    "audit_refs": [
+      "d8d1fabbaa1195b086429db28b4b36a59cdf7e443cc8eb12c21a752f58e72832"
+    ]
+  },
+  "seal": {
+    "status": "VERIFIED",
+    "result_sha256": "cffea3dbd8e108e55d440cf173fa81b9e0d5415bb505e7e24d80dcb582cf03ba",
+    "canonicalize_version": "zaynor-authority-v1"
+  },
+  "audit": {
+    "status": "VERIFIED",
+    "manifest": "VERIFIED",
+    "snapshot": "VERIFIED",
+    "evidence": "VERIFIED",
+    "result": "VERIFIED",
+    "seal": "VERIFIED",
+    "provenance": "EMPTY",
+    "checked_at": "2026-09-17T16:07:11.328086+00:00",
+    "detail": null
+  },
+  "investigation": {
+    "session_id": null,
+    "status": "NOT_STARTED",
+    "proposals": [],
+    "observations": [],
+    "authoritative_result_unchanged": true
+  }
+}

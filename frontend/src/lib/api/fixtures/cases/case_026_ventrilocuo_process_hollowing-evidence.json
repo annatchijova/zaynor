@@ -1,0 +1,15 @@
+[
+  {
+    "evidence_id": "case_026_ventrilocuo_process_hollowing.json",
+    "type": "json",
+    "source": "manifest congelado",
+    "relative_path": "case_026_ventrilocuo_process_hollowing.json",
+    "sha256": "18c93edf3b0930f9bc4120edd93b04439c7f8b508c23350a4d89930dbdea426c",
+    "size_bytes": 3857,
+    "manifest_status": "VERIFIED",
+    "lineage_id": "case_026_ventrilocuo_process_hollowing.json",
+    "provenance": [],
+    "finding_refs": [],
+    "metadata": {}
+  }
+]

@@ -1,0 +1,15 @@
+[
+  {
+    "evidence_id": "VIGIA-REAL-SONY-001.json",
+    "type": "json",
+    "source": "manifest congelado",
+    "relative_path": "VIGIA-REAL-SONY-001.json",
+    "sha256": "72c6bf2c0bf3daea5716a920faf4c1040ea32eb0e4cfa4f62455c374d9f83506",
+    "size_bytes": 20021,
+    "manifest_status": "VERIFIED",
+    "lineage_id": "VIGIA-REAL-SONY-001.json",
+    "provenance": [],
+    "finding_refs": [],
+    "metadata": {}
+  }
+]

@@ -5,6 +5,8 @@ import {
   case001Evidence,
   case001Narratives,
   caseSummaries,
+  demoCaseEvidence,
+  demoCases,
   emptyCaseSummaries,
   mockErrors,
   operationalHealth,
@@ -35,13 +37,17 @@ export interface MockApiDataset {
 }
 
 export const defaultMockDataset: MockApiDataset = {
-  cases: [case001],
+  cases: [case001, ...demoCases],
   caseSummaries,
   evidenceByCase: {
     [case001.case_id]: case001Evidence,
+    ...demoCaseEvidence,
   },
   health: operationalHealth,
   narrativesByCase: {
+    // Junior chat narration is only prepared for case001 today; the demo
+    // corpus's other cases correctly surface INVALID_REQUEST from
+    // MockApiClient.explain() rather than a fabricated narrative.
     [case001.case_id]: case001Narratives,
   },
 };

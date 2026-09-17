@@ -1,0 +1,15 @@
+[
+  {
+    "evidence_id": "case_008_paranoia_perimetro.json",
+    "type": "json",
+    "source": "manifest congelado",
+    "relative_path": "case_008_paranoia_perimetro.json",
+    "sha256": "b3a9f497a4e35c41aba0902777755063d25e9164eae73d0395a2bd86593c2177",
+    "size_bytes": 3720,
+    "manifest_status": "VERIFIED",
+    "lineage_id": "case_008_paranoia_perimetro.json",
+    "provenance": [],
+    "finding_refs": [],
+    "metadata": {}
+  }
+]

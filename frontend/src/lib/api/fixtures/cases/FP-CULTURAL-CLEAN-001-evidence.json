@@ -1,0 +1,15 @@
+[
+  {
+    "evidence_id": "FP-CULTURAL-CLEAN-001.json",
+    "type": "json",
+    "source": "manifest congelado",
+    "relative_path": "FP-CULTURAL-CLEAN-001.json",
+    "sha256": "709d3cb48771e4a762586b4243ed453e923f8ed5a4ffa291d7b3d4b5cdba6e7d",
+    "size_bytes": 6820,
+    "manifest_status": "VERIFIED",
+    "lineage_id": "FP-CULTURAL-CLEAN-001.json",
+    "provenance": [],
+    "finding_refs": [],
+    "metadata": {}
+  }
+]

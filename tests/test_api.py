@@ -1,15 +1,32 @@
 import json
 import shutil
 import textwrap
+from dataclasses import asdict
 from pathlib import Path
 
-from fastapi.testclient import TestClient
-
-from zaynor.agents.ollama_client import OllamaClient
-from zaynor.api import create_app
+from zaynor.agents.ollama_client import OllamaClient, OllamaError
+from zaynor.authority_seal import seal_authoritative_result
+from zaynor.api import ApiError, ChatRequest, create_app
 from zaynor.cli import main
+from zaynor.schemas import ZaynorAuthoritativeResult
 
 FIXTURE = Path(__file__).parent.parent / "scenarios" / "inc-2026-demo-001" / "telemetry.jsonl"
+
+
+def _route(app, path: str):
+    return next(route.endpoint for route in app.routes if route.path == path)
+
+
+def _chat(app, payload):
+    return _route(app, "/v1/chat/completions")(ChatRequest.model_validate(payload))
+
+
+def _api_error(call):
+    try:
+        call()
+    except ApiError as exc:
+        return exc
+    raise AssertionError("expected ApiError")
 
 
 def _analyzed_case(tmp_path: Path, capsys):
@@ -51,17 +68,122 @@ def _analyzed_case(tmp_path: Path, capsys):
     return output_root
 
 
+def _stored_case(tmp_path: Path, case_id: str = "CASE-API") -> Path:
+    output_root = tmp_path / "outputs"
+    case_dir = output_root / case_id
+    case_dir.mkdir(parents=True)
+    result = ZaynorAuthoritativeResult(
+        case_id=case_id,
+        engine={"name": "fixture", "version": "1", "configuration_hash": "fixture"},
+        verdict="ABSTAIN",
+        integrity={"confidence": "HIGH", "score": "0"},
+    )
+    seal = seal_authoritative_result(result)
+    (case_dir / "result.json").write_text(json.dumps(asdict(result)), encoding="utf-8")
+    (case_dir / "result.seal.json").write_text(json.dumps(asdict(seal)), encoding="utf-8")
+    return output_root
+
+
 def test_health_and_models(tmp_path):
-    client = TestClient(create_app(output_root=tmp_path / "outputs"))
-    assert client.get("/health").json() == {"status": "zaynor operational"}
-    models = client.get("/v1/models").json()
+    app = create_app(output_root=tmp_path / "outputs")
+    assert _route(app, "/health")() == {"status": "zaynor operational"}
+    models = _route(app, "/v1/models")()
     assert models["data"][0]["id"] == "zaynor-forensic"
 
 
 def test_cases_lists_only_analyzed_cases(tmp_path, capsys):
     output_root = _analyzed_case(tmp_path, capsys)
-    client = TestClient(create_app(output_root=output_root))
-    assert client.get("/cases").json() == {"cases": ["INC-API-CASE"]}
+    cases = _route(create_app(output_root=output_root), "/cases")()["cases"]
+    assert cases == [{
+        "case_id": "INC-API-CASE",
+        "name": None,
+        "has_result": True,
+        "has_seal": True,
+        "verification": "NOT_CHECKED",
+        "verdict": "UNKNOWN",
+        "seal_status": "UNKNOWN",
+        "updated_at": None,
+    }]
+
+
+def test_cases_do_not_claim_verification_from_file_presence(tmp_path):
+    output_root = _stored_case(tmp_path)
+    case = _route(create_app(output_root=output_root), "/cases")()["cases"][0]
+    assert case["verification"] == "NOT_CHECKED"
+    assert case["seal_status"] == "UNKNOWN"
+
+
+def test_chat_rejects_unsupported_model_and_stream(tmp_path):
+    output_root = _stored_case(tmp_path)
+    app = create_app(output_root=output_root)
+    unsupported = _api_error(lambda: _chat(app, {"model": "other-model", "messages": []}))
+    assert unsupported.status_code == 400
+    assert unsupported.code == "unsupported_model"
+    streamed = _api_error(lambda: _chat(app, {"model": "zaynor-forensic", "messages": [], "stream": True}))
+    assert streamed.status_code == 400
+    assert streamed.code == "stream_not_supported"
+
+
+def test_chat_missing_case_returns_safe_structured_error(tmp_path):
+    error = _api_error(lambda: _chat(create_app(output_root=tmp_path / "outputs"), {
+        "messages": [{"role": "user", "content": json.dumps({"case_id": "NEVER-ANALYZED", "question": "Verdict?"})}]
+    }))
+    assert error.status_code == 404
+    assert error.code == "case_not_found"
+
+
+def test_chat_rejects_tampered_stored_result_before_ollama(tmp_path, monkeypatch):
+    output_root = _stored_case(tmp_path)
+    result_path = output_root / "CASE-API" / "result.json"
+    payload = json.loads(result_path.read_text())
+    payload["verdict"] = "MALICE"
+    result_path.write_text(json.dumps(payload))
+    calls = []
+    monkeypatch.setattr(OllamaClient, "generate", lambda *args, **kwargs: calls.append(True) or "The verdict is MALICE.")
+
+    error = _api_error(lambda: _chat(create_app(output_root=output_root), {
+        "messages": [{"role": "user", "content": json.dumps({"case_id": "CASE-API", "question": "Verdict?"})}]
+    }))
+    assert error.status_code == 422
+    assert error.code == "invalid_authority"
+    assert calls == []
+
+
+def test_chat_rejects_invalid_seal_and_case_mismatch(tmp_path, monkeypatch):
+    output_root = _stored_case(tmp_path)
+    seal_path = output_root / "CASE-API" / "result.seal.json"
+    seal = json.loads(seal_path.read_text())
+    seal["sha256"] = "0" * 64
+    seal_path.write_text(json.dumps(seal))
+    calls = []
+    monkeypatch.setattr(OllamaClient, "generate", lambda *args, **kwargs: calls.append(True) or "narration")
+    invalid = _api_error(lambda: _chat(create_app(output_root=output_root), {
+        "messages": [{"role": "user", "content": json.dumps({"case_id": "CASE-API", "question": "Verdict?"})}],
+    }))
+    assert invalid.status_code == 422
+    assert invalid.code == "invalid_authority"
+    assert calls == []
+
+    output_root = _stored_case(tmp_path / "mismatch")
+    result_path = output_root / "CASE-API" / "result.json"
+    payload = json.loads(result_path.read_text())
+    payload["case_id"] = "OTHER-CASE"
+    result_path.write_text(json.dumps(payload))
+    mismatch = _api_error(lambda: _chat(create_app(output_root=output_root), {
+        "messages": [{"role": "user", "content": json.dumps({"case_id": "CASE-API", "question": "Verdict?"})}],
+    }))
+    assert mismatch.status_code == 422
+    assert mismatch.code == "invalid_authority"
+
+
+def test_chat_reports_ollama_unavailable_without_assistant_error_content(tmp_path, monkeypatch):
+    output_root = _stored_case(tmp_path)
+    monkeypatch.setattr(OllamaClient, "generate", lambda *args, **kwargs: (_ for _ in ()).throw(OllamaError("offline")))
+    error = _api_error(lambda: _chat(create_app(output_root=output_root), {
+        "messages": [{"role": "user", "content": json.dumps({"case_id": "CASE-API", "question": "Verdict?"})}],
+    }))
+    assert error.status_code == 503
+    assert error.code == "ollama_unavailable"
 
 
 def test_chat_completions_answers_a_known_case(tmp_path, capsys, monkeypatch):
@@ -69,19 +191,12 @@ def test_chat_completions_answers_a_known_case(tmp_path, capsys, monkeypatch):
     monkeypatch.setattr(
         OllamaClient, "generate", lambda self, *, system, prompt: "The verdict is ABSTAIN."
     )
-    client = TestClient(create_app(output_root=output_root))
-    response = client.post(
-        "/v1/chat/completions",
-        json={
-            "model": "zaynor-forensic",
-            "messages": [
-                {"role": "user", "content": json.dumps({"case_id": "INC-API-CASE", "question": "Verdict?"})}
-            ],
-        },
-    )
-    assert response.status_code == 200
-    body = response.json()
+    body = _chat(create_app(output_root=output_root), {
+        "model": "zaynor-forensic",
+        "messages": [{"role": "user", "content": json.dumps({"case_id": "INC-API-CASE", "question": "Verdict?"})}],
+    })
     assert body["choices"][0]["message"]["content"] == "The verdict is ABSTAIN."
+    assert "usage" not in body
 
 
 def test_chat_completions_accepts_plain_text_case_id_prefix(tmp_path, capsys, monkeypatch):
@@ -89,34 +204,24 @@ def test_chat_completions_accepts_plain_text_case_id_prefix(tmp_path, capsys, mo
     monkeypatch.setattr(
         OllamaClient, "generate", lambda self, *, system, prompt: "The verdict is ABSTAIN."
     )
-    client = TestClient(create_app(output_root=output_root))
-    response = client.post(
-        "/v1/chat/completions",
-        json={"messages": [{"role": "user", "content": "case_id: INC-API-CASE\nWhat happened?"}]},
-    )
-    content = response.json()["choices"][0]["message"]["content"]
+    body = _chat(create_app(output_root=output_root), {
+        "messages": [{"role": "user", "content": "case_id: INC-API-CASE\nWhat happened?"}],
+    })
+    content = body["choices"][0]["message"]["content"]
     assert content == "The verdict is ABSTAIN."
 
 
-def test_chat_completions_returns_usage_guidance_for_garbage_input(tmp_path):
-    client = TestClient(create_app(output_root=tmp_path / "outputs"))
-    response = client.post(
-        "/v1/chat/completions",
-        json={"messages": [{"role": "user", "content": "hello"}]},
-    )
-    content = response.json()["choices"][0]["message"]["content"]
-    assert "ZAYNOR Forensic Intelligence API" in content
+def test_chat_completions_rejects_malformed_input(tmp_path):
+    error = _api_error(lambda: _chat(create_app(output_root=tmp_path / "outputs"), {
+        "messages": [{"role": "user", "content": "hello"}],
+    }))
+    assert error.status_code == 400
+    assert error.code == "malformed_request"
 
 
 def test_chat_completions_rejects_an_unknown_case_id(tmp_path):
-    client = TestClient(create_app(output_root=tmp_path / "outputs"))
-    response = client.post(
-        "/v1/chat/completions",
-        json={
-            "messages": [
-                {"role": "user", "content": json.dumps({"case_id": "NEVER-ANALYZED", "question": "Verdict?"})}
-            ]
-        },
-    )
-    content = response.json()["choices"][0]["message"]["content"]
-    assert "could not answer" in content
+    error = _api_error(lambda: _chat(create_app(output_root=tmp_path / "outputs"), {
+        "messages": [{"role": "user", "content": json.dumps({"case_id": "NEVER-ANALYZED", "question": "Verdict?"})}],
+    }))
+    assert error.status_code == 404
+    assert error.code == "case_not_found"

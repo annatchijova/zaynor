@@ -1,0 +1,15 @@
+[
+  {
+    "evidence_id": "VIGIA-ANDROID11-001.json",
+    "type": "json",
+    "source": "manifest congelado",
+    "relative_path": "VIGIA-ANDROID11-001.json",
+    "sha256": "92939f5899ccbba8ad7c69d0213fedc0f5da64b39338dea65b3510d05611c1d3",
+    "size_bytes": 6569,
+    "manifest_status": "VERIFIED",
+    "lineage_id": "VIGIA-ANDROID11-001.json",
+    "provenance": [],
+    "finding_refs": [],
+    "metadata": {}
+  }
+]

@@ -1,0 +1,84 @@
+{
+  "case_id": "case_026_ventrilocuo_process_hollowing",
+  "snapshot": {
+    "status": "VERIFIED",
+    "manifest_sha256": "0e73775792bf08a2841e45e7be321b766582df4ad535520488b41eaf6f048d1f",
+    "evidence_set_sha256": "184fb5988e5248c7c9ef434a5b6328c6bfd862286ba45abb1766b1933c37aef5",
+    "artifact_count": 1,
+    "sealed_at": "2026-09-17T16:06:12.240801+00:00"
+  },
+  "authoritative_result": {
+    "case_id": "case_026_ventrilocuo_process_hollowing",
+    "verdict": "MALICE",
+    "confidence": "UNKNOWN",
+    "findings": [
+      {
+        "finding_id": "F-case_026_ventrilocuo_process_hollowing",
+        "state": "MALICE",
+        "rationale": "[MOTOR] Label-blind selection: MALICIOUS_INTENT_DETECTED. Intent score 0.4614 exceeds MALICE threshold — corroboration branch: cross-domain (2 domains, 4 artifacts) (B-068 gate, R4-3 v2)",
+        "evidence_refs": [
+          {
+            "artifact": "a026_01",
+            "lineage_id": "a026_01"
+          },
+          {
+            "artifact": "a026_02",
+            "lineage_id": "a026_02"
+          },
+          {
+            "artifact": "a026_03",
+            "lineage_id": "a026_03"
+          },
+          {
+            "artifact": "a026_04",
+            "lineage_id": "a026_04"
+          }
+        ],
+        "lineage_ids": [
+          "a026_01",
+          "a026_02",
+          "a026_03",
+          "a026_04"
+        ],
+        "mitre": null,
+        "nist": null
+      }
+    ],
+    "unknowns": [],
+    "hypotheses": [],
+    "fractures": [],
+    "signals": [],
+    "result_sha256": "5ad40af4b9ae146c3472369fa0aae89d3114e1c8175c6aebd44a6b73f36aa258",
+    "engine": {
+      "name": "vigia_agent",
+      "version": "1.0.0-SANS-2026",
+      "configuration_hash": "9bb1a991050af549a4d9128a2ec5dc1ac72187f96ad7b164fb0ac74098ac9f5b"
+    },
+    "audit_refs": [
+      "d2b40d29b5cf5bdcb40cb32d265363b7b0d7b87c92a08cf3a80935395166f3e6"
+    ]
+  },
+  "seal": {
+    "status": "VERIFIED",
+    "result_sha256": "5ad40af4b9ae146c3472369fa0aae89d3114e1c8175c6aebd44a6b73f36aa258",
+    "canonicalize_version": "zaynor-authority-v1"
+  },
+  "audit": {
+    "status": "VERIFIED",
+    "manifest": "VERIFIED",
+    "snapshot": "VERIFIED",
+    "evidence": "VERIFIED",
+    "result": "VERIFIED",
+    "seal": "VERIFIED",
+    "provenance": "EMPTY",
+    "checked_at": "2026-09-17T16:06:12.240801+00:00",
+    "detail": null
+  },
+  "investigation": {
+    "session_id": null,
+    "status": "NOT_STARTED",
+    "proposals": [],
+    "observations": [],
+    "authoritative_result_unchanged": true
+  }
+}

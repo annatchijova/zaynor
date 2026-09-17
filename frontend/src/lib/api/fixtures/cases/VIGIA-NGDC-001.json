@@ -1,0 +1,99 @@
+{
+  "case_id": "VIGIA-NGDC-001",
+  "snapshot": {
+    "status": "VERIFIED",
+    "manifest_sha256": "b1a3a06b68d98a30b8b565fa8c96f6e9284566f8c54c182203cac21f6321204b",
+    "evidence_set_sha256": "7c761e7904dee72637f84e51148fc659396c857ae4b6375aeee1ebdc4cefc047",
+    "artifact_count": 1,
+    "sealed_at": "2026-09-17T16:07:15.817418+00:00"
+  },
+  "authoritative_result": {
+    "case_id": "VIGIA-NGDC-001",
+    "verdict": "MALICE",
+    "confidence": "UNKNOWN",
+    "findings": [
+      {
+        "finding_id": "F-VIGIA-NGDC-001",
+        "state": "MALICE",
+        "rationale": "[MOTOR] Label-blind selection: MALICIOUS_INTENT_DETECTED. Intent score 0.7781 exceeds MALICE threshold — corroboration branch: cross-domain (4 domains, 6 artifacts) (B-068 gate, R4-3 v2)",
+        "evidence_refs": [
+          {
+            "artifact": "ngdc001_01",
+            "lineage_id": "ngdc001_01"
+          },
+          {
+            "artifact": "ngdc001_02",
+            "lineage_id": "ngdc001_02"
+          },
+          {
+            "artifact": "ngdc001_03",
+            "lineage_id": "ngdc001_03"
+          },
+          {
+            "artifact": "ngdc001_04",
+            "lineage_id": "ngdc001_04"
+          },
+          {
+            "artifact": "ngdc001_05",
+            "lineage_id": "ngdc001_05"
+          },
+          {
+            "artifact": "ngdc001_06",
+            "lineage_id": "ngdc001_06"
+          },
+          {
+            "artifact": "ngdc001_07",
+            "lineage_id": "ngdc001_07"
+          }
+        ],
+        "lineage_ids": [
+          "ngdc001_01",
+          "ngdc001_02",
+          "ngdc001_03",
+          "ngdc001_04",
+          "ngdc001_05",
+          "ngdc001_06",
+          "ngdc001_07"
+        ],
+        "mitre": null,
+        "nist": null
+      }
+    ],
+    "unknowns": [],
+    "hypotheses": [],
+    "fractures": [],
+    "signals": [],
+    "result_sha256": "1a4c0e496309b8cb2bc39c1ec92d936ae785cc5d0c0a113e7afa0668617b6231",
+    "engine": {
+      "name": "vigia_agent",
+      "version": "1.0.0-SANS-2026",
+      "configuration_hash": "7cf93428beeb634a6d5b7d6af204248648614639c54f9a13eb32770061fc4cae"
+    },
+    "audit_refs": [
+      "ac7421f14c50a38cdfdbb5e694fe89a53c6413766d89112a0c8dacaf62751429"
+    ]
+  },
+  "seal": {
+    "status": "VERIFIED",
+    "result_sha256": "1a4c0e496309b8cb2bc39c1ec92d936ae785cc5d0c0a113e7afa0668617b6231",
+    "canonicalize_version": "zaynor-authority-v1"
+  },
+  "audit": {
+    "status": "VERIFIED",
+    "manifest": "VERIFIED",
+    "snapshot": "VERIFIED",
+    "evidence": "VERIFIED",
+    "result": "VERIFIED",
+    "seal": "VERIFIED",
+    "provenance": "EMPTY",
+    "checked_at": "2026-09-17T16:07:15.817418+00:00",
+    "detail": null
+  },
+  "investigation": {
+    "session_id": null,
+    "status": "NOT_STARTED",
+    "proposals": [],
+    "observations": [],
+    "authoritative_result_unchanged": true
+  }
+}

@@ -1,0 +1,15 @@
+[
+  {
+    "evidence_id": "VIGIA-NGDC-003.json",
+    "type": "json",
+    "source": "manifest congelado",
+    "relative_path": "VIGIA-NGDC-003.json",
+    "sha256": "5c7fe3e24d02f7a9543c7f9945f341ef8ef3a106211af45323d4e1b0f6048ee9",
+    "size_bytes": 17137,
+    "manifest_status": "VERIFIED",
+    "lineage_id": "VIGIA-NGDC-003.json",
+    "provenance": [],
+    "finding_refs": [],
+    "metadata": {}
+  }
+]

@@ -1,0 +1,94 @@
+{
+  "case_id": "VIGIA-REAL-TARGET-001",
+  "snapshot": {
+    "status": "VERIFIED",
+    "manifest_sha256": "1673d6bcc0fbf77c5941e69ea2e98290a27b95038e9a794a1aaf78c380ba68e2",
+    "evidence_set_sha256": "f5c9b7c1fe68e968bb4647eef0250ba87b61bb954bdee8991b2ad1f4a6baee66",
+    "artifact_count": 1,
+    "sealed_at": "2026-09-17T16:06:16.731779+00:00"
+  },
+  "authoritative_result": {
+    "case_id": "VIGIA-REAL-TARGET-001",
+    "verdict": "SUSPICION",
+    "confidence": "UNKNOWN",
+    "findings": [
+      {
+        "finding_id": "F-VIGIA-REAL-TARGET-001",
+        "state": "SUSPICION",
+        "rationale": "[MOTOR] Label-blind selection: SUSPICION_DETECTED. Significant signal with structural support (score=0.3242)",
+        "evidence_refs": [
+          {
+            "artifact": "ART-001",
+            "lineage_id": "ART-001"
+          },
+          {
+            "artifact": "ART-002",
+            "lineage_id": "ART-002"
+          },
+          {
+            "artifact": "ART-003",
+            "lineage_id": "ART-003"
+          },
+          {
+            "artifact": "ART-004",
+            "lineage_id": "ART-004"
+          },
+          {
+            "artifact": "ART-005",
+            "lineage_id": "ART-005"
+          },
+          {
+            "artifact": "ART-006",
+            "lineage_id": "ART-006"
+          }
+        ],
+        "lineage_ids": [
+          "ART-001",
+          "ART-002",
+          "ART-003",
+          "ART-004",
+          "ART-005",
+          "ART-006"
+        ],
+        "mitre": null,
+        "nist": null
+      }
+    ],
+    "unknowns": [],
+    "hypotheses": [],
+    "fractures": [],
+    "signals": [],
+    "result_sha256": "f2c4731bb84ed7a3b44e1c4dc0f1263d3c9c6cf5e5580f93e0635f9c8f0d901e",
+    "engine": {
+      "name": "vigia_agent",
+      "version": "1.0.0-SANS-2026",
+      "configuration_hash": "769ef408c1363baba493b4122344a9266f8b9883c21424a21cdfed1d57dd03a4"
+    },
+    "audit_refs": [
+      "b4910746ffb50ef82c84fdec19e1068aef563a9b1db77efc9eb9cd0294edc867"
+    ]
+  },
+  "seal": {
+    "status": "VERIFIED",
+    "result_sha256": "f2c4731bb84ed7a3b44e1c4dc0f1263d3c9c6cf5e5580f93e0635f9c8f0d901e",
+    "canonicalize_version": "zaynor-authority-v1"
+  },
+  "audit": {
+    "status": "VERIFIED",
+    "manifest": "VERIFIED",
+    "snapshot": "VERIFIED",
+    "evidence": "VERIFIED",
+    "result": "VERIFIED",
+    "seal": "VERIFIED",
+    "provenance": "EMPTY",
+    "checked_at": "2026-09-17T16:06:16.731779+00:00",
+    "detail": null
+  },
+  "investigation": {
+    "session_id": null,
+    "status": "NOT_STARTED",
+    "proposals": [],
+    "observations": [],
+    "authoritative_result_unchanged": true
+  }
+}

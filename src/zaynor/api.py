@@ -19,20 +19,25 @@ seal-verified chat path, not two.
 from __future__ import annotations
 
 import json
+import logging
 import time
+import uuid
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from zaynor.agents.chat_service import answer_question
 from zaynor.agents.contracts import Audience
 from zaynor.agents.ollama_client import OllamaClient, OllamaError
-from zaynor.cli import CliInputError, _SAFE_CASE_ID, _load_stored_result, _load_stored_seal
+from zaynor.cli import CliInputError, _SAFE_CASE_ID, load_verified_stored_case
 
 _MODEL_ID = "zaynor-forensic"
+logger = logging.getLogger(__name__)
 
 
 class ChatMessage(BaseModel):
@@ -46,14 +51,24 @@ class ChatRequest(BaseModel):
     stream: bool = False
 
 
-def _usage_guidance() -> str:
-    return (
-        "ZAYNOR Forensic Intelligence API.\n\n"
-        'Send a chat message as JSON: {"case_id": "<ID>", "question": "<question>"}\n'
-        'or as plain text: "case_id: <ID>" on the first line, the question on the rest.\n\n'
-        "The case must already have been analyzed with `zaynor analyze` "
-        "(its result and seal are read from --output-root).\n"
-        "GET /cases lists analyzed cases. GET /health reports status."
+class ApiError(Exception):
+    def __init__(self, status_code: int, code: str, message: str, error_type: str):
+        self.status_code = status_code
+        self.code = code
+        self.message = message
+        self.error_type = error_type
+
+
+def _error_response(error: ApiError) -> JSONResponse:
+    return JSONResponse(
+        status_code=error.status_code,
+        content={
+            "error": {
+                "message": error.message,
+                "type": error.error_type,
+                "code": error.code,
+            }
+        },
     )
 
 
@@ -80,6 +95,15 @@ def create_app(
     timeout_seconds: int = 120,
 ) -> FastAPI:
     app = FastAPI(title="ZAYNOR Forensic Intelligence API", version="1.0")
+
+    @app.exception_handler(ApiError)
+    def api_error_handler(_request: Request, exc: ApiError) -> JSONResponse:
+        return _error_response(exc)
+
+    @app.exception_handler(RequestValidationError)
+    def request_validation_handler(_request: Request, _exc: RequestValidationError) -> JSONResponse:
+        return _error_response(ApiError(400, "malformed_request", "request body is invalid", "invalid_request_error"))
+
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["http://localhost:8080", "http://127.0.0.1:8080"],
@@ -103,49 +127,78 @@ def create_app(
         if not output_root.is_dir():
             return {"cases": []}
         cases = sorted(
-            entry.name
-            for entry in output_root.iterdir()
-            if entry.is_dir() and (entry / "result.json").is_file() and (entry / "result.seal.json").is_file()
+            [
+                {
+                    "case_id": entry.name,
+                    "name": None,
+                    "has_result": (entry / "result.json").is_file(),
+                    "has_seal": (entry / "result.seal.json").is_file(),
+                    "verification": "NOT_CHECKED",
+                    "verdict": "UNKNOWN",
+                    "seal_status": "UNKNOWN",
+                    "updated_at": None,
+                }
+                for entry in output_root.iterdir()
+                if entry.is_dir()
+                and not entry.is_symlink()
+                and ((entry / "result.json").is_file() or (entry / "result.seal.json").is_file())
+            ],
+            key=lambda item: item["case_id"],
         )
         return {"cases": cases}
 
     @app.post("/v1/chat/completions")
     def chat_completions(req: ChatRequest) -> dict[str, Any]:
+        if req.model != _MODEL_ID:
+            raise ApiError(400, "unsupported_model", "requested model is not supported", "invalid_request_error")
+        if req.stream:
+            raise ApiError(400, "stream_not_supported", "streaming is not supported", "invalid_request_error")
         user_messages = [message for message in req.messages if message.role == "user"]
-        content = _usage_guidance()
-        if user_messages:
-            case_id, question = _parse_request(user_messages[-1].content)
-            if not case_id or not question or not question.strip():
-                content = _usage_guidance()
-            elif not _SAFE_CASE_ID.fullmatch(case_id):
-                content = "Invalid case_id."
-            else:
-                try:
-                    case_dir = output_root / case_id
-                    result = _load_stored_result(case_id, case_dir / "result.json")
-                    seal = _load_stored_seal(case_dir / "result.seal.json")
-                    client = OllamaClient(host=ollama_host, model=model, timeout_seconds=timeout_seconds)
-                    checked = answer_question(
-                        question, result=result, seal=seal, client=client, audience=Audience.SENIOR
-                    )
-                    content = checked.safe_narration
-                    if checked.suspicious:
-                        content += (
-                            f"\n\n[warning: {checked.claims_hallucinated} unsupported claim(s) "
-                            "removed from the model output]"
-                        )
-                except (CliInputError, OllamaError) as exc:
-                    content = f"ZAYNOR could not answer: {exc}"
+        if not user_messages:
+            raise ApiError(400, "malformed_request", "a user message is required", "invalid_request_error")
+        case_id, question = _parse_request(user_messages[-1].content)
+        if not case_id or not question or not question.strip():
+            raise ApiError(400, "malformed_request", "case_id and question are required", "invalid_request_error")
+        if not _SAFE_CASE_ID.fullmatch(case_id):
+            raise ApiError(400, "invalid_case_id", "case_id is invalid", "invalid_request_error")
+        case_dir = output_root / case_id
+        if (
+            case_dir.is_symlink()
+            or not case_dir.is_dir()
+            or not (case_dir / "result.json").is_file()
+            or not (case_dir / "result.seal.json").is_file()
+        ):
+            raise ApiError(404, "case_not_found", "case is not available", "not_found_error")
+        try:
+            result, seal = load_verified_stored_case(
+                case_id, case_dir / "result.json", case_dir / "result.seal.json"
+            )
+            client = OllamaClient(host=ollama_host, model=model, timeout_seconds=timeout_seconds)
+            checked = answer_question(
+                question, result=result, seal=seal, client=client, audience=Audience.SENIOR
+            )
+        except CliInputError:
+            raise ApiError(422, "invalid_authority", "stored result or seal could not be verified", "authority_error") from None
+        except OllamaError:
+            raise ApiError(503, "ollama_unavailable", "local narration service is unavailable", "service_unavailable") from None
+        except Exception:
+            logger.exception("unexpected failure while narrating stored case")
+            raise ApiError(500, "internal_error", "internal server error", "server_error") from None
+        content = checked.safe_narration
+        if checked.suspicious:
+            content += (
+                f"\n\n[warning: {checked.claims_hallucinated} unsupported claim(s) "
+                "removed from the model output]"
+            )
 
         return {
-            "id": f"zaynor-{int(time.time())}",
+            "id": f"zaynor-{uuid.uuid4().hex}",
             "object": "chat.completion",
             "created": int(time.time()),
-            "model": req.model,
+            "model": _MODEL_ID,
             "choices": [
                 {"index": 0, "message": {"role": "assistant", "content": content}, "finish_reason": "stop"}
             ],
-            "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
         }
 
     return app

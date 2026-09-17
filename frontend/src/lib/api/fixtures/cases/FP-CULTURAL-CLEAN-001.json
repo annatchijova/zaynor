@@ -1,0 +1,79 @@
+{
+  "case_id": "FP-CULTURAL-CLEAN-001",
+  "snapshot": {
+    "status": "VERIFIED",
+    "manifest_sha256": "5ef20a1bee7ca9068ddf29de20632fbf6571661fee11a058fa1f889a387f0ac6",
+    "evidence_set_sha256": "7ad0afda94bc6e9c744dbb561468cd560dc34cacec7a1b86d26fb9493742d9e0",
+    "artifact_count": 1,
+    "sealed_at": "2026-09-17T16:07:09.405019+00:00"
+  },
+  "authoritative_result": {
+    "case_id": "FP-CULTURAL-CLEAN-001",
+    "verdict": "UNKNOWN",
+    "confidence": "UNKNOWN",
+    "findings": [
+      {
+        "finding_id": "F-FP-CULTURAL-CLEAN-001",
+        "state": "UNKNOWN",
+        "rationale": "[MOTOR] Label-blind selection: NO_SEMIOTIC_ANOMALY_DETECTED. Insufficient evidence of malicious intent (score=0.0659)",
+        "evidence_refs": [
+          {
+            "artifact": "cultural_clean_001",
+            "lineage_id": "cultural_clean_001"
+          },
+          {
+            "artifact": "technical_clean_001",
+            "lineage_id": "technical_clean_001"
+          },
+          {
+            "artifact": "technical_clean_002",
+            "lineage_id": "technical_clean_002"
+          }
+        ],
+        "lineage_ids": [
+          "cultural_clean_001",
+          "technical_clean_001",
+          "technical_clean_002"
+        ],
+        "mitre": null,
+        "nist": null
+      }
+    ],
+    "unknowns": [],
+    "hypotheses": [],
+    "fractures": [],
+    "signals": [],
+    "result_sha256": "6e89acafcf39bd6af8c8619065924dcd7c7cde819ab4ef3adfaedad76bc94090",
+    "engine": {
+      "name": "vigia_agent",
+      "version": "1.0.0-SANS-2026",
+      "configuration_hash": "6d974d2f193e1ba5a7b37cc8829199c4565c0f761ad393f5c2da53dd1fca791b"
+    },
+    "audit_refs": [
+      "c92ca0dc9f0021e3d3393a8c3592d8683bcc8dfa40682225482ba16f8dd57acf"
+    ]
+  },
+  "seal": {
+    "status": "VERIFIED",
+    "result_sha256": "6e89acafcf39bd6af8c8619065924dcd7c7cde819ab4ef3adfaedad76bc94090",
+    "canonicalize_version": "zaynor-authority-v1"
+  },
+  "audit": {
+    "status": "VERIFIED",
+    "manifest": "VERIFIED",
+    "snapshot": "VERIFIED",
+    "evidence": "VERIFIED",
+    "result": "VERIFIED",
+    "seal": "VERIFIED",
+    "provenance": "EMPTY",
+    "checked_at": "2026-09-17T16:07:09.405019+00:00",
+    "detail": null
+  },
+  "investigation": {
+    "session_id": null,
+    "status": "NOT_STARTED",
+    "proposals": [],
+    "observations": [],
+    "authoritative_result_unchanged": true
+  }
+}

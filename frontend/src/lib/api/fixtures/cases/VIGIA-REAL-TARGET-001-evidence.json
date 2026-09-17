@@ -1,0 +1,15 @@
+[
+  {
+    "evidence_id": "VIGIA-REAL-TARGET-001.json",
+    "type": "json",
+    "source": "manifest congelado",
+    "relative_path": "VIGIA-REAL-TARGET-001.json",
+    "sha256": "2d001773329eaabfd97046767ba97f182743682fad89cc569e393e7fff9d7b2f",
+    "size_bytes": 21952,
+    "manifest_status": "VERIFIED",
+    "lineage_id": "VIGIA-REAL-TARGET-001.json",
+    "provenance": [],
+    "finding_refs": [],
+    "metadata": {}
+  }
+]

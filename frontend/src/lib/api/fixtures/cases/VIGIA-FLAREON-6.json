@@ -1,0 +1,129 @@
+{
+  "case_id": "VIGIA-FLAREON-6",
+  "snapshot": {
+    "status": "VERIFIED",
+    "manifest_sha256": "37b7fdfbb949dce42bdb83a7133aface6ea79f79985f025f283f76497238afcd",
+    "evidence_set_sha256": "7322a60bea0c6b53d2891e9c8ce3aaef74a32f75eed6cad2f63eef5e9d6f5d71",
+    "artifact_count": 1,
+    "sealed_at": "2026-09-17T16:07:13.255828+00:00"
+  },
+  "authoritative_result": {
+    "case_id": "VIGIA-FLAREON-6",
+    "verdict": "MALICE",
+    "confidence": "UNKNOWN",
+    "findings": [
+      {
+        "finding_id": "F-VIGIA-FLAREON-6",
+        "state": "MALICE",
+        "rationale": "[MOTOR] Label-blind selection: MALICIOUS_INTENT_DETECTED. Intent score 0.7666 exceeds MALICE threshold — corroboration branch: cross-domain (3 domains, 13 artifacts) (B-068 gate, R4-3 v2)",
+        "evidence_refs": [
+          {
+            "artifact": "flareon6-zip-001",
+            "lineage_id": "flareon6-zip-001"
+          },
+          {
+            "artifact": "flareon6-ch1-memecat",
+            "lineage_id": "flareon6-ch1-memecat"
+          },
+          {
+            "artifact": "flareon6-ch2-overlong",
+            "lineage_id": "flareon6-ch2-overlong"
+          },
+          {
+            "artifact": "flareon6-ch3-flarebear",
+            "lineage_id": "flareon6-ch3-flarebear"
+          },
+          {
+            "artifact": "flareon6-ch4-dnschess",
+            "lineage_id": "flareon6-ch4-dnschess"
+          },
+          {
+            "artifact": "flareon6-ch5-demo",
+            "lineage_id": "flareon6-ch5-demo"
+          },
+          {
+            "artifact": "flareon6-ch6-bmphide",
+            "lineage_id": "flareon6-ch6-bmphide"
+          },
+          {
+            "artifact": "flareon6-ch7-wopr",
+            "lineage_id": "flareon6-ch7-wopr"
+          },
+          {
+            "artifact": "flareon6-ch8-snake",
+            "lineage_id": "flareon6-ch8-snake"
+          },
+          {
+            "artifact": "flareon6-ch9-reloadered",
+            "lineage_id": "flareon6-ch9-reloadered"
+          },
+          {
+            "artifact": "flareon6-ch10-mugatu",
+            "lineage_id": "flareon6-ch10-mugatu"
+          },
+          {
+            "artifact": "flareon6-ch11-vv_max",
+            "lineage_id": "flareon6-ch11-vv_max"
+          },
+          {
+            "artifact": "flareon6-ch12-help",
+            "lineage_id": "flareon6-ch12-help"
+          }
+        ],
+        "lineage_ids": [
+          "flareon6-zip-001",
+          "flareon6-ch1-memecat",
+          "flareon6-ch2-overlong",
+          "flareon6-ch3-flarebear",
+          "flareon6-ch4-dnschess",
+          "flareon6-ch5-demo",
+          "flareon6-ch6-bmphide",
+          "flareon6-ch7-wopr",
+          "flareon6-ch8-snake",
+          "flareon6-ch9-reloadered",
+          "flareon6-ch10-mugatu",
+          "flareon6-ch11-vv_max",
+          "flareon6-ch12-help"
+        ],
+        "mitre": null,
+        "nist": null
+      }
+    ],
+    "unknowns": [],
+    "hypotheses": [],
+    "fractures": [],
+    "signals": [],
+    "result_sha256": "1bf473e76e137de9a9e21091761b8ae896c52e6b4ca15cf7e9147876e8ad879f",
+    "engine": {
+      "name": "vigia_agent",
+      "version": "1.0.0-SANS-2026",
+      "configuration_hash": "e5ae30ea7d169dab8d15af9a19804c8052464da7a8c5e207434061b9be698a54"
+    },
+    "audit_refs": [
+      "0711756e7671de9f13c0ace7499a6168bad1dc1db25e554c273000f4c1c1aae2"
+    ]
+  },
+  "seal": {
+    "status": "VERIFIED",
+    "result_sha256": "1bf473e76e137de9a9e21091761b8ae896c52e6b4ca15cf7e9147876e8ad879f",
+    "canonicalize_version": "zaynor-authority-v1"
+  },
+  "audit": {
+    "status": "VERIFIED",
+    "manifest": "VERIFIED",
+    "snapshot": "VERIFIED",
+    "evidence": "VERIFIED",
+    "result": "VERIFIED",
+    "seal": "VERIFIED",
+    "provenance": "EMPTY",
+    "checked_at": "2026-09-17T16:07:13.255828+00:00",
+    "detail": null
+  },
+  "investigation": {
+    "session_id": null,
+    "status": "NOT_STARTED",
+    "proposals": [],
+    "observations": [],
+    "authoritative_result_unchanged": true
+  }
+}
