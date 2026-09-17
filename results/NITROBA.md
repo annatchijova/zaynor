@@ -1,11 +1,13 @@
 # ZAYNOR Forensic Report — NITROBA
 
+*Generated 2026-09-17T09:19:48-03:00 (Argentina time)*
+
 ## Overview — what kind of incident this is
 
 - **Case:** NITROBA
 - **Classification:** SUSPICION — no ATT&CK technique corroborated
 - **Confidence:** UNKNOWN
-- **Result SHA-256:** `8dd2e47d3cfd9a4c407376018fa07fa8aff0c4018e956003432f9b007fefdbbc`
+- **Result SHA-256:** `434cf0a51eaa0649e7a78a8941dfe4d3d6c9ce16c99b403c706e03889cb9089b`
 - **Engine:** vigia_agent 1.0.0-SANS-2026
 - **Findings / Unknowns:** 1 / 0
 
@@ -38,10 +40,8 @@ None declared.
 ## Chain of custody
 
 ```
-manifest_sha256           : 1768243e3d02cfdc9fa7226140bd628de7a639137ba48998d7e1985e60fdbe0b
-snapshot_sha256           : bbbfc9973c67fd76b2b39b28c783672812bc9f5a66c30e62a230b513a28194cb
-engine_configuration_hash : 8473accae535bdc076e0ad222bdfab0ba8b12c93cc4e865e3cf01f88a4126e32
-result_sha256             : 8dd2e47d3cfd9a4c407376018fa07fa8aff0c4018e956003432f9b007fefdbbc
+result_sha256 (deterministic): 434cf0a51eaa0649e7a78a8941dfe4d3d6c9ce16c99b403c706e03889cb9089b
+report_hash (timestamped)   : 77525b3df771a06e37e1346a8155489999dd564cb8961228371aec94970a88a4
 ```
 
 ## Methodology

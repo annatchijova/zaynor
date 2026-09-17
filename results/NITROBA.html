@@ -31,6 +31,7 @@ header.masthead h1{ font-family:var(--serif); font-weight:600; font-size:clamp(2
 .seal-line.fail{ background:var(--fail-bg); color:var(--fail-ink); }
 .seal-line.caution{ background:var(--caution-bg); color:var(--caution-ink); }
 .seal-line.muted{ background:var(--muted-bg); color:var(--muted-ink); }
+.generated-at{ font-family:var(--mono); font-size:11.5px; color:var(--ink-muted); margin:10px 0 0; }
 .summary-grid{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; margin:24px 0 18px; }
 .stat-tile{ border:1px solid var(--rule); border-radius:3px; padding:13px 15px; background:var(--bg-sunken); }
 .stat-tile strong{ display:block; color:var(--ink-muted); font:11px var(--mono); text-transform:uppercase; letter-spacing:.04em; }
@@ -68,6 +69,7 @@ nav.toc a:hover{ background:var(--bg-sunken); }
 <header class="masthead">
 <h1>ZAYNOR Forensic Report — NITROBA</h1>
 <span class="seal-line caution">verdict: SUSPICION — sealed, verify with `zaynor audit`</span>
+<p class="generated-at">Generated 2026-09-17T09:19:48-03:00 (Argentina time)</p>
 <div class="summary-grid">
 <div class="stat-tile"><strong>Confidence</strong><span>UNKNOWN</span></div>
 <div class="stat-tile"><strong>Engine</strong><span>vigia_agent 1.0.0-SANS-2026</span></div>
@@ -99,10 +101,8 @@ nav.toc a:hover{ background:var(--bg-sunken); }
   <details><summary>Evidence chain</summary><ul><li><code>NITROBA-ART-001</code> → <code>NITROBA-ART-001</code></li><li><code>NITROBA-ART-002</code> → <code>NITROBA-ART-002</code></li><li><code>NITROBA-ART-003</code> → <code>NITROBA-ART-003</code></li><li><code>NITROBA-ART-004</code> → <code>NITROBA-ART-004</code></li><li><code>NITROBA-ART-005</code> → <code>NITROBA-ART-005</code></li></ul></details>
 </article></section>
 <section id="unknowns"><h2>Unknowns</h2><ul class="plain"><li>None declared.</li></ul></section>
-<section id="chain-of-custody"><h2>Chain of custody</h2><div class="chain-block">manifest_sha256           : 1768243e3d02cfdc9fa7226140bd628de7a639137ba48998d7e1985e60fdbe0b
-snapshot_sha256           : bbbfc9973c67fd76b2b39b28c783672812bc9f5a66c30e62a230b513a28194cb
-engine_configuration_hash : 8473accae535bdc076e0ad222bdfab0ba8b12c93cc4e865e3cf01f88a4126e32
-result_sha256             : 8dd2e47d3cfd9a4c407376018fa07fa8aff0c4018e956003432f9b007fefdbbc</div></section>
+<section id="chain-of-custody"><h2>Chain of custody</h2><div class="chain-block">result_sha256 (deterministic): 434cf0a51eaa0649e7a78a8941dfe4d3d6c9ce16c99b403c706e03889cb9089b
+report_hash (timestamped)   : 77525b3df771a06e37e1346a8155489999dd564cb8961228371aec94970a88a4</div></section>
 <section id="methodology"><h2>Methodology</h2><p>The deterministic engine produces and seals the result before any language model is invoked. The model receives a compressed, read-only summary and narrates it; it cannot alter a verdict, a finding, or the seal. Every claim in a narration is checked against this sealed result before being shown (zaynor chat/serve). result_sha256 is the canonical SHA-256 seal of the authoritative result: recompute it independently with `zaynor audit` to confirm this report was not altered after the fact.</p></section>
 </div>
 </body>

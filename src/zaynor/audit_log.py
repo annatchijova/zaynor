@@ -55,6 +55,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from zaynor.argentina_time import format_argentina
 from zaynor.hmac_chain import compute_entry_hmac, resolve_hmac_key
 
 _GENESIS_PREFIX = b"ZAYNOR_AUDIT_GENESIS:"
@@ -97,6 +98,7 @@ class AuditEntry:
     action: str
     detail: dict[str, Any]
     reason: str
+    created_at: str
     prev_hash: str
     entry_hash: str
     entry_hmac: str | None = None
@@ -150,6 +152,7 @@ class AuditLog:
             "action": action,
             "detail": detail,
             "reason": reason,
+            "created_at": format_argentina(),
             "prev_hash": self._prev_hash,
         }
         entry_hash = hashlib.sha256(_canonical(body).encode("utf-8")).hexdigest()
@@ -234,6 +237,7 @@ class AuditLog:
                     "action": record["action"],
                     "detail": record["detail"],
                     "reason": record["reason"],
+                    "created_at": record["created_at"],
                     "prev_hash": record["prev_hash"],
                 }
                 expected_hash = hashlib.sha256(

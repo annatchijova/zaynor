@@ -153,3 +153,24 @@ def test_append_rejects_an_empty_reason(tmp_path):
 def test_genesis_hash_differs_per_case_id():
     assert genesis_hash("CASE-A") != genesis_hash("CASE-B")
     assert genesis_hash("CASE-A") == genesis_hash("CASE-A")
+
+
+def test_entries_carry_a_real_argentina_timestamp(tmp_path):
+    import re
+
+    entry = AuditLog(tmp_path / "audit.jsonl", case_id="CASE-1").append(
+        "CASE_FROZEN", {}, reason="frozen"
+    )
+    assert re.fullmatch(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}-03:00", entry.created_at)
+
+
+def test_tampering_with_created_at_breaks_the_hash(tmp_path):
+    path = tmp_path / "audit.jsonl"
+    AuditLog(path, case_id="CASE-1").append("CASE_FROZEN", {}, reason="frozen")
+    record = json.loads(path.read_text().strip())
+    record["created_at"] = "2000-01-01T00:00:00-03:00"
+    path.write_text(json.dumps(record) + "\n")
+
+    ok, message = AuditLog.verify_with_report(path, case_id="CASE-1")
+    assert not ok
+    assert "entry_hash mismatch" in message

@@ -30,8 +30,11 @@ seal (`zaynor audit`).
 
 from __future__ import annotations
 
+import hashlib
 from typing import Any
+from xml.sax.saxutils import escape
 
+from zaynor.argentina_time import format_argentina
 from zaynor.authority_seal import AuthoritySeal
 from zaynor.schemas import AuthoritativeFinding, ZaynorAuthoritativeResult
 
@@ -61,8 +64,11 @@ _METHODOLOGY = (
 
 
 def render_markdown(result: ZaynorAuthoritativeResult, seal: AuthoritySeal) -> str:
+    generated_at = format_argentina()
     lines = [
         f"# ZAYNOR Forensic Report — {result.case_id}",
+        "",
+        f"*Generated {generated_at} (Argentina time)*",
         "",
         "## Overview — what kind of incident this is",
         "",
@@ -113,7 +119,7 @@ def render_markdown(result: ZaynorAuthoritativeResult, seal: AuthoritySeal) -> s
     else:
         lines.append("None declared.")
     lines += ["", "## Chain of custody", "", "```"]
-    lines += [f"{label:<26}: {value}" for label, value in _custody_chain(result, seal)]
+    lines += [f"{label:<28}: {value}" for label, value in _custody_chain(seal, generated_at=generated_at)]
     lines += ["```", "", "## Methodology", "", _METHODOLOGY, ""]
     return "\n".join(lines)
 
@@ -208,29 +214,35 @@ def _agents_html() -> str:
     )
 
 
-def _custody_chain(result: ZaynorAuthoritativeResult, seal: AuthoritySeal) -> list[tuple[str, str]]:
-    """The real chain of hashes a sealed result rests on, in the order each
-    is fixed: evidence is frozen (manifest), then analyzed (snapshot), then
-    run through a specific engine configuration, then the result itself is
-    sealed. Each line is independently recomputable -- this is what
-    `zaynor audit` actually re-derives, not illustrative content.
+def _custody_chain(seal: AuthoritySeal, *, generated_at: str) -> list[tuple[str, str]]:
+    """Exactly two hashes, not VIGIA's four (manifest/snapshot/engine/seal —
+    real, but too many for a reader to hold onto at a glance; each of the
+    other two is still independently recomputable via `zaynor audit`, they
+    are just not the headline of this report).
+
+    One is bit-for-bit deterministic: `seal.sha256` never changes for the
+    same frozen case, reproducible by anyone who reruns `zaynor analyze`.
+    The other varies by design: `report_hash` folds in *when this specific
+    report was generated* (Argentina time — CLAUDE.md 5.2 keeps that
+    timestamp out of the sealed result itself; it only ever touches this
+    report-level, non-authoritative hash), so two reports of the identical
+    sealed result still produce distinguishable report_hash values.
     """
-    links = [
-        ("manifest_sha256", result.integrity.get("authorized_manifest_sha256")),
-        ("snapshot_sha256", result.integrity.get("analyzed_snapshot_sha256")),
-        ("engine_configuration_hash", result.engine.get("configuration_hash")),
-        ("result_sha256", seal.sha256),
+    report_hash = hashlib.sha256(f"{seal.sha256}:{generated_at}".encode("utf-8")).hexdigest()
+    return [
+        ("result_sha256 (deterministic)", seal.sha256),
+        ("report_hash (timestamped)", report_hash),
     ]
-    return [(label, str(value)) for label, value in links if value is not None]
 
 
 def render_html(result: ZaynorAuthoritativeResult, seal: AuthoritySeal) -> str:
+    generated_at = format_argentina()
     tone = _VERDICT_TONE.get(result.verdict, "muted")
     findings_html = "".join(_finding_card(f) for f in result.findings) or (
         '<p class="empty-state">No findings in this result.</p>'
     )
     unknowns_items = "".join(f"<li>{_escape_html(u)}</li>" for u in result.unknowns) or "<li>None declared.</li>"
-    chain_block = "\n".join(f"{label:<26}: {value}" for label, value in _custody_chain(result, seal))
+    chain_block = "\n".join(f"{label:<28}: {value}" for label, value in _custody_chain(seal, generated_at=generated_at))
     return f"""<!doctype html>
 <html lang="en">
 <head>
@@ -264,6 +276,7 @@ header.masthead h1{{ font-family:var(--serif); font-weight:600; font-size:clamp(
 .seal-line.fail{{ background:var(--fail-bg); color:var(--fail-ink); }}
 .seal-line.caution{{ background:var(--caution-bg); color:var(--caution-ink); }}
 .seal-line.muted{{ background:var(--muted-bg); color:var(--muted-ink); }}
+.generated-at{{ font-family:var(--mono); font-size:11.5px; color:var(--ink-muted); margin:10px 0 0; }}
 .summary-grid{{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; margin:24px 0 18px; }}
 .stat-tile{{ border:1px solid var(--rule); border-radius:3px; padding:13px 15px; background:var(--bg-sunken); }}
 .stat-tile strong{{ display:block; color:var(--ink-muted); font:11px var(--mono); text-transform:uppercase; letter-spacing:.04em; }}
@@ -301,6 +314,7 @@ nav.toc a:hover{{ background:var(--bg-sunken); }}
 <header class="masthead">
 <h1>ZAYNOR Forensic Report — {_escape_html(result.case_id)}</h1>
 <span class="seal-line {tone}">verdict: {_escape_html(result.verdict)} — sealed, verify with `zaynor audit`</span>
+<p class="generated-at">Generated {_escape_html(generated_at)} (Argentina time)</p>
 <div class="summary-grid">
 <div class="stat-tile"><strong>Confidence</strong><span>{_escape_html(str(result.integrity.get('confidence', 'UNKNOWN')))}</span></div>
 <div class="stat-tile"><strong>Engine</strong><span>{_escape_html(result.engine.get('name', 'unknown'))} {_escape_html(result.engine.get('version', ''))}</span></div>
@@ -346,8 +360,31 @@ def render_pdf(result: ZaynorAuthoritativeResult, seal: AuthoritySeal) -> bytes:
     except ImportError as exc:
         raise ReportError("PDF reports require the optional 'report' dependency: pip install -e '.[report]'") from exc
 
+    styles = getSampleStyleSheet()
+    table_header_style = styles["Normal"].clone("ZaynorTableHeader")
+    table_header_style.fontSize = 8
+    table_header_style.leading = 10
+    table_cell_style = styles["Normal"].clone("ZaynorTableCell")
+    table_cell_style.fontSize = 8
+    table_cell_style.leading = 10
+    table_cell_style.wordWrap = "CJK"
+
     def _table(rows: list[list[str]], col_widths: list[int] | None = None) -> Table:
-        table = Table(rows, repeatRows=1, colWidths=col_widths)
+        # Plain strings are not wrappable Table cells in ReportLab.  Long
+        # roles and finding rationales consequently run past the page edge.
+        wrapped_rows = [
+            [
+                Paragraph(
+                    escape(str(cell)).replace("\n", "<br/>") or "&#160;",
+                    table_header_style if row_index == 0 else table_cell_style,
+                )
+                for cell in row
+            ]
+            for row_index, row in enumerate(rows)
+        ]
+        if col_widths is None:
+            col_widths = [110, 75, 338] if len(rows[0]) == 3 else [70, 65, 70, 95, 223]
+        table = Table(wrapped_rows, repeatRows=1, colWidths=col_widths)
         table.setStyle(
             TableStyle(
                 [
@@ -360,9 +397,9 @@ def render_pdf(result: ZaynorAuthoritativeResult, seal: AuthoritySeal) -> bytes:
         )
         return table
 
-    styles = getSampleStyleSheet()
     buffer = BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=A4, title=f"ZAYNOR Forensic Report — {result.case_id}")
+    generated_at = format_argentina()
     story: list[Any] = [
         Paragraph(f"ZAYNOR Forensic Report — {result.case_id}", styles["Title"]),
         Spacer(1, 12),
@@ -398,7 +435,7 @@ def render_pdf(result: ZaynorAuthoritativeResult, seal: AuthoritySeal) -> bytes:
     for unknown in result.unknowns or ["None declared."]:
         story.append(Paragraph(f"- {unknown}", styles["Normal"]))
     story += [Spacer(1, 12), Paragraph("Chain of custody", styles["Heading2"])]
-    for label, value in _custody_chain(result, seal):
+    for label, value in _custody_chain(seal, generated_at=generated_at):
         story.append(Paragraph(f"{label}: {value}", styles["Code"]))
     story += [Spacer(1, 12), Paragraph("Methodology", styles["Heading2"]), Paragraph(_METHODOLOGY, styles["Normal"])]
     doc.build(story)
