@@ -72,7 +72,7 @@ should help preserve that usefulness as the project evolves.
    Then run the verification suite before proposing a change:
    ```bash
    python3 -m pytest tests/ -q
-   ruff check src tests scripts conftest.py
+   ruff check src tools tests scripts conftest.py
    ```
    `black --check src tests scripts conftest.py` and `mypy src/zaynor/`
    are advisory (the tree predates formatting; 20 pre-existing mypy notes

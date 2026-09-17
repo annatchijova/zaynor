@@ -75,7 +75,7 @@ el proyecto evoluciona.
    Y corré la suite de verificación antes de proponer un cambio:
    ```bash
    python3 -m pytest tests/ -q
-   ruff check src tests scripts conftest.py
+   ruff check src tools tests scripts conftest.py
    ```
    `black --check src tests scripts conftest.py` y `mypy src/zaynor/` son
    consultivos (el árbol es anterior al formateo; 20 notas preexistentes de

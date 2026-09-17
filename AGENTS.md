@@ -436,7 +436,7 @@ Run the real command; don't infer results from reading the code.
 
 ```bash
 python3 -m pytest tests/ -q
-ruff check src tests scripts conftest.py
+ruff check src tools tests scripts conftest.py
 black --check src tests scripts conftest.py   # advisory: tree predates formatting
 mypy src/zaynor/          # advisory: 20 pre-existing notes, see pyproject [tool.mypy]
 git log --format=%s | while IFS= read -r subject; do
