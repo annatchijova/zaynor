@@ -65,7 +65,9 @@ class Aggregator:
         self._lock = threading.Lock()
         self._incidents: dict[str, dict[str, Any]] = {}
         self._seen_alerts: dict[str, set[str]] = {}
-        self._by_service: dict[str, list[str]] = {}
+        # Correlation index is keyed by (service, environment): the same
+        # service in two environments is two independent incident domains.
+        self._by_service_env: dict[tuple[str, str], list[str]] = {}
 
     def ingest_alert(self, alert: dict[str, Any]) -> str | None:
         """Correlate one alert into an incident candidate. Returns the
@@ -104,7 +106,7 @@ class Aggregator:
         for incident_id in stale:
             self._incidents.pop(incident_id, None)
             self._seen_alerts.pop(incident_id, None)
-            for ids in self._by_service.values():
+            for ids in self._by_service_env.values():
                 if incident_id in ids:
                     ids.remove(incident_id)
 
@@ -112,8 +114,9 @@ class Aggregator:
         """Correlate by (service, environment) inside the time window: an
         alert joins an existing candidate when it falls within
         window_seconds of that candidate's span; otherwise a new
-        candidate opens with a deterministic id."""
-        for incident_id in self._by_service.get(service, ()):
+        candidate opens with a deterministic id. The same service in two
+        environments never shares a candidate."""
+        for incident_id in self._by_service_env.get((service, environment), ()):
             incident = self._incidents.get(incident_id)
             if incident is None:
                 continue
@@ -146,7 +149,7 @@ class Aggregator:
             ],
         }
         self._seen_alerts.setdefault(incident_id, set()).add(alert_name)
-        self._by_service.setdefault(service, []).append(incident_id)
+        self._by_service_env.setdefault((service, environment), []).append(incident_id)
         return incident_id
 
     def incidents(self) -> list[dict[str, Any]]:
@@ -500,6 +503,20 @@ def main(argv: list[str] | None = None) -> int:
     return 0
 
 
+def _record_in_window(record: dict[str, Any], service: str, start: datetime, end: datetime) -> bool:
+    """Evidence-typing gate for offline bundles: keep only records for the
+    incident's service whose timestamp falls inside the incident span plus
+    the correlation tolerance (the same margin the correlation step uses,
+    so an alert and its telemetry never split across bundles)."""
+    if record.get("service") != service:
+        return False
+    ts = parse_timestamp(record.get("timestamp"))
+    if ts is None:
+        return False
+    margin = timedelta(seconds=CORRELATION_WINDOW_SECONDS)
+    return start - margin <= ts <= end + margin
+
+
 def stage_all_incidents(
     aggregator: "Aggregator",
     alerts_dir: Path,
@@ -513,7 +530,9 @@ def stage_all_incidents(
 
     Live collection (prometheus_url/loki_url given) queries the backends;
     otherwise the telemetry window is read from files under `window_dir`
-    (the scenario's window/ directory). Returns the bundle paths.
+    (the scenario's window/ directory). In both modes the records are
+    scoped to the incident's service and time span: a bundle carries only
+    the evidence of the incident it belongs to. Returns the bundle paths.
     """
     staged = []
     for incident in aggregator.incidents():
@@ -524,7 +543,15 @@ def stage_all_incidents(
             logs = collect_loki_window(loki_url, incident["service"], start, end)
         else:
             base = window_dir or alerts_dir
-            samples, logs = load_typed_window_records(base)
+            loaded_samples, loaded_logs = load_typed_window_records(base)
+            samples = [
+                record for record in loaded_samples
+                if _record_in_window(record, incident["service"], start, end)
+            ]
+            logs = [
+                record for record in loaded_logs
+                if _record_in_window(record, incident["service"], start, end)
+            ]
         bundle_path = stage_incident_bundle(incident, samples, logs, staging_dir / incident["incident_id"])
         staged.append(bundle_path)
     return staged
