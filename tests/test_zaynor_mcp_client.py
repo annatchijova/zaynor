@@ -12,7 +12,6 @@ on a machine without a separate vigia-repo checkout.
 from __future__ import annotations
 
 import json
-from pathlib import Path
 
 import pytest
 

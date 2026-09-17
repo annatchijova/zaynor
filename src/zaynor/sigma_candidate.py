@@ -113,7 +113,7 @@ class SigmaCandidate:
             "# " + "=" * 60,
             f"title: {_yaml_scalar(self.title)}",
             "status: experimental",
-            f"description: >-",
+            "description: >-",
             f"  Candidate rule generated from ZAYNOR finding {self.finding_id}.",
             "  Not independently validated. Requires human review before deployment.",
             "logsource:",

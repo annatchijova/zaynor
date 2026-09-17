@@ -427,7 +427,7 @@ def render_pdf(result: ZaynorAuthoritativeResult, seal: AuthoritySeal) -> bytes:
     except ImportError as exc:
         raise ReportError("PDF reports require the optional 'report' dependency: pip install -e '.[report]'") from exc
 
-    _TONE_COLORS = {
+    tone_colors = {
         "ok": (colors.HexColor("#DFEDE2"), colors.HexColor("#2A5A3C")),
         "fail": (colors.HexColor("#F6E3D5"), colors.HexColor("#7A3A14")),
         "caution": (colors.HexColor("#F4EED8"), colors.HexColor("#765D1C")),
@@ -476,7 +476,7 @@ def render_pdf(result: ZaynorAuthoritativeResult, seal: AuthoritySeal) -> bytes:
         if row_tones:
             for row_index, tone in enumerate(row_tones, start=1):
                 if tone is not None:
-                    bg, _ = _TONE_COLORS.get(tone, _TONE_COLORS["muted"])
+                    bg, _ = tone_colors.get(tone, tone_colors["muted"])
                     style_commands.append(("BACKGROUND", (0, row_index), (-1, row_index), bg))
         table.setStyle(TableStyle(style_commands))
         return table
@@ -485,7 +485,7 @@ def render_pdf(result: ZaynorAuthoritativeResult, seal: AuthoritySeal) -> bytes:
     doc = SimpleDocTemplate(buffer, pagesize=A4, title=f"ZAYNOR Forensic Report — {result.case_id}")
     generated_at = format_argentina()
     verdict_tone = _VERDICT_TONE.get(result.verdict, "muted")
-    verdict_bg, verdict_ink = _TONE_COLORS.get(verdict_tone, _TONE_COLORS["muted"])
+    verdict_bg, verdict_ink = tone_colors.get(verdict_tone, tone_colors["muted"])
     verdict_style = styles["Normal"].clone("ZaynorVerdictBanner")
     verdict_style.fontSize = 12
     verdict_style.textColor = verdict_ink

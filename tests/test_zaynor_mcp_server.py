@@ -5,7 +5,6 @@ import pytest
 from zaynor.audit_log import AuditLog
 from zaynor.zaynor_mcp_server import (
     ZaynorMCPError,
-    _load_memory,
     zaynor_add_hypothesis,
     zaynor_list_memory,
     zaynor_note_question,

@@ -399,9 +399,6 @@ def _evidence_payload(case_id: str, cases_root: Path, result: ZaynorAuthoritativ
     case_dir = cases_root / case_id
     manifest = _load_case_manifest(case_dir)
     entries = _validated_entries(manifest, case_dir / "evidence")
-    referenced_artifacts = {
-        ref.artifact for finding in result.findings for ref in finding.evidence_refs
-    }
     payload = []
     for relative_path, sha256, size_bytes in entries:
         payload.append(
