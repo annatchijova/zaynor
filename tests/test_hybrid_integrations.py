@@ -8,6 +8,7 @@ from vendor.vigia_engine.vigia.core.canonicalize import _canonicalize
 from zaynor.hybrid_integrations import (
     HybridIntegrationError,
     materialize_window,
+    freeze_verified_window,
     record_window_context,
     remember_window_summary,
     verify_annaconda_window,
@@ -59,6 +60,15 @@ def test_artifact_id_cannot_escape_staging_root(tmp_path):
 def test_window_can_be_bound_to_the_requested_case(tmp_path):
     with pytest.raises(HybridIntegrationError, match="case_id"):
         materialize_window(_window(), tmp_path / "stage", expected_case_id="OTHER")
+
+
+def test_verified_window_uses_the_existing_case_freezer(tmp_path):
+    manifest, evidence = freeze_verified_window(
+        _window(), tmp_path / "stage", tmp_path / "cases", expected_case_id="CASE"
+    )
+    assert manifest.case_id == "CASE"
+    assert (evidence / "velociraptor/window.json").is_file()
+    assert (tmp_path / "cases/CASE/manifest.json").is_file()
 
 
 class Sink:

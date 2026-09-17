@@ -105,6 +105,20 @@ def materialize_window(
     return root, {"annaconda-window": files}
 
 
+def freeze_verified_window(
+    window: dict[str, Any], staging_root: Path, cases_root: Path, *, expected_case_id: str | None = None
+):
+    """Materialize and freeze a verified window through ZAYNOR's freezer."""
+    from zaynor.case_freezer import freeze_case
+
+    verify_annaconda_window(window)
+    case_id = expected_case_id or window["case_id"]
+    root, profile_map = materialize_window(
+        window, staging_root, expected_case_id=case_id
+    )
+    return freeze_case(case_id, "annaconda-window", profile_map, root, Path(cases_root))
+
+
 class ReasoningTraceSink(Protocol):
     """Subset implemented by CRONOS or a CRONOS MCP client."""
 
