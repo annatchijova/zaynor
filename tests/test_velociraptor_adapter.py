@@ -8,8 +8,6 @@ import pytest
 from vendor.vigia_engine.vigia.core.canonicalize import _canonicalize
 
 from tools.velociraptor.adapter import (
-    ChainOfCustody,
-    CollectionManifest,
     MockTransport,
     RestTransport,
     VelociraptorAdapter,
@@ -67,6 +65,16 @@ def test_mock_transport_replays_capture_rows():
     rows = list(mock.rows_for_artifact("sim-auth-events"))
     assert rows[0]["ref"] == "auth:E001"
     assert rows[1]["event"] == "ssh_session_start"
+
+
+def test_rest_transport_builds_basic_auth_header_and_bounded_client():
+    import base64
+
+    transport = RestTransport("http://127.0.0.1:8889", "admin", "secret")
+    expected = "Basic " + base64.b64encode(b"admin:secret").decode("ascii")
+    assert transport._headers()["Authorization"] == expected
+    anonymous = RestTransport("http://127.0.0.1:8889")
+    assert "Authorization" not in anonymous._headers()
 
 
 def test_normalize_timestamp_epoch_and_iso_and_garbage():

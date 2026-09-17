@@ -54,7 +54,7 @@ def run_pipeline(case_id: str, staging_dir: Path, cases_root: Path, output_root:
     from zaynor.cli import main as zaynor_main
 
     profile_map = {"aiops-evidence": ["aiops/evidence.json"]}
-    manifest, _evidence_dir = freeze_case(
+    _manifest, _evidence_dir = freeze_case(
         case_id, "aiops-evidence", profile_map, Path(staging_dir), Path(cases_root)
     )
     rc = zaynor_main(

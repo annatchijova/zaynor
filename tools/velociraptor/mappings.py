@@ -224,11 +224,6 @@ def _artifact_from_rule(
     known: set[str],
     window: dict[str, Any],
 ) -> dict[str, Any] | None:
-    metadata: dict[str, Any] = {
-        "transport": window.get("transport") if isinstance(window, dict) else None,
-        "lineage_id": rule.artifact_id,
-        "source_row_ref": row.get("ref") if isinstance(row.get("ref"), str) else None,
-    }
     description = rule.description
     if rule.rule_id == "rule-privileged-login-unknown-device" and known:
         device = row.get("device")

@@ -3,8 +3,6 @@
 import json
 from datetime import datetime, timedelta, timezone
 
-import pytest
-
 from tools.aiops.aggregator.app import (
     Aggregator,
     alerts_from_payload,
