@@ -312,9 +312,23 @@ class ObservationEnvelope:
             raise InvestigationContractError(f"invalid observation projection: {exc}") from exc
 
 
+_DEFAULT_MAX_STEPS = 20
+
+
 @dataclass(frozen=True)
 class InvestigationSession:
-    """Immutable investigation ledger anchored to one sealed result version."""
+    """Immutable investigation ledger anchored to one sealed result version.
+
+    `max_steps` is adapted from HolmesGPT's `tool_calling_llm.py` (Apache
+    2.0) — read there in full before writing this: a real, enforced cap
+    (`while i < max_steps: ... "Too many LLM calls - exceeded max_steps"`),
+    not an aspirational config value. ZAYNOR's version is simpler than
+    HolmesGPT's (which forces one final tool-less LLM call on the last
+    allowed step so the model can still synthesize an answer): here,
+    `add_proposal` refuses outright once the cap is hit, since a
+    `BoundedInvestigator` step is a single audited tool call, not an LLM
+    turn that could instead choose to stop calling tools on its own.
+    """
 
     session_id: str
     case_id: str
@@ -322,11 +336,14 @@ class InvestigationSession:
     proposals: tuple[InvestigationProposal, ...] = ()
     observations: tuple[ObservationEnvelope, ...] = ()
     status: InvestigationStatus = InvestigationStatus.OPEN
+    max_steps: int = _DEFAULT_MAX_STEPS
 
     def __post_init__(self) -> None:
         _text(self.session_id, "session_id")
         _text(self.case_id, "case_id")
         _sha256(self.base_result_sha256, "base_result_sha256")
+        if not isinstance(self.max_steps, int) or isinstance(self.max_steps, bool) or self.max_steps <= 0:
+            raise InvestigationContractError("max_steps must be a positive integer")
         if len({proposal.proposal_id for proposal in self.proposals}) != len(self.proposals):
             raise InvestigationContractError("session contains duplicate proposal_id")
         proposal_ids = {proposal.proposal_id for proposal in self.proposals}
@@ -343,6 +360,11 @@ class InvestigationSession:
             raise InvestigationContractError("proposal case_id does not match session")
         if any(item.proposal_id == proposal.proposal_id for item in self.proposals):
             raise InvestigationContractError("proposal_id already exists in session")
+        if len(self.proposals) >= self.max_steps:
+            raise InvestigationContractError(
+                f"too many investigation steps — exceeded max_steps: "
+                f"{len(self.proposals)}/{self.max_steps}"
+            )
         return replace(self, proposals=(*self.proposals, proposal))
 
     def record_observation(self, observation: ObservationEnvelope) -> "InvestigationSession":
@@ -363,6 +385,7 @@ class InvestigationSession:
             "proposals": [proposal.as_dict() for proposal in self.proposals],
             "observations": [observation.as_dict() for observation in self.observations],
             "status": self.status.value,
+            "max_steps": self.max_steps,
         }
 
     @property
@@ -373,7 +396,7 @@ class InvestigationSession:
     @classmethod
     def from_dict(cls, raw: Mapping[str, Any]) -> "InvestigationSession":
         """Restore a session and validate all case, reference, and hash links."""
-        fields = {"session_id", "case_id", "base_result_sha256", "proposals", "observations", "status"}
+        fields = {"session_id", "case_id", "base_result_sha256", "proposals", "observations", "status", "max_steps"}
         if not isinstance(raw, Mapping) or set(raw) != fields:
             raise InvestigationContractError("session projection has an invalid shape")
         try:
@@ -387,6 +410,7 @@ class InvestigationSession:
                 proposals=proposals,
                 observations=observations,
                 status=status,
+                max_steps=raw["max_steps"],
             )
         except (KeyError, TypeError, ValueError, InvestigationContractError) as exc:
             raise InvestigationContractError(f"invalid session projection: {exc}") from exc

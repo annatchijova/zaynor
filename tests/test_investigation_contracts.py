@@ -179,3 +179,32 @@ def test_authorized_facts_require_a_valid_seal_and_are_not_instructions():
     assert facts.epistemic_authority is EpistemicAuthority.AUTHORIZED
     assert facts.instruction_authority.value == "NONE"
     assert facts.verdict == "ABSTAIN"
+
+
+def test_session_defaults_to_a_reasonable_step_budget():
+    session = InvestigationSession("S-1", "CASE-1", "a" * 64)
+    assert session.max_steps == 20
+
+
+def test_session_rejects_a_non_positive_max_steps():
+    with pytest.raises(InvestigationContractError, match="max_steps"):
+        InvestigationSession("S-1", "CASE-1", "a" * 64, max_steps=0)
+    with pytest.raises(InvestigationContractError, match="max_steps"):
+        InvestigationSession("S-1", "CASE-1", "a" * 64, max_steps=-1)
+
+
+def test_add_proposal_refuses_once_the_step_budget_is_exhausted():
+    """Adapted from HolmesGPT's tool_calling_llm.py (Apache 2.0): a real,
+    enforced cap on investigation steps, not an aspirational config value.
+    """
+    session = InvestigationSession("S-1", "CASE-1", "a" * 64, max_steps=2)
+    session = session.add_proposal(_proposal(proposal_id="P-1"))
+    session = session.add_proposal(_proposal(proposal_id="P-2"))
+    with pytest.raises(InvestigationContractError, match="exceeded max_steps: 2/2"):
+        session.add_proposal(_proposal(proposal_id="P-3"))
+
+
+def test_session_projection_round_trips_max_steps():
+    session = InvestigationSession("S-1", "CASE-1", "a" * 64, max_steps=5)
+    restored = InvestigationSession.from_dict(session.as_dict())
+    assert restored.max_steps == 5
