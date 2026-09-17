@@ -1,0 +1,96 @@
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: Zaynor AIops demo
+    folder: Zaynor
+    interval: 10s
+    rules:
+      - uid: zaynor-high-error-rate
+        title: HighErrorRate
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 120, to: 0 }
+            datasourceUid: prom-lab
+            model:
+              expr: 'sum(rate(demo_errors_total[1m])) / clamp_min(sum(rate(demo_requests_total[1m])), 0.001)'
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator: { params: [0.05], type: gt }
+                  operator: { type: and }
+                  query: { params: [C] }
+                  reducer: { params: [], type: last }
+              datasource: { type: __expr__, uid: __expr__ }
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              reducer: last
+              refId: C
+              type: reduce
+        labels:
+          service: demo-api
+          environment: lab
+        for: 10s
+        notification_settings:
+          receiver: zaynor-aggregator
+        annotations:
+          summary: "demo-api error ratio above 5% (synthetic fault injection)"
+
+      - uid: zaynor-high-latency
+        title: HighLatency
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 120, to: 0 }
+            datasourceUid: prom-lab
+            model:
+              expr: 'histogram_quantile(0.95, sum(rate(demo_request_latency_ms_bucket[5m])) by (le))'
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator: { params: [300], type: gt }
+                  operator: { type: and }
+                  query: { params: [C] }
+                  reducer: { params: [], type: last }
+              datasource: { type: __expr__, uid: __expr__ }
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              reducer: last
+              refId: C
+              type: reduce
+        labels:
+          service: demo-api
+          environment: lab
+        for: 10s
+        notification_settings:
+          receiver: zaynor-aggregator
+        annotations:
+          summary: "demo-api p95 latency above 300ms (synthetic fault injection)"
+
+contactPoints:
+  - orgId: 1
+    name: zaynor-aggregator
+    receivers:
+      - uid: zaynor-aggregator-webhook
+        type: webhook
+        settings:
+          url: http://aggregator:8090/webhook/grafana
+          httpMethod: POST
+
+policies:
+  - orgId: 1
+    receiver: zaynor-aggregator
+    group_by: [service, alertname]

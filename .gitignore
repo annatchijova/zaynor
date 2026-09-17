@@ -27,3 +27,6 @@ node_modules/
 # Env / secrets
 .env
 .env.*
+
+# Demo lab generated outputs (cases, bundles, reports)
+results/

@@ -19,6 +19,31 @@ the git log; this file curates it.
 
 ### Added
 
+- Demo lab: local, fully synthetic DFIR and AIOps demonstration
+  environments feeding the existing `freeze` / `analyze` / `audit`
+  pipeline (`docs/demo-lab/README.md`). DFIR path: adapted
+  Velociraptor evidence collector (`tools/velociraptor/`) with
+  `MockTransport`/`RestTransport`, canonical `window_hash` in lockstep
+  with `hybrid_integrations`, collection manifest and custody, the
+  `INC-2026-DEMO-001` lab under `scenarios/`, and `scripts/demo_dfir.py`
+  (offline replay + live transport). AIOps path: docker-compose
+  observability stack (OTel Collector, Prometheus, Loki, Tempo, Grafana)
+  with every host-published port loopback-bound (lab-only exposure),
+  a synthetic service with fault injection, and an incident aggregator
+  (`tools/aiops/`) that correlates alert clusters by service,
+  environment, and time window into evidence bundles
+  (`tools/aiops/aggregator/`, `scripts/demo_aiops.py`); AIOps evidence
+  calibration is documented in ADR 0003
+  (`docs/adr/0003-aiops-evidence-profile-calibration.md`).
+- Demo-lab tests (`tests/test_velociraptor_adapter.py`,
+  `tests/test_aiops_aggregator.py`) and `scripts/run_lab_tests.py`, a
+  dependency-free runner (pytest when installed, stdlib fallback) shared
+  by CI, pre-commit, and contributors.
+- CI: ruff scope widened to `tools/`, and a `demo-lab smoke` job running
+  both offline demos through the real pipeline with sealed-verdict
+  assertions. `.pre-commit-config.yaml` gains local `py-compile` and
+  `lab-tests` hooks. `AGENTS.md` section 5 verification commands updated.
+
 - SDLC gate: `scripts/commitlint.py` (stdlib-only Conventional Commits
   validator, no Node required), installed as the `commit-msg` hook by
   `scripts/install-hooks.sh`, with the pre-gate history it grandfathers

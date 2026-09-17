@@ -406,9 +406,14 @@ Run the real command; don't infer results from reading the code.
 
 ```bash
 python3 -m pytest tests/ -q
-ruff check src tests scripts conftest.py
+python3 scripts/run_lab_tests.py   # demo-lab integration tests; stdlib runner, no deps
+ruff check src tools tests scripts conftest.py
 black --check src tests scripts conftest.py   # advisory: tree predates formatting
 mypy src/zaynor/          # advisory: 20 pre-existing notes, see pyproject [tool.mypy]
+# demo-lab smoke: offline DFIR + AIOps through the real freeze/analyze/audit
+# pipeline; the AIOps runner isolates each run, safe to repeat.
+python3 scripts/demo_dfir.py --mode mock
+python3 scripts/demo_aiops.py --mode file
 git log --format=%s | while IFS= read -r subject; do
   printf '%s\n' "$subject" | python3 scripts/commitlint.py
 done                       # every header on main passes the commit-msg gate

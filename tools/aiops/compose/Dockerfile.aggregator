@@ -1,0 +1,15 @@
+FROM python:3.12-slim
+WORKDIR /opt/aggregator
+COPY tools/aiops/aggregator/ /opt/aggregator/tools/aiops/aggregator/
+COPY tools/aiops/__init__.py /opt/aggregator/tools/aiops/__init__.py
+COPY tools/velociraptor/ /opt/aggregator/tools/velociraptor/
+COPY tools/__init__.py /opt/aggregator/tools/__init__.py
+COPY src/zaynor/ /opt/aggregator/src/zaynor/
+COPY src/zaynor/__init__.py /opt/aggregator/src/zaynor/__init__.py
+COPY vendor/vigia_engine/vigia/core/canonicalize.py /opt/aggregator/vendor/vigia_engine/vigia/core/canonicalize.py
+COPY vendor/vigia_engine/vigia/__init__.py /opt/aggregator/vendor/vigia_engine/vigia/__init__.py
+COPY vendor/vigia_engine/vigia/core/__init__.py /opt/aggregator/vendor/vigia_engine/vigia/core/__init__.py
+RUN mkdir -p /var/lib/zaynor-aiops/alerts /var/lib/zaynor-aiops/staging && touch /opt/aggregator/vendor/__init__.py /opt/aggregator/vendor/vigia_engine/__init__.py
+ENV PYTHONPATH=/opt/aggregator:/opt/aggregator/src
+EXPOSE 8090
+CMD ["python3", "-m", "tools.aiops.aggregator.app"]

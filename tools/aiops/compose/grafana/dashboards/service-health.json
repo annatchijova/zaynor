@@ -1,0 +1,57 @@
+{
+  "title": "Zaynor AIOps demo — service health",
+  "uid": "zaynor-aiops-health",
+  "tags": ["zaynor", "aiops", "demo"],
+  "timezone": "browser",
+  "refresh": "5s",
+  "time": { "from": "now-15m", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "title": "Request rate (1m)",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "sum(rate(demo_requests_total[1m]))",
+          "legendFormat": "requests/s"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Error ratio (SLO 1%)",
+      "type": "timeseries",
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 0.01 }
+            ]
+          }
+        }
+      },
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "sum(rate(demo_errors_total[1m])) / clamp_min(sum(rate(demo_requests_total[1m])), 0.001)",
+          "legendFormat": "error ratio"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "p95 request latency (ms)",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 8, "w": 24, "h": 8 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(demo_request_latency_ms_bucket[5m])) by (le))",
+          "legendFormat": "p95 ms"
+        }
+      ]
+    }
+  ]
+}
