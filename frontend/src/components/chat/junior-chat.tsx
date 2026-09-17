@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { type FormEvent, type KeyboardEvent, useState } from "react";
+import { type FormEvent, type KeyboardEvent, useEffect, useRef, useState } from "react";
 
 import { IntegrityBadge } from "@/components/ui/integrity-badge";
 import { VerdictPill } from "@/components/ui/verdict-pill";
@@ -13,11 +13,11 @@ import { presentNarrationError, type NarrationErrorPresentation } from "./narrat
 import styles from "./junior-chat.module.css";
 
 const suggestedQuestions = [
-  "¿Qué pasó?",
-  "¿Por qué el sistema sospecha?",
-  "¿Qué evidencia lo sostiene?",
-  "¿Qué todavía no sabemos?",
-  "¿Qué debería mirar después?",
+  "¿Qué encontró el motor y con qué evidencia lo sostiene?",
+  "¿Por qué el sistema llegó a este veredicto?",
+  "¿Qué preguntas todavía quedan sin responder?",
+  "¿Qué debería revisar primero como analista junior?",
+  "¿Este resultado podría cambiar con más evidencia?",
 ] as const;
 
 interface AnswerMessage {
@@ -42,7 +42,7 @@ interface JuniorChatProps {
 
 function EvidenceCitations({ caseId, references }: { readonly caseId: string; readonly references: readonly EvidenceRef[] }) {
   if (references.length === 0) {
-    return <p className={styles.emptyCitation}>Esta respuesta no incorpora referencias de evidencia adicionales.</p>;
+    return <p className={styles.emptyCitation}>Sin referencias de evidencia adicionales.</p>;
   }
 
   return (
@@ -70,13 +70,12 @@ function AssistantAnswer({
   const evidenceRefsId = `evidence-refs-${messageId}`;
 
   return (
-    <article aria-label="Respuesta narrativa verificada" className={styles.answer}>
-      <header className={styles.answerHeader}>
-        <span className={styles.answerLabel}>Narración sobre paquete sellado</span>
+    <div aria-label="Respuesta narrativa verificada">
+      <div className={styles.answerHead}>
         <span className={styles.certainty} data-certainty={answer.certainty}>
           Certeza: {answer.certainty}
         </span>
-      </header>
+      </div>
       <p className={styles.narrative}>{answer.narrative}</p>
       <div className={styles.citations}>
         <section aria-labelledby={findingRefsId}>
@@ -97,7 +96,7 @@ function AssistantAnswer({
         </section>
       </div>
       <p className={styles.answerDisclaimer}>{answer.disclaimer}</p>
-    </article>
+    </div>
   );
 }
 
@@ -107,6 +106,14 @@ export function JuniorChat({ caseId, sealStatus, verdict }: JuniorChatProps) {
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<NarrationErrorPresentation | null>(null);
   const [status, setStatus] = useState("");
+  const threadRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    const node = threadRef.current;
+    if (node) {
+      node.scrollTop = node.scrollHeight;
+    }
+  }, [messages, isSending, error]);
 
   async function sendQuestion(rawQuestion: string) {
     const submittedQuestion = rawQuestion.trim();
@@ -158,112 +165,114 @@ export function JuniorChat({ caseId, sealStatus, verdict }: JuniorChatProps) {
 
   return (
     <div className={styles.chat}>
-      <header className={styles.header}>
-        <div>
-          <p className={styles.eyebrow}>Explicación para análisis inicial</p>
-          <h1>Consultá el caso sin alterar su resultado</h1>
-          <p>
-            Las respuestas se limitan al paquete autoritativo sellado. No incluyen razonamiento interno
-            del modelo ni hechos no verificados.
-          </p>
-        </div>
-        <div aria-label="Estado autoritativo del caso" className={styles.caseStatus}>
-          <span className={styles.caseId}>{caseId}</span>
-          <VerdictPill verdict={verdict} />
-          <IntegrityBadge label="Sello" status={sealStatus} />
-        </div>
-      </header>
-
-      <aside className={styles.authorityNotice}>
-        <strong>La explicación no modifica el veredicto autoritativo.</strong>
-        <span>La evidencia congelada y el motor determinista conservan la autoridad.</span>
-      </aside>
-
-      <section aria-labelledby="suggested-questions-title" className={styles.suggestions}>
-        <div>
-          <p className={styles.eyebrow}>Preguntas permitidas</p>
-          <h2 id="suggested-questions-title">Empezá con una pregunta sobre el resultado</h2>
-        </div>
-        <div className={styles.suggestionList}>
-          {suggestedQuestions.map((suggestedQuestion) => (
-            <button
-              disabled={isSending}
-              key={suggestedQuestion}
-              onClick={() => void sendQuestion(suggestedQuestion)}
-              type="button"
-            >
-              {suggestedQuestion}
-            </button>
-          ))}
-        </div>
-      </section>
-
-      <section aria-labelledby="conversation-title" className={styles.conversation}>
-        <div className={styles.conversationHeading}>
+      <div className={styles.console}>
+        <header className={styles.consoleHeader}>
           <div>
-            <p className={styles.eyebrow}>Conversación</p>
-            <h2 id="conversation-title">Respuestas con fuentes</h2>
+            <span className={styles.eyebrow}>Consola junior</span>
+            <h1>
+              Consultá el caso <span className={styles.thin}>— sin alterar su resultado</span>
+            </h1>
           </div>
-          <Link href={`/cases/${caseId}/evidence`}>Abrir evidencia</Link>
-        </div>
+          <div aria-label="Estado autoritativo del caso" className={styles.caseStatus}>
+            <span className={styles.caseId}>{caseId}</span>
+            <VerdictPill verdict={verdict} />
+            <IntegrityBadge label="Sello" status={sealStatus} />
+          </div>
+        </header>
 
-        {messages.length === 0 ? (
-          <p className={styles.emptyThread}>
-            Elegí una pregunta sugerida o escribí una consulta acotada al resultado sellado.
-          </p>
-        ) : (
-          <ol className={styles.messageList}>
-            {messages.map((message) => (
-              <li key={message.id}>
+        <div className={styles.thread} ref={threadRef}>
+          <div className={`${styles.msg} ${styles.mentor}`}>
+            <span className={styles.who}>ZAYNOR</span>
+            <div className={`${styles.bubble} ${styles.intro}`}>
+              La explicación se limita al paquete autoritativo ya sellado. No incluye razonamiento interno
+              del modelo ni hechos no verificados — lo que no se puede sostener contra el resultado se
+              marca y se retira antes de mostrarse. No hay preguntas equivocadas.
+            </div>
+          </div>
+
+          {messages.map((message) => (
+            <div className={`${styles.msg} ${message.kind === "question" ? styles.user : styles.mentor}`} key={message.id}>
+              <span className={styles.who}>{message.kind === "question" ? "Vos" : "ZAYNOR"}</span>
+              <div className={styles.bubble}>
                 {message.kind === "question" ? (
-                  <article className={styles.question}>
-                    <span>Tu consulta</span>
-                    <p>{message.value}</p>
-                  </article>
+                  message.value
                 ) : (
                   <AssistantAnswer answer={message.value} caseId={caseId} messageId={message.id} />
                 )}
-              </li>
-            ))}
-          </ol>
-        )}
+              </div>
+            </div>
+          ))}
 
-        {isSending ? <p className={styles.pending}>Consultando el paquete sellado…</p> : null}
-        {status ? <p aria-live="polite" className="visually-hidden">{status}</p> : null}
-        {error ? (
-          <section aria-labelledby="narration-error-title" className={styles.error} role="alert">
-            <h3 id="narration-error-title">{error.title}</h3>
-            <p>{error.detail}</p>
-          </section>
-        ) : null}
-      </section>
+          {isSending ? (
+            <div className={`${styles.msg} ${styles.mentor}`}>
+              <span className={styles.who}>ZAYNOR</span>
+              <div className={`${styles.bubble} ${styles.thinking}`}>Consultando el paquete sellado…</div>
+            </div>
+          ) : null}
 
-      <form className={styles.composer} onSubmit={handleSubmit}>
-        <label htmlFor="junior-question">Pregunta sobre el caso</label>
-        <p id="junior-question-hint">
-          Usá las preguntas sugeridas o consultá exclusivamente sobre evidencia, hallazgos e incertidumbres selladas.
-        </p>
-        <textarea
-          aria-describedby="junior-question-hint"
-          disabled={isSending}
-          enterKeyHint="send"
-          id="junior-question"
-          maxLength={500}
-          name="question"
-          onChange={(event) => setQuestion(event.target.value)}
-          onKeyDown={handleComposerKeyDown}
-          placeholder="Escribí una pregunta sobre el caso"
-          required
-          rows={3}
-          value={question}
-        />
-        <div className={styles.composerFooter}>
-          <span>Enter para enviar · Shift + Enter para una nueva línea</span>
-          <button disabled={isSending} type="submit">
-            {isSending ? "Consultando…" : "Consultar paquete sellado"}
-          </button>
+          {error ? (
+            <div className={`${styles.msg} ${styles.mentor}`} role="alert">
+              <span className={styles.who}>Error</span>
+              <div className={`${styles.bubble} ${styles.errorBubble}`}>
+                <strong>{error.title}</strong>
+                <p>{error.detail}</p>
+              </div>
+            </div>
+          ) : null}
         </div>
-      </form>
+
+        {messages.length === 0 && !isSending ? (
+          <div aria-label="Preguntas sugeridas" className={styles.chips}>
+            {suggestedQuestions.map((suggestedQuestion) => (
+              <button
+                className={styles.chip}
+                disabled={isSending}
+                key={suggestedQuestion}
+                onClick={() => void sendQuestion(suggestedQuestion)}
+                type="button"
+              >
+                {suggestedQuestion}
+              </button>
+            ))}
+          </div>
+        ) : null}
+
+        <form className={styles.composer} onSubmit={handleSubmit}>
+          <label className="visually-hidden" htmlFor="junior-question">
+            Pregunta sobre el caso
+          </label>
+          <textarea
+            aria-describedby="junior-question-hint"
+            disabled={isSending}
+            enterKeyHint="send"
+            id="junior-question"
+            maxLength={500}
+            name="question"
+            onChange={(event) => setQuestion(event.target.value)}
+            onKeyDown={handleComposerKeyDown}
+            placeholder="Preguntale al caso…"
+            required
+            rows={1}
+            value={question}
+          />
+          <button disabled={isSending} type="submit">
+            {isSending ? "Consultando…" : "Enviar"}
+          </button>
+        </form>
+        <p className="visually-hidden" id="junior-question-hint">
+          Enter para enviar, Shift + Enter para una nueva línea. Máximo 500 caracteres.
+        </p>
+      </div>
+
+      <p className={styles.footNote}>
+        ZAYNOR narra a partir de un resultado ya sellado; nunca decide el veredicto.{" "}
+        <Link href={`/cases/${caseId}/evidence`}>Abrir evidencia</Link>
+      </p>
+      {status ? (
+        <p aria-live="polite" className="visually-hidden">
+          {status}
+        </p>
+      ) : null}
     </div>
   );
 }
