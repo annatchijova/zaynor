@@ -68,6 +68,35 @@ def _engine_display(result: ZaynorAuthoritativeResult) -> str:
     return f"{_ENGINE_DISPLAY_NAME} {version}".rstrip()
 
 
+def _state_tone(state: str) -> str:
+    """Same tone vocabulary as `_VERDICT_TONE`, applied to a per-finding
+    state. Falls back to "muted" for a state outside that vocabulary
+    (e.g. a synthetic test fixture's "CORROBORATED") rather than guessing.
+    """
+    return _VERDICT_TONE.get(state, "muted")
+
+
+def _engine_stats(result: ZaynorAuthoritativeResult) -> list[tuple[str, str]]:
+    """Stat tiles built only from fields the pipeline actually populates.
+
+    `result.integrity["confidence"]` is part of the schema (some test
+    fixtures and future engine paths set it) but the real Mode 1 adapter
+    path (`zaynor_mode1_executor.py`) never writes it -- every report from
+    a real `zaynor analyze` run would otherwise show a permanent
+    "Confidence: UNKNOWN" tile. `iterations_executed` and
+    `self_corrections_applied` are what that same path always writes, so
+    they anchor the stat row whether or not `confidence` is present.
+    """
+    stats: list[tuple[str, str]] = []
+    if "confidence" in result.integrity:
+        stats.append(("Confidence", str(result.integrity["confidence"])))
+    stats.append(("Iterations", str(result.integrity.get("iterations_executed", "UNKNOWN"))))
+    stats.append(("Self-corrections", str(result.integrity.get("self_corrections_applied", "UNKNOWN"))))
+    stats.append(("Engine", _engine_display(result)))
+    stats.append(("Findings", str(len(result.findings))))
+    return stats
+
+
 _METHODOLOGY = (
     "The deterministic engine produces and seals the result before any "
     "language model is invoked. The model receives a compressed, read-only "
@@ -91,10 +120,9 @@ def render_markdown(result: ZaynorAuthoritativeResult, seal: AuthoritySeal) -> s
         "",
         f"- **Case:** {result.case_id}",
         f"- **Classification:** {_incident_classification(result)}",
-        f"- **Confidence:** {result.integrity.get('confidence', 'UNKNOWN')}",
         f"- **Result SHA-256:** `{seal.sha256}`",
-        f"- **Engine:** {_engine_display(result)}",
-        f"- **Findings / Unknowns:** {len(result.findings)} / {len(result.unknowns)}",
+        *[f"- **{label}:** {value}" for label, value in _engine_stats(result)],
+        f"- **Unknowns:** {len(result.unknowns)}",
         "",
         "## Agents in this pipeline",
         "",
@@ -160,13 +188,14 @@ _VERDICT_TONE = {
 
 def _finding_card(finding: AuthoritativeFinding) -> str:
     technique = (finding.mitre or {}).get("technique", "-") if finding.mitre else "-"
+    tone = _state_tone(finding.state)
     refs = "".join(
         f"<li><code>{_escape_html(ref.artifact)}</code> → <code>{_escape_html(ref.lineage_id)}</code></li>"
         for ref in finding.evidence_refs
     ) or "<li>No evidence references recorded.</li>"
-    return f"""<article class="finding-card">
+    return f"""<article class="finding-card sev-{tone}">
   <div class="finding-head">
-    <span class="badge state">{_escape_html(finding.state)}</span>
+    <span class="badge state sev-{tone}">{_escape_html(finding.state)}</span>
     <span class="ref">{_escape_html(finding.finding_id)}</span>
     {f'<span class="badge mitre">{_escape_html(technique)}</span>' if technique != "-" else ""}
   </div>
@@ -186,11 +215,12 @@ def _finding_card(finding: AuthoritativeFinding) -> str:
 # normal run actually invokes; the others are real, tested library code
 # waiting on a CLI/API entry point that does not exist yet.
 _AGENTS = (
-    ("MENTOR", "conectado", "The only role a normal zaynor chat/serve run actually invokes; explains an already-sealed result, never re-invokes the engine."),
+    ("MENTOR", "conectado", "Narrates an already-sealed result via zaynor chat/serve; never re-invokes the engine."),
+    ("DISPATCHER", "conectado", "Catalog of evidence types the engine can actually analyze, via zaynor hunts."),
+    ("CONSULT", "conectado", "Read-only view of a sealed case (findings, framework context, hunts), via zaynor consult."),
     ("INVESTIGATOR", "implementado, sin invocación automática", "Collects a bounded evidence window and re-verifies custody hashes; real and tested, no CLI/API command calls it yet."),
     ("FLEET_COMMANDER", "implementado, sin invocación automática", "Writes to the investigation log; real and tested, no caller wired yet."),
     ("DETECTION_ENGINEER", "implementado, sin invocación automática", "Drafts a candidate detection rule anchored to a real sealed finding; real and tested, not wired to a command yet."),
-    ("DISPATCHER", "implementado, sin invocación automática", "Catalog of evidence types the engine can actually analyze; real and tested, not wired to a command yet."),
     ("ENDPOINT_HUNTER / PERSISTENCE_HUNTER", "out of scope", "Would need a live EDR collection backend this project does not have."),
     ("THREAT_INTEL", "out of scope, for now", "A portable VirusTotal/GTI enrichment exists but is not wired in — external network dependency, pending decision."),
 )
@@ -264,6 +294,10 @@ def render_html(result: ZaynorAuthoritativeResult, seal: AuthoritySeal) -> str:
     )
     unknowns_items = "".join(f"<li>{_escape_html(u)}</li>" for u in result.unknowns) or "<li>None declared.</li>"
     chain_block = "\n".join(f"{label:<28}: {value}" for label, value in _custody_chain(seal, generated_at=generated_at))
+    stat_tiles = "".join(
+        f'<div class="stat-tile"><strong>{_escape_html(label)}</strong><span>{_escape_html(value)}</span></div>'
+        for label, value in _engine_stats(result)
+    )
     return f"""<!doctype html>
 <html lang="en">
 <head>
@@ -298,17 +332,25 @@ header.masthead h1{{ font-family:var(--serif); font-weight:600; font-size:clamp(
 .seal-line.caution{{ background:var(--caution-bg); color:var(--caution-ink); }}
 .seal-line.muted{{ background:var(--muted-bg); color:var(--muted-ink); }}
 .generated-at{{ font-family:var(--mono); font-size:11.5px; color:var(--ink-muted); margin:10px 0 0; }}
-.summary-grid{{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; margin:24px 0 18px; }}
+.summary-grid{{ display:grid; grid-template-columns:repeat(auto-fit,minmax(140px,1fr)); gap:10px; margin:24px 0 18px; }}
 .stat-tile{{ border:1px solid var(--rule); border-radius:3px; padding:13px 15px; background:var(--bg-sunken); }}
 .stat-tile strong{{ display:block; color:var(--ink-muted); font:11px var(--mono); text-transform:uppercase; letter-spacing:.04em; }}
 .stat-tile span{{ display:block; font:600 18px var(--serif); margin-top:4px; word-break:break-all; }}
 section{{ background:var(--bg-elevated); border:1px solid var(--rule); border-radius:3px; margin:1.5rem 0; padding:22px 24px; box-shadow:var(--shadow); }}
 section h2{{ font-family:var(--serif); font-size:20px; font-weight:600; margin:0 0 14px; padding-bottom:10px; border-bottom:1px solid var(--rule); }}
 #findings h2{{ color:var(--accent); }}
-.finding-card{{ border:1px solid var(--rule); border-left:6px solid var(--accent); border-radius:3px; padding:14px 18px; margin:14px 0; background:var(--bg); }}
+.finding-card{{ border:1px solid var(--rule); border-left:6px solid var(--accent); border-radius:3px; padding:14px 18px; margin:14px 0; background:var(--bg-elevated); }}
+.finding-card.sev-fail{{ border-left-color:var(--fail); }}
+.finding-card.sev-caution{{ border-left-color:var(--caution-border); }}
+.finding-card.sev-ok{{ border-left-color:var(--ok); }}
+.finding-card.sev-muted{{ border-left-color:var(--rule-strong); }}
 .finding-head{{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:6px; }}
 .badge{{ font-family:var(--mono); font-size:10.5px; letter-spacing:.06em; text-transform:uppercase; background:var(--accent-soft); color:var(--accent); border:1px solid var(--rule-strong); padding:3px 9px; border-radius:11px; }}
 .badge.mitre{{ background:var(--caution-bg); color:var(--caution-ink); border-color:var(--caution-border); }}
+.badge.state.sev-fail{{ background:var(--fail-bg); color:var(--fail-ink); border-color:var(--fail); }}
+.badge.state.sev-caution{{ background:var(--caution-bg); color:var(--caution-ink); border-color:var(--caution-border); }}
+.badge.state.sev-ok{{ background:var(--ok-bg); color:var(--ok-ink); border-color:var(--ok); }}
+.badge.state.sev-muted{{ background:var(--muted-bg); color:var(--muted-ink); border-color:var(--rule-strong); }}
 .ref{{ font-family:var(--mono); font-size:12.5px; color:var(--ink-muted); }}
 .finding-card p{{ margin:6px 0; font-size:14px; }}
 .finding-card details{{ font-size:13px; color:var(--ink-muted); }}
@@ -328,6 +370,14 @@ nav.toc a:hover{{ background:var(--bg-sunken); }}
 .data-table th{{ font-family:var(--mono); font-size:11px; text-transform:uppercase; letter-spacing:.06em; color:var(--ink-muted); background:var(--bg-sunken); }}
 .data-table tr:last-child td{{ border-bottom:none; }}
 .engine-note{{ font-family:var(--mono); font-size:11.5px; color:var(--ink-muted); margin-top:8px; }}
+.seal-line, .badge, .stat-tile, .finding-card{{ -webkit-print-color-adjust:exact; print-color-adjust:exact; }}
+@media print {{
+  body{{ background:#fff; }}
+  nav.toc{{ display:none; }}
+  section{{ box-shadow:none; break-inside:avoid; page-break-inside:avoid; }}
+  .finding-card{{ break-inside:avoid; page-break-inside:avoid; }}
+  a{{ color:inherit; text-decoration:none; }}
+}}
 </style>
 </head>
 <body>
@@ -336,11 +386,7 @@ nav.toc a:hover{{ background:var(--bg-sunken); }}
 <h1>ZAYNOR Forensic Report — {_escape_html(result.case_id)}</h1>
 <span class="seal-line {tone}">verdict: {_escape_html(result.verdict)} — sealed, verify with `zaynor audit`</span>
 <p class="generated-at">Generated {_escape_html(generated_at)} (Argentina time)</p>
-<div class="summary-grid">
-<div class="stat-tile"><strong>Confidence</strong><span>{_escape_html(str(result.integrity.get('confidence', 'UNKNOWN')))}</span></div>
-<div class="stat-tile"><strong>Engine</strong><span>{_escape_html(_engine_display(result))}</span></div>
-<div class="stat-tile"><strong>Findings</strong><span>{len(result.findings)}</span></div>
-</div>
+<div class="summary-grid">{stat_tiles}</div>
 <nav class="toc">
 <a href="#overview">Overview</a><a href="#agents">Agents</a><a href="#findings">Findings</a>
 <a href="#unknowns">Unknowns</a><a href="#chain-of-custody">Chain of custody</a><a href="#methodology">Methodology</a>
@@ -381,6 +427,21 @@ def render_pdf(result: ZaynorAuthoritativeResult, seal: AuthoritySeal) -> bytes:
     except ImportError as exc:
         raise ReportError("PDF reports require the optional 'report' dependency: pip install -e '.[report]'") from exc
 
+    _TONE_COLORS = {
+        "ok": (colors.HexColor("#DFEDE2"), colors.HexColor("#2A5A3C")),
+        "fail": (colors.HexColor("#F6E3D5"), colors.HexColor("#7A3A14")),
+        "caution": (colors.HexColor("#F4EED8"), colors.HexColor("#765D1C")),
+        "muted": (colors.HexColor("#E8E9E3"), colors.HexColor("#5B6460")),
+    }
+
+    def _footer(canvas, doc_) -> None:
+        canvas.saveState()
+        canvas.setFont("Helvetica", 7)
+        canvas.setFillColor(colors.grey)
+        canvas.drawString(36, 20, f"ZAYNOR sealed forensic report -- result_sha256 {seal.sha256[:16]}... -- verify with `zaynor audit`")
+        canvas.drawRightString(A4[0] - 36, 20, f"Page {doc_.page}")
+        canvas.restoreState()
+
     styles = getSampleStyleSheet()
     table_header_style = styles["Normal"].clone("ZaynorTableHeader")
     table_header_style.fontSize = 8
@@ -390,7 +451,7 @@ def render_pdf(result: ZaynorAuthoritativeResult, seal: AuthoritySeal) -> bytes:
     table_cell_style.leading = 10
     table_cell_style.wordWrap = "CJK"
 
-    def _table(rows: list[list[str]], col_widths: list[int] | None = None) -> Table:
+    def _table(rows: list[list[str]], col_widths: list[int] | None = None, row_tones: list[str | None] | None = None) -> Table:
         # Plain strings are not wrappable Table cells in ReportLab.  Long
         # roles and finding rationales consequently run past the page edge.
         wrapped_rows = [
@@ -406,30 +467,43 @@ def render_pdf(result: ZaynorAuthoritativeResult, seal: AuthoritySeal) -> bytes:
         if col_widths is None:
             col_widths = [110, 75, 338] if len(rows[0]) == 3 else [70, 65, 70, 95, 223]
         table = Table(wrapped_rows, repeatRows=1, colWidths=col_widths)
-        table.setStyle(
-            TableStyle(
-                [
-                    ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
-                    ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
-                    ("FONTSIZE", (0, 0), (-1, -1), 8),
-                    ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                ]
-            )
-        )
+        style_commands = [
+            ("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey),
+            ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
+            ("FONTSIZE", (0, 0), (-1, -1), 8),
+            ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ]
+        if row_tones:
+            for row_index, tone in enumerate(row_tones, start=1):
+                if tone is not None:
+                    bg, _ = _TONE_COLORS.get(tone, _TONE_COLORS["muted"])
+                    style_commands.append(("BACKGROUND", (0, row_index), (-1, row_index), bg))
+        table.setStyle(TableStyle(style_commands))
         return table
 
     buffer = BytesIO()
     doc = SimpleDocTemplate(buffer, pagesize=A4, title=f"ZAYNOR Forensic Report — {result.case_id}")
     generated_at = format_argentina()
+    verdict_tone = _VERDICT_TONE.get(result.verdict, "muted")
+    verdict_bg, verdict_ink = _TONE_COLORS.get(verdict_tone, _TONE_COLORS["muted"])
+    verdict_style = styles["Normal"].clone("ZaynorVerdictBanner")
+    verdict_style.fontSize = 12
+    verdict_style.textColor = verdict_ink
+    verdict_banner = Table(
+        [[Paragraph(f"VERDICT: {escape(result.verdict)} -- sealed, verify with `zaynor audit`", verdict_style)]],
+        colWidths=[523],
+    )
+    verdict_banner.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, -1), verdict_bg), ("BOX", (0, 0), (-1, -1), 0.5, verdict_ink), ("TOPPADDING", (0, 0), (-1, -1), 8), ("BOTTOMPADDING", (0, 0), (-1, -1), 8), ("LEFTPADDING", (0, 0), (-1, -1), 10)]))
     story: list[Any] = [
-        Paragraph(f"ZAYNOR Forensic Report — {result.case_id}", styles["Title"]),
+        Paragraph(f"ZAYNOR Forensic Report — {escape(result.case_id)}", styles["Title"]),
+        Spacer(1, 8),
+        verdict_banner,
         Spacer(1, 12),
         Paragraph("Overview — what kind of incident this is", styles["Heading2"]),
-        Paragraph(f"Classification: {_incident_classification(result)}", styles["Normal"]),
-        Paragraph(f"Confidence: {result.integrity.get('confidence', 'UNKNOWN')}", styles["Normal"]),
+        Paragraph(f"Classification: {escape(_incident_classification(result))}", styles["Normal"]),
         Paragraph(f"Result SHA-256: {seal.sha256}", styles["Normal"]),
-        Paragraph(f"Engine: {_engine_display(result)}", styles["Normal"]),
-        Paragraph(f"Findings / Unknowns: {len(result.findings)} / {len(result.unknowns)}", styles["Normal"]),
+        *[Paragraph(f"{escape(label)}: {escape(value)}", styles["Normal"]) for label, value in _engine_stats(result)],
+        Paragraph(f"Unknowns: {len(result.unknowns)}", styles["Normal"]),
         Spacer(1, 12),
         Paragraph("Agents in this pipeline", styles["Heading2"]),
         _table([["Role", "Status", "What it actually does"], *[[n, s, note] for n, s, note in _AGENTS]]),
@@ -442,19 +516,22 @@ def render_pdf(result: ZaynorAuthoritativeResult, seal: AuthoritySeal) -> bytes:
         Paragraph("Findings", styles["Heading2"]),
     ]
     finding_table = [["Finding", "State", "MITRE", "Detected by", "Rationale"]]
+    row_tones: list[str | None] = []
     for finding in result.findings:
         technique = (finding.mitre or {}).get("technique", "-") if finding.mitre else "-"
         finding_table.append(
             [finding.finding_id, finding.state, technique, _ENGINE_DISPLAY_NAME, finding.rationale or "-"]
         )
+        row_tones.append(_state_tone(finding.state))
     if len(finding_table) == 1:
         finding_table.append(["-", "-", "-", "-", "No findings in this result."])
-    story += [_table(finding_table), Spacer(1, 12), Paragraph("Unknowns", styles["Heading2"])]
+        row_tones.append(None)
+    story += [_table(finding_table, row_tones=row_tones), Spacer(1, 12), Paragraph("Unknowns", styles["Heading2"])]
     for unknown in result.unknowns or ["None declared."]:
-        story.append(Paragraph(f"- {unknown}", styles["Normal"]))
+        story.append(Paragraph(f"- {escape(str(unknown))}", styles["Normal"]))
     story += [Spacer(1, 12), Paragraph("Chain of custody", styles["Heading2"])]
     for label, value in _custody_chain(seal, generated_at=generated_at):
-        story.append(Paragraph(f"{label}: {value}", styles["Code"]))
+        story.append(Paragraph(f"{escape(label)}: {escape(value)}", styles["Code"]))
     story += [Spacer(1, 12), Paragraph("Methodology", styles["Heading2"]), Paragraph(_METHODOLOGY, styles["Normal"])]
-    doc.build(story)
+    doc.build(story, onFirstPage=_footer, onLaterPages=_footer)
     return buffer.getvalue()
