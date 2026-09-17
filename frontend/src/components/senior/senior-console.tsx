@@ -130,7 +130,7 @@ export function SeniorConsole({ caseOverview, evidence }: SeniorConsoleProps) {
               <li key={fracture.fracture_id}>
                 <strong>{fracture.fracture_id} · {fracture.type}</strong>
                 <span>{fracture.description}</span>
-                <span>Severity: {fracture.severity ?? "No suministrada"}</span>
+                <span>Severidad: {fracture.severity ?? "No suministrada"}</span>
                 <span>{formatEvidenceRefs(fracture.evidence_refs)}</span>
               </li>
             ))}
@@ -138,7 +138,7 @@ export function SeniorConsole({ caseOverview, evidence }: SeniorConsoleProps) {
               <li key={hypothesis.hypothesis_id}>
                 <strong>{hypothesis.hypothesis_id} · {hypothesis.status}</strong>
                 <span>{hypothesis.statement}</span>
-                <span>{hypothesis.rationale ?? "Sin rationale suministrado"}</span>
+                <span>{hypothesis.rationale ?? "Sin justificación suministrada"}</span>
               </li>
             ))}
           </ul>

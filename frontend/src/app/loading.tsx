@@ -4,8 +4,8 @@ export default function Loading() {
   return (
     <div className="route-placeholder">
       <StatePanel
-        detail="Preparing the case workspace."
-        title="Loading case context"
+        detail="Preparando el espacio de trabajo del caso."
+        title="Cargando contexto del caso"
         tone="loading"
       />
     </div>

@@ -48,9 +48,11 @@ export function ThemeToggle() {
 
   const nextTheme = theme === "dark" ? "light" : "dark";
 
+  const themeLabels: Record<Theme, string> = { dark: "Tema oscuro", light: "Tema claro" };
+
   return (
     <button
-      aria-label={`Switch to ${nextTheme} theme`}
+      aria-label={`Cambiar a ${themeLabels[nextTheme].toLocaleLowerCase("es-AR")}`}
       aria-pressed={theme === "dark"}
       className="theme-toggle"
       onClick={() => {
@@ -59,7 +61,7 @@ export function ThemeToggle() {
       type="button"
     >
       <span aria-hidden="true" className="theme-toggle__mark" />
-      {nextTheme === "dark" ? "Dark theme" : "Light theme"}
+      {themeLabels[nextTheme]}
     </button>
   );
 }
