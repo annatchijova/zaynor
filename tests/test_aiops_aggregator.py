@@ -1,6 +1,7 @@
 """Tests for the AIOps incident aggregator."""
 
 import json
+import urllib.parse
 from datetime import datetime, timedelta, timezone
 
 from tools.aiops.aggregator.app import (
@@ -279,6 +280,52 @@ def test_aiops_calibration_pins_the_sealed_verdict(tmp_path):
     assert result["integrity"]["vigia_agent_verdict"] == "SUSPICION"
     assert result["unknowns"] == []
     assert (tmp_path / "output" / incident["incident_id"] / "result.seal.json").exists()
+
+
+def test_live_query_ranges_respect_the_incident_window(monkeypatch):
+    """The live collectors must query the incident span (plus the
+    correlation margin, the same intentional policy as the offline path),
+    honoring the incident end boundary — not a fixed span from the
+    incident start. An incident lasting longer than the old fixed window
+    is the regression case."""
+    from tools.aiops.aggregator import app as app_module
+
+    captured: list[str] = []
+
+    def fake_bounded_get(url: str):
+        captured.append(url)
+        return {"status": "success", "data": {"result": []}}
+
+    monkeypatch.setattr(app_module, "bounded_get", fake_bounded_get)
+
+    start = datetime(2026, 9, 17, 2, 0, 0, tzinfo=timezone.utc)
+    end = start + timedelta(minutes=30)  # longer than the old fixed 2x120s window
+
+    app_module.collect_prometheus_window("http://prometheus:9090", "demo-api", start, end)
+    app_module.collect_loki_window("http://loki:3100", "demo-api", start, end)
+
+    prom_urls = [url for url in captured if "/loki/" not in url and "/api/v1/query_range" in url]
+    loki_urls = [url for url in captured if "/loki/api/v1/query_range" in url]
+    assert len(prom_urls) == 3  # one per metric query
+    assert len(loki_urls) == 1
+
+    margin = timedelta(seconds=app_module.CORRELATION_WINDOW_SECONDS)
+    expected_start_iso = (start - margin).isoformat()
+    expected_end_iso = (end + margin).isoformat()
+    expected_start_ns = int((start - margin).timestamp() * 1e9)
+    expected_end_ns = int((end + margin).timestamp() * 1e9)
+
+    for url in prom_urls:
+        params = urllib.parse.parse_qs(urllib.parse.urlparse(url).query)
+        assert params["start"][0] == expected_start_iso
+        assert params["end"][0] == expected_end_iso
+        # The old bug queried a fixed span from the start; this proves the
+        # incident end is honored for a 30-minute incident.
+        assert params["end"][0] != (start + timedelta(minutes=4)).isoformat()
+    for url in loki_urls:
+        params = urllib.parse.parse_qs(urllib.parse.urlparse(url).query)
+        assert int(params["start"][0]) == expected_start_ns
+        assert int(params["end"][0]) == expected_end_ns
 
 
 def test_poll_firing_alerts_ingests_grafana_rules(monkeypatch):

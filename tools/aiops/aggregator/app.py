@@ -190,7 +190,14 @@ def window_hash(window: dict[str, Any]) -> str:
 
 
 def collect_prometheus_window(prometheus_url: str, service: str, start: datetime, end: datetime) -> list[dict[str, Any]]:
-    """Bounded metrics window for one service from Prometheus query_range."""
+    """Bounded metrics window for one service from Prometheus query_range.
+
+    The query range is the incident span plus the correlation margin —
+    the same intentional margin policy the offline path applies — so the
+    live window honors the incident end boundary instead of a fixed span
+    from the start.
+    """
+    margin = timedelta(seconds=CORRELATION_WINDOW_SECONDS)
     queries = [
         'sum(rate(demo_requests_total{job="%s"}[1m]))' % service,
         'sum(rate(demo_errors_total{job="%s"}[1m]))' % service,
@@ -201,8 +208,8 @@ def collect_prometheus_window(prometheus_url: str, service: str, start: datetime
         params = urllib.parse.urlencode(
             {
                 "query": query,
-                "start": start.isoformat(),
-                "end": (start + timedelta(seconds=CORRELATION_WINDOW_SECONDS * 2)).isoformat(),
+                "start": (start - margin).isoformat(),
+                "end": (end + margin).isoformat(),
                 "step": "10s",
             }
         )
@@ -263,12 +270,18 @@ def coerce_number(value: Any) -> float:
 
 
 def collect_loki_window(loki_url: str, service: str, start: datetime, end: datetime) -> list[dict[str, Any]]:
-    """Bounded log window for one service from Loki query_range."""
+    """Bounded log window for one service from Loki query_range.
+
+    The query range is the incident span plus the correlation margin —
+    the same intentional margin policy the offline path and the metrics
+    collector apply.
+    """
+    margin = timedelta(seconds=CORRELATION_WINDOW_SECONDS)
     params = urllib.parse.urlencode(
         {
             "query": '{job="%s"}' % service,
-            "start": str(int(start.timestamp() * 1e9)),
-            "end": str(int(end.timestamp() * 1e9)),
+            "start": str(int((start - margin).timestamp() * 1e9)),
+            "end": str(int((end + margin).timestamp() * 1e9)),
             "limit": MAX_LINES,
             "direction": "forward",
         }
