@@ -20,6 +20,8 @@ from __future__ import annotations
 
 import json
 import logging
+import os
+import tempfile
 import time
 import uuid
 from pathlib import Path
@@ -283,6 +285,20 @@ def _audit_status_payload(audit_report: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+class InvestigationLedgerCorrupted(ValueError):
+    """The persisted investigation ledger exists but cannot be trusted.
+
+    Red team round 21 (R21-03): the previous version caught every load
+    failure (bad JSON, a missing key, a contract violation) and silently
+    fell back to a brand-new empty session -- indistinguishable from
+    NOT_STARTED, which turns real data loss into a state that looks
+    clean. CLAUDE.md 5.3 is explicit that a degraded read must never look
+    like a correct one; this type exists so callers can tell "no
+    investigation has run yet" apart from "one ran and the record of it
+    is now unreadable."
+    """
+
+
 def _investigation_state_path(output_root: Path, case_id: str) -> Path:
     return output_root / case_id / "investigation.json"
 
@@ -299,21 +315,26 @@ def _load_investigation_state(case_id: str, output_root: Path, base_result_sha25
     exactly the kind of thing CLAUDE.md 5.2 keeps out of a sealed/hashed
     payload (see `audit_log.py`'s `created_at` for the same reasoning
     applied to a different ledger).
+
+    Raises `InvestigationLedgerCorrupted` if the file exists but cannot
+    be parsed/validated -- a missing file is legitimately NOT_STARTED; an
+    unreadable one is not the same thing and must not be treated as it.
     """
     path = _investigation_state_path(output_root, case_id)
     if path.is_file():
         try:
             raw = json.loads(path.read_text(encoding="utf-8"))
             session = InvestigationSession.from_dict(raw["session"])
-        except (OSError, json.JSONDecodeError, KeyError, InvestigationContractError):
-            session = None
-        else:
-            if session.base_result_sha256 == base_result_sha256:
-                return {
-                    "session": session,
-                    "proposal_created_at": dict(raw.get("proposal_created_at", {})),
-                    "observation_recorded_at": dict(raw.get("observation_recorded_at", {})),
-                }
+        except (OSError, json.JSONDecodeError, KeyError, InvestigationContractError) as exc:
+            raise InvestigationLedgerCorrupted(
+                f"investigation ledger for {case_id!r} exists but could not be read: {exc}"
+            ) from exc
+        if session.base_result_sha256 == base_result_sha256:
+            return {
+                "session": session,
+                "proposal_created_at": dict(raw.get("proposal_created_at", {})),
+                "observation_recorded_at": dict(raw.get("observation_recorded_at", {})),
+            }
     return {
         "session": InvestigationSession(f"SESSION-{case_id}", case_id, base_result_sha256),
         "proposal_created_at": {},
@@ -321,15 +342,44 @@ def _load_investigation_state(case_id: str, output_root: Path, base_result_sha25
     }
 
 
+def _load_investigation_state_or_error(case_id: str, output_root: Path, base_result_sha256: str) -> dict[str, Any]:
+    """Route wrapper: every caller wants the same fail-closed behavior on
+    a corrupted ledger, an `ApiError` the global handler already renders.
+    """
+    try:
+        return _load_investigation_state(case_id, output_root, base_result_sha256)
+    except InvestigationLedgerCorrupted as exc:
+        logger.error(str(exc))
+        raise ApiError(500, "internal_error", str(exc), "server_error") from None
+
+
 def _save_investigation_state(case_id: str, output_root: Path, state: dict[str, Any]) -> None:
+    """Write the ledger via temp-file + fsync + os.replace, matching
+    `cli.py`'s `_atomic_json_write` -- a crash mid-write leaves the
+    original file (or nothing) intact, never a truncated one. Closes
+    R21-03's atomicity gap; combined with `InvestigationLedgerCorrupted`
+    above, a corrupted read is now a real signal something went wrong
+    externally (manual edit, disk fault), not something this function's
+    own writes can cause anymore.
+    """
     path = _investigation_state_path(output_root, case_id)
     path.parent.mkdir(parents=True, exist_ok=True)
+    if path.exists() and path.is_symlink():
+        raise ApiError(500, "internal_error", "investigation ledger path must not be a symlink", "server_error")
     payload = {
         "session": state["session"].as_dict(),
         "proposal_created_at": state["proposal_created_at"],
         "observation_recorded_at": state["observation_recorded_at"],
     }
-    path.write_text(json.dumps(payload, ensure_ascii=False, sort_keys=True, indent=2), encoding="utf-8")
+    encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True, indent=2)
+    with tempfile.NamedTemporaryFile(
+        dir=path.parent, prefix=f".{path.name}.", mode="w", encoding="utf-8", delete=False
+    ) as handle:
+        handle.write(encoded)
+        handle.flush()
+        os.fsync(handle.fileno())
+        temp_path = Path(handle.name)
+    os.replace(temp_path, path)
 
 
 def _proposal_payload(proposal: Any, *, status: str, created_at: str) -> dict[str, Any]:
@@ -564,7 +614,7 @@ def create_app(
             },
             "audit": _audit_status_payload(audit_report),
             "investigation": _investigation_summary_payload(
-                _load_investigation_state(case_id, output_root, seal.sha256)
+                _load_investigation_state_or_error(case_id, output_root, seal.sha256)
             ),
         }
 
@@ -592,7 +642,7 @@ def create_app(
     @app.get("/cases/{case_id}/investigation")
     def get_case_investigation(case_id: str) -> dict[str, Any]:
         _, seal, _ = _load_case_for_overview(case_id, output_root=output_root, cases_root=cases_root)
-        return _investigation_summary_payload(_load_investigation_state(case_id, output_root, seal.sha256))
+        return _investigation_summary_payload(_load_investigation_state_or_error(case_id, output_root, seal.sha256))
 
     @app.post("/cases/{case_id}/investigations/proposals")
     def propose_investigation(case_id: str, req: InvestigationProposalRequest) -> dict[str, Any]:
@@ -624,7 +674,7 @@ def create_app(
         except (CliInputError, ValueError):
             raise ApiError(422, "invalid_authority", "stored result or seal could not be verified", "authority_error") from None
 
-        state = _load_investigation_state(case_id, output_root, seal.sha256)
+        state = _load_investigation_state_or_error(case_id, output_root, seal.sha256)
         package, package_seal = build_consult_package(result, seal)
         consult = ConsultTools(package, package_seal, hunts=DEFAULT_HUNT_CATALOG)
         mcp_config = VigiaMCPConfig(evidence_dir=evidence_dir)

@@ -519,3 +519,53 @@ def test_propose_investigation_rejects_an_empty_question(tmp_path, capsys):
     app = create_app(output_root=output_root, cases_root=cases_root)
     error = _api_error(lambda: _propose(app, "INC-API-CASE", "   "))
     assert error.status_code == 400
+
+
+def test_get_case_investigation_fails_closed_on_a_corrupted_ledger(tmp_path, capsys):
+    """Red team round 21 (R21-03): a truncated/unreadable
+    investigation.json used to be caught and silently treated as a fresh,
+    empty session -- data loss disguised as NOT_STARTED. It must now
+    surface as a real error instead.
+    """
+    output_root = _analyzed_case(tmp_path, capsys)
+    ledger_path = output_root / "INC-API-CASE" / "investigation.json"
+    ledger_path.write_text("{not valid json", encoding="utf-8")
+
+    app = create_app(output_root=output_root)
+    error = _api_error(lambda: _route(app, "/cases/{case_id}/investigation")("INC-API-CASE"))
+    assert error.status_code == 500
+    assert "could not be read" in error.message
+
+
+def test_propose_investigation_writes_the_ledger_atomically(tmp_path, capsys, monkeypatch):
+    """R21-03: the ledger is written via temp-file + os.replace, not a
+    direct write -- confirmed by observing that a NamedTemporaryFile is
+    actually created next to the target path during the write.
+    """
+    import tempfile as tempfile_module
+
+    output_root = _analyzed_case(tmp_path, capsys)
+    cases_root = tmp_path / "cases"
+    evidence_path = str(cases_root / "INC-API-CASE" / "evidence" / "collected" / "auth.jsonl")
+    monkeypatch.setattr(
+        OllamaClient, "generate",
+        lambda self, *, system, prompt: _valid_proposal_json(arguments={"path": evidence_path}),
+    )
+
+    seen_temp_names = []
+    real_named_temp_file = tempfile_module.NamedTemporaryFile
+
+    def _spying_named_temp_file(*args, **kwargs):
+        handle = real_named_temp_file(*args, **kwargs)
+        seen_temp_names.append(handle.name)
+        return handle
+
+    monkeypatch.setattr(tempfile_module, "NamedTemporaryFile", _spying_named_temp_file)
+    app = create_app(output_root=output_root, cases_root=cases_root)
+    _propose(app, "INC-API-CASE", "What does the auth log say?")
+
+    ledger_path = output_root / "INC-API-CASE" / "investigation.json"
+    assert any(Path(name).parent == ledger_path.parent for name in seen_temp_names)
+    assert ledger_path.is_file()
+    # The temp file is gone -- os.replace consumed it, it was not left behind.
+    assert not any(Path(name).exists() for name in seen_temp_names)

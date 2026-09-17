@@ -12,9 +12,25 @@ import re
 
 _MODEL_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:/-]{0,127}$")
 
+# Red-team round 21 (R21-05, CODE FACT): `response.read()` had no byte
+# limit before parsing as JSON -- a misbehaving or compromised local
+# Ollama could hand back an unbounded body and grow this process's
+# memory without limit. Bounds match this file's own scale: narration
+# text (`generate`) can legitimately run long; the installed-models list
+# (`list_available_models`) cannot.
+_MAX_GENERATE_RESPONSE_BYTES = 8 * 1024 * 1024
+_MAX_TAGS_RESPONSE_BYTES = 1 * 1024 * 1024
+
 
 class OllamaError(RuntimeError):
     """Ollama is unavailable or returned an invalid response."""
+
+
+def _read_bounded(response, max_bytes: int) -> bytes:
+    data = response.read(max_bytes + 1)
+    if len(data) > max_bytes:
+        raise OllamaError(f"Ollama response exceeded the {max_bytes}-byte limit")
+    return data
 
 
 def _local_url(value: str) -> str:
@@ -50,7 +66,7 @@ class OllamaClient:
         )
         try:
             with urllib.request.urlopen(request, timeout=self.timeout_seconds) as response:
-                body = json.loads(response.read().decode("utf-8"))
+                body = json.loads(_read_bounded(response, _MAX_GENERATE_RESPONSE_BYTES).decode("utf-8"))
         except (OSError, urllib.error.URLError, json.JSONDecodeError) as exc:
             raise OllamaError(f"local Ollama request failed: {exc}") from exc
         text = body.get("response") if isinstance(body, dict) else None
@@ -70,7 +86,7 @@ def list_available_models(host: str = "http://127.0.0.1:11434", *, timeout_secon
     request = urllib.request.Request(_local_url(host) + "/api/tags", method="GET")
     try:
         with urllib.request.urlopen(request, timeout=timeout_seconds) as response:
-            body = json.loads(response.read().decode("utf-8"))
+            body = json.loads(_read_bounded(response, _MAX_TAGS_RESPONSE_BYTES).decode("utf-8"))
     except (OSError, urllib.error.URLError, json.JSONDecodeError) as exc:
         raise OllamaError(f"could not list local Ollama models: {exc}") from exc
     models = body.get("models") if isinstance(body, dict) else None
