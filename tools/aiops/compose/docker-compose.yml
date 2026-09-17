@@ -2,6 +2,14 @@
 # No external SaaS: every component runs on the demo machine and talks
 # only to services inside this compose network.
 #
+# EXPOSURE POLICY: this is a lab, not a hardened deployment. Every
+# host-published port is bound to 127.0.0.1 (loopback-only), so nothing
+# here is reachable from other machines; the services themselves are
+# unauthenticated by design and are NOT safe to expose beyond the demo
+# host (e.g. via a reverse proxy) without adding an authenticated
+# boundary first. Inside the compose network, listeners stay 0.0.0.0 so
+# the services can reach each other (e.g. Grafana -> aggregator webhook).
+#
 # Evidence flows UP through the collector into the backends; the incident
 # aggregator transforms alert clusters into ZAYNOR evidence bundles.
 # Nothing in this stack assigns scores or verdicts.
@@ -20,7 +28,7 @@ services:
     volumes:
       - app-logs:/var/log/app
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     healthcheck:
       test: ["CMD", "python3", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3)"]
       interval: 5s
@@ -34,8 +42,8 @@ services:
       - ./otel-config.yaml:/etc/otel/config.yaml:ro
       - app-logs:/var/log/app:ro
     ports:
-      - "9411:9411"   # zipkin JSON receiver
-      - "8898:8888"   # prometheus exporter (self-telemetry)
+      - "127.0.0.1:9411:9411"   # zipkin JSON receiver
+      - "127.0.0.1:8898:8888"   # prometheus exporter (self-telemetry)
     depends_on:
       demo-api:
         condition: service_healthy
@@ -49,7 +57,7 @@ services:
     volumes:
       - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
     ports:
-      - "9090:9090"
+      - "127.0.0.1:9090:9090"
 
   loki:
     image: grafana/loki:3.5.0
@@ -57,7 +65,7 @@ services:
     volumes:
       - ./loki-config.yaml:/etc/loki/config.yaml:ro
     ports:
-      - "3100:3100"
+      - "127.0.0.1:3100:3100"
 
   tempo:
     image: grafana/tempo:2.7.2
@@ -65,7 +73,7 @@ services:
     volumes:
       - ./tempo-config.yaml:/etc/tempo/config.yaml:ro
     ports:
-      - "3200:3200"
+      - "127.0.0.1:3200:3200"
 
   grafana:
     image: grafana/grafana:11.6.0
@@ -77,7 +85,7 @@ services:
       - ./grafana/provisioning:/etc/grafana/provisioning:ro
       - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
     ports:
-      - "3000:3000"
+      - "127.0.0.1:3000:3000"
     depends_on:
       - prometheus
       - loki
@@ -94,7 +102,7 @@ services:
     volumes:
       - aiops-staging:/var/lib/zaynor-aiops
     ports:
-      - "8090:8090"
+      - "127.0.0.1:8090:8090"
     depends_on:
       - prometheus
       - loki

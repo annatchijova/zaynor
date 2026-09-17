@@ -89,6 +89,20 @@ flowchart LR
 - Python 3.12 with the repo's dependencies (`pip install -e .`)
 - ~4 GB free RAM for the stack
 
+## Exposure policy (read before running the stack)
+
+This is a **lab, not a hardened deployment**. Every host-published port in
+`tools/aiops/compose/docker-compose.yml` is bound to `127.0.0.1`
+(loopback-only): the services — including the unauthenticated
+fault-injection endpoint on `demo-api` and the aggregator's webhook — are
+reachable only from the demo machine itself. Inside the compose network
+listeners stay on `0.0.0.0` so components reach each other (Grafana →
+aggregator webhook, collector → backends).
+
+Do not expose any of these ports through a reverse proxy or a shared
+network without first adding an authenticated boundary; the stack has no
+authentication by design.
+
 ## Path 1 — DFIR demo
 
 ### Offline (no infrastructure, fully reproducible)
