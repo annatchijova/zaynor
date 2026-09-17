@@ -411,6 +411,24 @@ def _run_audit(args: argparse.Namespace) -> int:
         return 1
 
 
+_MODEL_ENV_VAR = "ZAYNOR_OLLAMA_MODEL"
+
+
+def _resolve_model(explicit: str | None) -> str:
+    """Nobody is required to run one specific model.
+
+    Precedence: `--model` on the command line, then `$ZAYNOR_OLLAMA_MODEL`
+    (a per-machine default), then a bundled fallback. `zaynor models` shows
+    suggested models by hardware tier, and what is already pulled locally.
+    """
+    from zaynor.agents.model_catalog import _FALLBACK_MODEL
+
+    if explicit:
+        return explicit
+    from_env = os.environ.get(_MODEL_ENV_VAR, "").strip()
+    return from_env or _FALLBACK_MODEL
+
+
 def _run_chat(args: argparse.Namespace) -> int:
     from zaynor.agents.chat_service import answer_question
     from zaynor.agents.contracts import Audience
@@ -429,7 +447,7 @@ def _run_chat(args: argparse.Namespace) -> int:
     except ValueError as exc:
         raise CliInputError(f"unknown audience: {args.audience}") from exc
     try:
-        client = OllamaClient(host=args.host, model=args.model, timeout_seconds=args.timeout)
+        client = OllamaClient(host=args.host, model=_resolve_model(args.model), timeout_seconds=args.timeout)
         checked = answer_question(args.question, result=result, seal=seal, client=client, audience=audience)
     except OllamaError as exc:
         raise CliInputError(f"chat failed: {exc}") from exc
@@ -460,10 +478,46 @@ def _run_serve(args: argparse.Namespace) -> int:
     app = create_app(
         output_root=output_root,
         ollama_host=args.ollama_host,
-        model=args.model,
+        model=_resolve_model(args.model),
         timeout_seconds=args.timeout,
     )
     uvicorn.run(app, host=args.host, port=args.port)
+    return 0
+
+
+def _run_models(args: argparse.Namespace) -> int:
+    from zaynor.agents.model_catalog import SUGGESTED_MODELS
+    from zaynor.agents.ollama_client import OllamaError, list_available_models
+
+    installed: list[str] | None
+    error: str | None
+    try:
+        installed = list_available_models(args.host)
+        error = None
+    except OllamaError as exc:
+        installed = None
+        error = str(exc)
+    payload = {
+        "installed": installed,
+        "error": error,
+        "suggested": [{"name": model.name, "tier": model.tier, "note": model.note} for model in SUGGESTED_MODELS],
+        "env_var": _MODEL_ENV_VAR,
+    }
+    if args.json:
+        _emit(payload, as_json=True)
+        return 0
+    if installed is None:
+        print(f"No se pudo consultar Ollama en {args.host}: {error}")
+    elif installed:
+        print("Instalados localmente:")
+        for name in installed:
+            print(f"- {name}")
+    else:
+        print("Ningún modelo instalado todavía en Ollama.")
+    print(f"\nNinguno es obligatorio — elegí el que quieras con --model o ${_MODEL_ENV_VAR}.")
+    print("Sugeridos por tamaño de hardware:")
+    for model in SUGGESTED_MODELS:
+        print(f"- [{model.tier}] {model.name} — {model.note}  (ollama pull {model.name})")
     return 0
 
 
@@ -529,7 +583,9 @@ def build_parser() -> argparse.ArgumentParser:
     chat_parser.add_argument("--question", required=True)
     chat_parser.add_argument("--audience", default="senior", choices=["junior", "senior"])
     chat_parser.add_argument("--host", default="http://127.0.0.1:11434", help="Ollama local-only")
-    chat_parser.add_argument("--model", default="llama3.1:8b")
+    chat_parser.add_argument(
+        "--model", default=None, help=f"por defecto, ${_MODEL_ENV_VAR} o el fallback de model_catalog.py"
+    )
     chat_parser.add_argument("--timeout", type=int, default=120)
     chat_parser.add_argument("--json", action="store_true", help="emitir JSON estable")
     chat_parser.set_defaults(handler=_run_chat)
@@ -541,9 +597,18 @@ def build_parser() -> argparse.ArgumentParser:
     serve_parser.add_argument("--host", default="127.0.0.1", help="dirección de escucha de este API")
     serve_parser.add_argument("--port", type=int, default=8420)
     serve_parser.add_argument("--ollama-host", default="http://127.0.0.1:11434", help="Ollama local-only")
-    serve_parser.add_argument("--model", default="llama3.1:8b")
+    serve_parser.add_argument(
+        "--model", default=None, help=f"por defecto, ${_MODEL_ENV_VAR} o el fallback de model_catalog.py"
+    )
     serve_parser.add_argument("--timeout", type=int, default=120)
     serve_parser.set_defaults(handler=_run_serve)
+
+    models_parser = subparsers.add_parser(
+        "models", help="mostrar modelos de Ollama instalados y sugeridos por tamaño de hardware"
+    )
+    models_parser.add_argument("--host", default="http://127.0.0.1:11434", help="Ollama local-only")
+    models_parser.add_argument("--json", action="store_true", help="emitir JSON estable")
+    models_parser.set_defaults(handler=_run_models)
     return parser
 
 

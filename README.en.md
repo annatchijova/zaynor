@@ -161,43 +161,37 @@ The recommended jury explanation is:
 
 ## How to run it
 
-Zaynor integrates VIGÍA (the deterministic mathematical engine) instead
-of reimplementing it — an architectural decision, not an oversight (see
-"Design lineage" below). That means **`analyze` and `audit` need the
-VIGÍA repository cloned separately**; `replay`, `detect`, `case`, and
-`freeze` do not.
+Zaynor integrates VIGÍA's deterministic mathematical engine, vendored
+inside this same repository (`vendor/vigia_engine/`), instead of
+reimplementing it — an architectural decision, not an oversight (see
+"Design lineage" below). **One `git clone` is enough**: no second
+repository to clone or install for `analyze`/`audit` to work.
 
 ```bash
-# 1. Clone both repositories (VIGÍA is public, no access restriction).
+# 1. Clone.
 git clone https://github.com/annatchijova/zaynor.git
-git clone https://github.com/annatchijova/vigia-intent-analysis.git vigia-repo
-
-# 2. Install Zaynor (requires Python >=3.12).
 cd zaynor
 
+# 2. Install (requires Python >=3.12).
 python3 -m venv .venv && source .venv/bin/activate
 pip install -e .
 
-# 3. Install VIGÍA's dependencies (needed by `analyze`).
-cd ../vigia-repo && pip install -r requirements.txt && cd ../zaynor
-
-# 4. Try it without VIGÍA — Zaynor's own pipeline (replay/detect/case).
+# 3. Try Zaynor's own pipeline (replay/detect/case).
 zaynor case --fixture scenarios/inc-2026-demo-001/telemetry.jsonl --json
 
-# 5. Freeze, analyze, and audit a case — all local, no external dependencies.
+# 4. Freeze, analyze, and audit a case — all local, no external dependencies.
 zaynor freeze --case-id CASE-001 --evidence-profile admin-session-investigation \
   --profile-map scenarios/inc-2026-demo-001/evidence_profile.json \
   --source-root scenarios/inc-2026-demo-001 --cases-root ./cases
 
-zaynor analyze --case-id CASE-001 --cases-root ./cases \
-  --engine-repo ../vigia-repo --output-root ./outputs
+zaynor analyze --case-id CASE-001 --cases-root ./cases --output-root ./outputs
 
 zaynor audit --case-id CASE-001 --cases-root ./cases --output-root ./outputs
 ```
 
-Any of VIGÍA's own case JSON files (`vigia-repo/cases/*.json`) also work
-as evidence — reference the filename in your own `profile_map.json` with
-`--source-root` pointing at the folder that holds it.
+`--engine-repo` still exists for anyone who wants to point at their own
+VIGÍA checkout (developing against VIGÍA itself, or a newer engine
+version) — an override, not a requirement.
 
 ## Requirements and sovereignty
 
