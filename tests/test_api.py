@@ -333,6 +333,39 @@ def test_get_case_audit_reuses_compute_case_audit(tmp_path, capsys):
     assert audit["seal"] == "VERIFIED"
 
 
+def test_get_case_audit_trail_returns_the_real_hash_chain(tmp_path, capsys):
+    output_root = _analyzed_case(tmp_path, capsys)
+    cases_root = tmp_path / "cases"
+    app = create_app(output_root=output_root, cases_root=cases_root)
+    trail = _route(app, "/cases/{case_id}/audit-trail")("INC-API-CASE")
+    assert trail["chain_valid"] is True
+    assert trail["total_entries"] == 3
+    assert [entry["action"] for entry in trail["entries"]] == ["CASE_FROZEN", "ENGINE_INVOKED", "RESULT_SEALED"]
+
+
+def test_get_case_audit_trail_fails_closed_on_a_tampered_entry(tmp_path, capsys):
+    output_root = _analyzed_case(tmp_path, capsys)
+    cases_root = tmp_path / "cases"
+    log_path = cases_root / "INC-API-CASE" / "audit.jsonl"
+    lines = log_path.read_text(encoding="utf-8").splitlines()
+    tampered = json.loads(lines[-1])
+    tampered["reason"] = "tampered after the fact"
+    lines[-1] = json.dumps(tampered)
+    log_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    app = create_app(output_root=output_root, cases_root=cases_root)
+    trail = _route(app, "/cases/{case_id}/audit-trail")("INC-API-CASE")
+    assert trail["chain_valid"] is False
+    assert "entry_hash mismatch" in trail["chain_detail"]
+
+
+def test_get_case_audit_trail_requires_cases_root(tmp_path, capsys):
+    output_root = _analyzed_case(tmp_path, capsys)
+    app = create_app(output_root=output_root)  # no cases_root configured
+    error = _api_error(lambda: _route(app, "/cases/{case_id}/audit-trail")("INC-API-CASE"))
+    assert error.status_code == 500
+
+
 def test_get_case_evidence_reflects_the_real_frozen_manifest(tmp_path, capsys):
     output_root = _analyzed_case(tmp_path, capsys)
     cases_root = tmp_path / "cases"

@@ -190,6 +190,26 @@ class AuditLog:
         return AuditEntry(**record)
 
     @staticmethod
+    def load_entries(log_path: str | Path) -> list[dict[str, Any]]:
+        """Read every entry from a JSONL audit log, in file order.
+
+        Deliberately does not verify anything -- a caller displaying these
+        entries must call `verify_with_report` separately and show its own
+        result, so "read successfully" is never mistaken for "chain intact"
+        (CLAUDE.md 5.3: a degraded read must never look like a correct one).
+        """
+        path = Path(log_path)
+        if not path.exists():
+            return []
+        entries: list[dict[str, Any]] = []
+        with path.open("r", encoding="utf-8") as handle:
+            for line in handle:
+                line = line.strip()
+                if line:
+                    entries.append(json.loads(line))
+        return entries
+
+    @staticmethod
     def verify(log_path: str | Path, *, case_id: str, hmac_key: bytes | None = None) -> bool:
         """Recompute every entry's hash from its own fields, confirm each
         one references the true previous entry, and confirm the sidecar

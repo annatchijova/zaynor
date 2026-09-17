@@ -115,6 +115,37 @@ def test_analyze_and_audit_a_single_vigia_case_json_file(tmp_path, capsys):
     assert json.loads(capsys.readouterr().out)["overall"] == "VERIFIED"
 
 
+def test_audit_trail_shows_the_real_chain_from_freeze_and_analyze(tmp_path, capsys):
+    _, cases_root, _ = _analyzed_case(tmp_path, capsys)
+
+    assert main([
+        "audit-trail", "--case-id", "INC-CLI-AUDIT", "--cases-root", str(cases_root), "--json",
+    ]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["chain_valid"] is True
+    assert payload["total_entries"] == 3
+    assert [entry["action"] for entry in payload["entries"]] == ["CASE_FROZEN", "ENGINE_INVOKED", "RESULT_SEALED"]
+    assert payload["entries"][0]["case_id"] == "INC-CLI-AUDIT"
+
+
+def test_audit_trail_fails_closed_on_a_tampered_entry(tmp_path, capsys):
+    _, cases_root, _ = _analyzed_case(tmp_path, capsys)
+    log_path = cases_root / "INC-CLI-AUDIT" / "audit.jsonl"
+    lines = log_path.read_text(encoding="utf-8").splitlines()
+    tampered = json.loads(lines[0])
+    tampered["reason"] = "tampered after the fact"
+    lines[0] = json.dumps(tampered)
+    log_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    exit_code = main([
+        "audit-trail", "--case-id", "INC-CLI-AUDIT", "--cases-root", str(cases_root), "--json",
+    ])
+    payload = json.loads(capsys.readouterr().out)
+    assert exit_code == 1
+    assert payload["chain_valid"] is False
+    assert "entry_hash mismatch" in payload["chain_detail"]
+
+
 def test_case_cli_emits_reproducible_json(capsys):
     assert main(["case", "--fixture", str(FIXTURE), "--json"]) == 0
     first = capsys.readouterr().out

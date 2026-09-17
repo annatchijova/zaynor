@@ -330,6 +330,46 @@ def _run_analyze(args: argparse.Namespace) -> int:
     return 0
 
 
+def _run_audit_trail(args: argparse.Namespace) -> int:
+    """Show and verify a case's real hash-chained audit.jsonl.
+
+    `AuditLog` (audit_log.py) has logged CASE_FROZEN/ENGINE_INVOKED/
+    RESULT_SEALED since it was built, but nothing ever read it back --
+    this command and the API's `/cases/{case_id}/audit-trail` route are
+    the first exposure of it. Verification and reading are kept as two
+    explicit steps: the chain can be reported broken while its entries
+    are still shown, never silently hidden.
+    """
+    cases_root = _directory_path(args.cases_root)
+    if not _SAFE_CASE_ID.fullmatch(args.case_id):
+        raise CliInputError("case-id must be a bounded path-safe identifier")
+    case_dir = cases_root / args.case_id
+    if case_dir.is_symlink() or not case_dir.is_dir():
+        raise CliInputError("selected case directory is missing or unsafe")
+
+    from zaynor.audit_log import AuditLog
+
+    log_path = case_dir / "audit.jsonl"
+    chain_valid, chain_detail = AuditLog.verify_with_report(log_path, case_id=args.case_id)
+    entries = AuditLog.load_entries(log_path)
+    payload = {
+        "case_id": args.case_id,
+        "chain_valid": chain_valid,
+        "chain_detail": chain_detail,
+        "total_entries": len(entries),
+        "entries": entries,
+    }
+    if args.json:
+        _emit(payload, as_json=True)
+    else:
+        print(f"CASE         {args.case_id}")
+        print(f"CHAIN        {'VALID' if chain_valid else 'BROKEN'} ({chain_detail})")
+        print(f"ENTRIES      {len(entries)}")
+        for entry in entries:
+            print(f"  #{entry['seq']:<3} {entry['action']:<22} {entry['created_at']}  {entry['reason']}")
+    return 0 if chain_valid else 1
+
+
 def _load_stored_result(case_id: str, result_path: Path):
     from zaynor.adapter import translate_result
 
@@ -711,6 +751,14 @@ def build_parser() -> argparse.ArgumentParser:
     audit_parser.add_argument("--output-root", required=True)
     audit_parser.add_argument("--json", action="store_true", help="emitir JSON estable")
     audit_parser.set_defaults(handler=_run_audit)
+
+    audit_trail_parser = subparsers.add_parser(
+        "audit-trail", help="mostrar y verificar el audit.jsonl hash-chained de un caso"
+    )
+    audit_trail_parser.add_argument("--case-id", required=True)
+    audit_trail_parser.add_argument("--cases-root", required=True)
+    audit_trail_parser.add_argument("--json", action="store_true", help="emitir JSON estable")
+    audit_trail_parser.set_defaults(handler=_run_audit_trail)
 
     chat_parser = subparsers.add_parser(
         "chat", help="preguntar sobre un caso ya analizado, narrado por un LLM local y verificado contra el sello"

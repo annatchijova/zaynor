@@ -47,6 +47,7 @@ from zaynor.agents.investigator_tools import InvestigatorToolAdapter
 from zaynor.agents.ollama_client import OllamaClient, OllamaError
 from zaynor.agents.policy import declared_tool_capability
 from zaynor.argentina_time import format_argentina
+from zaynor.audit_log import AuditLog
 from zaynor.cli import CliInputError, _SAFE_CASE_ID, _load_case_manifest, compute_case_audit, load_verified_stored_case
 from zaynor.framework_context import build_consult_package
 from zaynor.frozen_snapshot import FrozenSnapshotError, _validated_entries
@@ -627,6 +628,26 @@ def create_app(
     def get_case_audit(case_id: str) -> dict[str, Any]:
         _, _, audit_report = _load_case_for_overview(case_id, output_root=output_root, cases_root=cases_root)
         return _audit_status_payload(audit_report)
+
+    @app.get("/cases/{case_id}/audit-trail")
+    def get_case_audit_trail(case_id: str) -> dict[str, Any]:
+        if not _SAFE_CASE_ID.fullmatch(case_id):
+            raise ApiError(400, "invalid_case_id", "case_id is invalid", "invalid_request_error")
+        if cases_root is None:
+            raise ApiError(500, "internal_error", "audit trail is not configured on this server", "server_error")
+        case_dir = cases_root / case_id
+        if case_dir.is_symlink() or not case_dir.is_dir():
+            raise ApiError(404, "case_not_found", "case is not available", "not_found_error")
+        log_path = case_dir / "audit.jsonl"
+        chain_valid, chain_detail = AuditLog.verify_with_report(log_path, case_id=case_id)
+        entries = AuditLog.load_entries(log_path)
+        return {
+            "case_id": case_id,
+            "chain_valid": chain_valid,
+            "chain_detail": chain_detail,
+            "total_entries": len(entries),
+            "entries": entries,
+        }
 
     @app.get("/cases/{case_id}/evidence")
     def get_case_evidence(case_id: str) -> dict[str, Any]:
