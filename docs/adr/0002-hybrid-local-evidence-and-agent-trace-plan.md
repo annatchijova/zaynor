@@ -124,6 +124,21 @@ Deferred:
 - OpenTelemetry spans and exporters.
 - Cross-system postmortem correlation beyond the contracts Claude provides.
 
+## Initial implementation
+
+The first offline boundary is implemented in
+`src/zaynor/hybrid_integrations.py`. It accepts only an ANNACONDA window whose
+canonical hash verifies, materializes normalized artifacts as ordinary JSON,
+and returns a profile for the existing `case_freezer.freeze_case()` path. It
+does not assign scores or verdicts.
+
+CRONOS and MNEME are represented by narrow injected sink protocols. They may
+receive verified collection context and bounded summaries, respectively, but
+they cannot receive or mutate `result.json`, `result.seal.json`, or the
+authoritative verdict. This keeps the integration compatible with their MCP
+servers without importing their server instructions or optional side effects
+(for example Slack posting or agent-directed filesystem writes).
+
 ## Revisit trigger
 
 Reopen this ADR if:
