@@ -2,6 +2,7 @@ const cacheControl = "no-store";
 const caseIdPattern = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 const reportFormats = new Set(["md", "html", "pdf"]);
 const maxRequestBytes = 64 * 1024;
+const bffBasePath = "/api/zaynor";
 
 type FetchImplementation = (input: string, init?: RequestInit) => Promise<Response>;
 
@@ -79,6 +80,42 @@ function responseHeaders(upstream: Response): Headers {
   return headers;
 }
 
+function reportDescriptorPath(path: readonly string[]): string | null {
+  if (path.length !== 4 || path[0] !== "cases" || path[2] !== "reports" || !reportFormats.has(path[3] ?? "")) {
+    return null;
+  }
+
+  return `/cases/${path[1]}/reports/${path[3]}/download`;
+}
+
+async function rewriteReportDescriptor(upstream: Response, path: readonly string[]): Promise<Response> {
+  const expectedDownloadPath = reportDescriptorPath(path);
+
+  if (!expectedDownloadPath || !upstream.ok) {
+    return new Response(upstream.body, { status: upstream.status, headers: responseHeaders(upstream) });
+  }
+
+  try {
+    const payload: unknown = await upstream.json();
+    if (
+      typeof payload !== "object" ||
+      payload === null ||
+      Array.isArray(payload) ||
+      (payload as Readonly<Record<string, unknown>>).format !== path[3] ||
+      (payload as Readonly<Record<string, unknown>>).download_url !== expectedDownloadPath
+    ) {
+      return errorResponse(502, "INTERNAL_ERROR", "El servicio devolvió un descriptor de reporte incompatible.");
+    }
+
+    return Response.json(
+      { ...payload, download_url: `${bffBasePath}${expectedDownloadPath}` },
+      { status: upstream.status, headers: { "Cache-Control": cacheControl } },
+    );
+  } catch {
+    return errorResponse(502, "INTERNAL_ERROR", "El servicio devolvió un descriptor de reporte incompatible.");
+  }
+}
+
 async function readJsonBody(request: Request): Promise<ArrayBuffer | Response> {
   const contentType = request.headers.get("content-type") ?? "";
 
@@ -130,6 +167,10 @@ export function createZaynorBff({
           ...(body ? { "Content-Type": "application/json" } : {}),
         },
       });
+
+      if (request.method === "GET" && reportDescriptorPath(path)) {
+        return rewriteReportDescriptor(upstream, path);
+      }
 
       return new Response(upstream.body, { status: upstream.status, headers: responseHeaders(upstream) });
     } catch {

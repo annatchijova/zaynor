@@ -44,6 +44,72 @@ test("accepts the same-origin BFF base path used by browser components", async (
   assert.equal(requestUrl, "/api/zaynor/cases/CASE-001");
 });
 
+test("resolves a backend report descriptor against the configured API origin", async () => {
+  const client = new HttpApiClient({
+    baseUrl: "http://127.0.0.1:8420",
+    fetchImplementation: async () =>
+      jsonResponse({
+        content_type: "application/pdf",
+        download_url: "/cases/CASE-001/reports/pdf/download",
+        format: "pdf",
+      }),
+  });
+
+  const report = await client.getReport("CASE-001", "pdf");
+
+  assert.equal(report.download_url, "http://127.0.0.1:8420/cases/CASE-001/reports/pdf/download");
+});
+
+test("keeps private backend origins out of server-rendered report links", async () => {
+  const client = new HttpApiClient({
+    baseUrl: "http://127.0.0.1:8420",
+    reportDownloadBaseUrl: "/api/zaynor",
+    fetchImplementation: async () =>
+      jsonResponse({
+        content_type: "text/markdown",
+        download_url: "/cases/CASE-001/reports/md/download",
+        format: "md",
+      }),
+  });
+
+  const report = await client.getReport("CASE-001", "md");
+
+  assert.equal(report.download_url, "/api/zaynor/cases/CASE-001/reports/md/download");
+});
+
+test("rejects report descriptors that escape the configured backend contract", async () => {
+  const client = new HttpApiClient({
+    baseUrl: "http://127.0.0.1:8420",
+    fetchImplementation: async () =>
+      jsonResponse({
+        content_type: "application/pdf",
+        download_url: "https://untrusted.example/report.pdf",
+        format: "pdf",
+      }),
+  });
+
+  await assert.rejects(client.getReport("CASE-001", "pdf"), (error: unknown) => {
+    assert.ok(error instanceof ApiClientError);
+    assert.equal(error.code, "INTERNAL_ERROR");
+    assert.match(error.message, /enlace de descarga incompatible/i);
+    return true;
+  });
+});
+
+test("rejects a descriptor whose declared format differs from the requested artifact", async () => {
+  const client = new HttpApiClient({
+    baseUrl: "http://127.0.0.1:8420",
+    fetchImplementation: async () =>
+      jsonResponse({
+        content_type: "application/pdf",
+        download_url: "/cases/CASE-001/reports/pdf/download",
+        format: "html",
+      }),
+  });
+
+  await assert.rejects(client.getReport("CASE-001", "pdf"), ApiClientError);
+});
+
 test("maps typed backend errors without converting them into successful payloads", async () => {
   const client = new HttpApiClient({
     baseUrl: "http://127.0.0.1:8000",

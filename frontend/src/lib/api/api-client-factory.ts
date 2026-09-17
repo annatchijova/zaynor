@@ -7,14 +7,17 @@ export type ApiClientMode = "http" | "mock";
 export interface ApiClientConfiguration {
   readonly baseUrl?: string;
   readonly mode: ApiClientMode;
+  readonly reportDownloadBaseUrl?: string;
 }
 
 export function resolveApiClientConfiguration({
   mode,
   baseUrl,
+  reportDownloadBaseUrl,
 }: {
   readonly mode: string | undefined;
   readonly baseUrl: string | undefined;
+  readonly reportDownloadBaseUrl?: string;
 }): ApiClientConfiguration {
   if (!mode || mode === "mock") {
     return { mode: "mock" };
@@ -28,12 +31,15 @@ export function resolveApiClientConfiguration({
     throw new TypeError("An API base URL is required when HTTP mode is enabled.");
   }
 
-  return { mode: "http", baseUrl };
+  return { mode: "http", baseUrl, reportDownloadBaseUrl };
 }
 
 export function createApiClient(configuration: ApiClientConfiguration): ZaynorApiClient {
   if (configuration.mode === "http") {
-    return new HttpApiClient({ baseUrl: configuration.baseUrl ?? "" });
+    return new HttpApiClient({
+      baseUrl: configuration.baseUrl ?? "",
+      reportDownloadBaseUrl: configuration.reportDownloadBaseUrl,
+    });
   }
 
   return new MockApiClient();

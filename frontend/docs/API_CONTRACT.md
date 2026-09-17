@@ -199,6 +199,13 @@ content type, and validated JSON body; it never forwards browser cookies,
 authorization headers, or arbitrary request headers. It preserves only the
 backend response status, content type, and report content disposition.
 
+Report descriptors are capability-bound: a descriptor for
+`/cases/{case_id}/reports/{format}` must name exactly that case and format's
+download route. The HTTP client validates this before rendering a link. The
+BFF rewrites a valid backend-relative download route to `/api/zaynor/...`, and
+Server Components render that same BFF route instead of exposing the private
+backend origin in HTML.
+
 Server Components must use the private backend client directly. They must not
 call `/api/zaynor`, because that creates an unnecessary same-origin HTTP hop
 and fails during static builds when no application server is available.

@@ -37,6 +37,69 @@ test("forwards only allowlisted case-console reads without client credentials", 
   assert.equal(await response.text(), "report bytes");
 });
 
+test("rewrites a valid backend report descriptor to the same-origin download route", async () => {
+  const handler = createZaynorBff({
+    backendBaseUrl: "http://127.0.0.1:8420",
+    fetchImplementation: async () =>
+      Response.json({
+        content_type: "application/pdf",
+        download_url: "/cases/CASE-001/reports/pdf/download",
+        format: "pdf",
+      }),
+  });
+
+  const response = await handler(
+    new Request("http://console.local/api/zaynor/cases/CASE-001/reports/pdf"),
+    ["cases", "CASE-001", "reports", "pdf"],
+  );
+
+  assert.equal(response.headers.get("Cache-Control"), "no-store");
+  assert.deepEqual(await response.json(), {
+    content_type: "application/pdf",
+    download_url: "/api/zaynor/cases/CASE-001/reports/pdf/download",
+    format: "pdf",
+  });
+});
+
+test("rejects a backend report descriptor that does not bind to its requested artifact", async () => {
+  const handler = createZaynorBff({
+    backendBaseUrl: "http://127.0.0.1:8420",
+    fetchImplementation: async () =>
+      Response.json({
+        content_type: "application/pdf",
+        download_url: "https://untrusted.example/report.pdf",
+        format: "pdf",
+      }),
+  });
+
+  const response = await handler(
+    new Request("http://console.local/api/zaynor/cases/CASE-001/reports/pdf"),
+    ["cases", "CASE-001", "reports", "pdf"],
+  );
+
+  assert.equal(response.status, 502);
+  assert.equal((await response.json()).code, "INTERNAL_ERROR");
+});
+
+test("rejects a backend report descriptor whose declared format differs from its route", async () => {
+  const handler = createZaynorBff({
+    backendBaseUrl: "http://127.0.0.1:8420",
+    fetchImplementation: async () =>
+      Response.json({
+        content_type: "application/pdf",
+        download_url: "/cases/CASE-001/reports/pdf/download",
+        format: "html",
+      }),
+  });
+
+  const response = await handler(
+    new Request("http://console.local/api/zaynor/cases/CASE-001/reports/pdf"),
+    ["cases", "CASE-001", "reports", "pdf"],
+  );
+
+  assert.equal(response.status, 502);
+});
+
 test("rejects paths outside the BFF allowlist before contacting the backend", async () => {
   let called = false;
   const handler = createZaynorBff({

@@ -482,18 +482,60 @@ function normalizeBaseUrl(baseUrl: string): string {
   return parsedBaseUrl.toString().replace(/\/$/, "");
 }
 
+function reportDownloadPath(caseId: string, format: ReportFormat): string {
+  return `/cases/${encodeURIComponent(caseId)}/reports/${format}/download`;
+}
+
+function resolveUrlAtBase(baseUrl: string, path: string): string {
+  if (baseUrl.startsWith("/")) {
+    return `${baseUrl}${path}`;
+  }
+
+  return new URL(path, `${baseUrl}/`).toString();
+}
+
+function isExpectedReportDescriptor(
+  downloadUrl: string,
+  apiBaseUrl: string,
+  expectedPath: string,
+): boolean {
+  if (apiBaseUrl.startsWith("/")) {
+    return downloadUrl === `${apiBaseUrl}${expectedPath}`;
+  }
+
+  try {
+    const apiBase = new URL(apiBaseUrl);
+    const descriptor = new URL(downloadUrl, `${apiBaseUrl}/`);
+    return (
+      descriptor.origin === apiBase.origin &&
+      descriptor.pathname === expectedPath &&
+      !descriptor.search &&
+      !descriptor.hash
+    );
+  } catch {
+    return false;
+  }
+}
+
 export interface HttpApiClientOptions {
   readonly baseUrl: string;
   readonly fetchImplementation?: FetchImplementation;
+  readonly reportDownloadBaseUrl?: string;
 }
 
 export class HttpApiClient implements ZaynorApiClient {
   readonly #baseUrl: string;
   readonly #fetch: FetchImplementation;
+  readonly #reportDownloadBaseUrl: string;
 
-  constructor({ baseUrl, fetchImplementation = globalThis.fetch.bind(globalThis) }: HttpApiClientOptions) {
+  constructor({
+    baseUrl,
+    fetchImplementation = globalThis.fetch.bind(globalThis),
+    reportDownloadBaseUrl = baseUrl,
+  }: HttpApiClientOptions) {
     this.#baseUrl = normalizeBaseUrl(baseUrl);
     this.#fetch = fetchImplementation;
+    this.#reportDownloadBaseUrl = normalizeBaseUrl(reportDownloadBaseUrl);
   }
 
   async getHealth(): Promise<SystemHealth> {
@@ -551,7 +593,21 @@ export class HttpApiClient implements ZaynorApiClient {
   }
 
   async getReport(caseId: string, format: ReportFormat): Promise<ReportArtifact> {
-    return this.#getCaseResource(caseId, `/reports/${format}`, parseReportArtifact);
+    const artifact = await this.#getCaseResource(caseId, `/reports/${format}`, parseReportArtifact);
+    const expectedPath = reportDownloadPath(caseId, format);
+
+    if (artifact.format !== format || !isExpectedReportDescriptor(artifact.download_url, this.#baseUrl, expectedPath)) {
+      throw new ApiClientError({
+        code: "INTERNAL_ERROR",
+        message: "El servicio devolvió un enlace de descarga incompatible con el contrato del frontend.",
+        request_id: null,
+      });
+    }
+
+    return {
+      ...artifact,
+      download_url: resolveUrlAtBase(this.#reportDownloadBaseUrl, expectedPath),
+    };
   }
 
   async #getCaseResource<T>(caseId: string, suffix: string, parser: (payload: unknown) => T): Promise<T> {
