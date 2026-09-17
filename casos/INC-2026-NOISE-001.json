@@ -1,0 +1,289 @@
+{
+  "$schema": "./case.schema.json",
+  "schema_version": "zaynor-case-v1",
+  "case_id": "INC-2026-NOISE-001",
+  "title": "Administration Requests Among Routine Traffic",
+  "data_classification": "synthetic",
+  "declared_incident": {
+    "source": "synthetic_replay",
+    "declared_at": "2026-06-15T11:20:00Z",
+    "rule_id": "CORR-RARE-ADMIN-POST-BURST",
+    "trigger_refs": [
+      "web:E011",
+      "web:E012",
+      "web:E013",
+      "web:E014",
+      "web:E015",
+      "baseline:E016"
+    ],
+    "reason": "A rarely used administration endpoint received a short burst of empty POST requests from a management workstation.",
+    "affected_assets": [
+      "customer-portal-01",
+      "it-ws-50"
+    ]
+  },
+  "evidence_scope": {
+    "collection_status": "complete_for_fixture",
+    "limitations": [
+      "The web log does not contain request bodies.",
+      "The management workstation was not imaged.",
+      "No configuration change was observed during the collection window."
+    ]
+  },
+  "records": [
+    {
+      "ref": "web:E001",
+      "lineage_id": "lineage:portal-access-log",
+      "artifact": "access.jsonl",
+      "kind": "web_request",
+      "observed_at": "2026-06-15T10:01:00Z",
+      "observation": "A public client requested GET /about and received status 200.",
+      "fields": {
+        "method": "GET",
+        "path": "/about",
+        "source_ip": "198.51.100.101",
+        "status": 200
+      }
+    },
+    {
+      "ref": "web:E002",
+      "lineage_id": "lineage:portal-access-log",
+      "artifact": "access.jsonl",
+      "kind": "web_request",
+      "observed_at": "2026-06-15T10:02:00Z",
+      "observation": "A public client requested GET /products and received status 200.",
+      "fields": {
+        "method": "GET",
+        "path": "/products",
+        "source_ip": "198.51.100.102",
+        "status": 200
+      }
+    },
+    {
+      "ref": "web:E003",
+      "lineage_id": "lineage:portal-access-log",
+      "artifact": "access.jsonl",
+      "kind": "web_request",
+      "observed_at": "2026-06-15T10:03:00Z",
+      "observation": "A public client requested GET /support and received status 200.",
+      "fields": {
+        "method": "GET",
+        "path": "/support",
+        "source_ip": "198.51.100.103",
+        "status": 200
+      }
+    },
+    {
+      "ref": "web:E004",
+      "lineage_id": "lineage:portal-access-log",
+      "artifact": "access.jsonl",
+      "kind": "web_request",
+      "observed_at": "2026-06-15T10:04:00Z",
+      "observation": "A public client requested GET / and received status 200.",
+      "fields": {
+        "method": "GET",
+        "path": "/",
+        "source_ip": "198.51.100.104",
+        "status": 200
+      }
+    },
+    {
+      "ref": "web:E005",
+      "lineage_id": "lineage:portal-access-log",
+      "artifact": "access.jsonl",
+      "kind": "web_request",
+      "observed_at": "2026-06-15T10:05:00Z",
+      "observation": "A public client requested GET /contact and received status 200.",
+      "fields": {
+        "method": "GET",
+        "path": "/contact",
+        "source_ip": "198.51.100.105",
+        "status": 200
+      }
+    },
+    {
+      "ref": "web:E006",
+      "lineage_id": "lineage:portal-access-log",
+      "artifact": "access.jsonl",
+      "kind": "web_request",
+      "observed_at": "2026-06-15T10:06:00Z",
+      "observation": "A public client requested GET /services and received status 200.",
+      "fields": {
+        "method": "GET",
+        "path": "/services",
+        "source_ip": "198.51.100.106",
+        "status": 200
+      }
+    },
+    {
+      "ref": "web:E007",
+      "lineage_id": "lineage:portal-access-log",
+      "artifact": "access.jsonl",
+      "kind": "web_request",
+      "observed_at": "2026-06-15T10:07:00Z",
+      "observation": "A public client requested GET /team and received status 200.",
+      "fields": {
+        "method": "GET",
+        "path": "/team",
+        "source_ip": "198.51.100.107",
+        "status": 200
+      }
+    },
+    {
+      "ref": "web:E008",
+      "lineage_id": "lineage:portal-access-log",
+      "artifact": "access.jsonl",
+      "kind": "web_request",
+      "observed_at": "2026-06-15T10:08:00Z",
+      "observation": "A public client requested GET /products and received status 200.",
+      "fields": {
+        "method": "GET",
+        "path": "/products",
+        "source_ip": "198.51.100.108",
+        "status": 200
+      }
+    },
+    {
+      "ref": "web:E009",
+      "lineage_id": "lineage:portal-access-log",
+      "artifact": "access.jsonl",
+      "kind": "web_request",
+      "observed_at": "2026-06-15T10:09:00Z",
+      "observation": "A public client requested GET /support and received status 200.",
+      "fields": {
+        "method": "GET",
+        "path": "/support",
+        "source_ip": "198.51.100.109",
+        "status": 200
+      }
+    },
+    {
+      "ref": "web:E010",
+      "lineage_id": "lineage:portal-access-log",
+      "artifact": "access.jsonl",
+      "kind": "web_request",
+      "observed_at": "2026-06-15T10:10:00Z",
+      "observation": "A public client requested GET / and received status 200.",
+      "fields": {
+        "method": "GET",
+        "path": "/",
+        "source_ip": "198.51.100.110",
+        "status": 200
+      }
+    },
+    {
+      "ref": "web:E011",
+      "lineage_id": "lineage:portal-access-log",
+      "artifact": "access.jsonl",
+      "kind": "web_request",
+      "observed_at": "2026-06-15T10:11:00Z",
+      "observation": "The portal received POST /admin/settings/import from 10.0.1.50 with an empty body.",
+      "fields": {
+        "body_size": 0,
+        "method": "POST",
+        "path": "/admin/settings/import",
+        "source_ip": "10.0.1.50",
+        "status": 204
+      }
+    },
+    {
+      "ref": "web:E012",
+      "lineage_id": "lineage:portal-access-log",
+      "artifact": "access.jsonl",
+      "kind": "web_request",
+      "observed_at": "2026-06-15T10:12:00Z",
+      "observation": "The portal received a second empty POST to the same administration endpoint from 10.0.1.50.",
+      "fields": {
+        "body_size": 0,
+        "method": "POST",
+        "path": "/admin/settings/import",
+        "source_ip": "10.0.1.50",
+        "status": 204
+      }
+    },
+    {
+      "ref": "web:E013",
+      "lineage_id": "lineage:portal-access-log",
+      "artifact": "access.jsonl",
+      "kind": "web_request",
+      "observed_at": "2026-06-15T10:13:00Z",
+      "observation": "The portal received a third empty POST to the same administration endpoint from 10.0.1.50.",
+      "fields": {
+        "body_size": 0,
+        "method": "POST",
+        "path": "/admin/settings/import",
+        "source_ip": "10.0.1.50",
+        "status": 204
+      }
+    },
+    {
+      "ref": "web:E014",
+      "lineage_id": "lineage:portal-access-log",
+      "artifact": "access.jsonl",
+      "kind": "web_request",
+      "observed_at": "2026-06-15T10:14:00Z",
+      "observation": "The portal received a fourth empty POST to the same administration endpoint from 10.0.1.50.",
+      "fields": {
+        "body_size": 0,
+        "method": "POST",
+        "path": "/admin/settings/import",
+        "source_ip": "10.0.1.50",
+        "status": 204
+      }
+    },
+    {
+      "ref": "web:E015",
+      "lineage_id": "lineage:portal-access-log",
+      "artifact": "access.jsonl",
+      "kind": "web_request",
+      "observed_at": "2026-06-15T10:15:00Z",
+      "observation": "The portal received a fifth empty POST to the same administration endpoint from 10.0.1.50.",
+      "fields": {
+        "body_size": 0,
+        "method": "POST",
+        "path": "/admin/settings/import",
+        "source_ip": "10.0.1.50",
+        "status": 204
+      }
+    },
+    {
+      "ref": "baseline:E016",
+      "lineage_id": "lineage:historical-access-index",
+      "artifact": "endpoint_baseline.json",
+      "kind": "baseline",
+      "observed_at": "2026-06-15T11:00:00Z",
+      "observation": "The indexed 180-day history contained no request from the management subnet to /admin/settings/import.",
+      "fields": {
+        "historical_matches": 0,
+        "lookback_days": 180,
+        "path": "/admin/settings/import",
+        "subnet": "10.0.1.0/24"
+      }
+    },
+    {
+      "ref": "config:E017",
+      "lineage_id": "lineage:configuration-snapshots",
+      "artifact": "configuration_hashes.jsonl",
+      "kind": "configuration",
+      "observed_at": "2026-06-15T10:16:00Z",
+      "observation": "The application configuration digest was unchanged before and after the POST sequence.",
+      "fields": {
+        "after_sha256": "be6ffdefa037b2b2c979444ae6a3fb80b24cd0f0753234571c3cf52a55ccef2a",
+        "before_sha256": "be6ffdefa037b2b2c979444ae6a3fb80b24cd0f0753234571c3cf52a55ccef2a"
+      }
+    },
+    {
+      "ref": "asset:E018",
+      "lineage_id": "lineage:device-inventory",
+      "artifact": "device_inventory.json",
+      "kind": "inventory",
+      "observed_at": "2026-06-15T11:02:00Z",
+      "observation": "Address 10.0.1.50 was assigned to it-ws-50, a workstation used by multiple administrators.",
+      "fields": {
+        "device": "it-ws-50",
+        "ip": "10.0.1.50",
+        "shared_device": true
+      }
+    }
+  ]
+}

@@ -1,0 +1,116 @@
+{
+  "$schema": "./case.schema.json",
+  "schema_version": "zaynor-case-v1",
+  "case_id": "INC-2026-INCOMPLETE-001",
+  "title": "Incomplete Memory Process Inventories",
+  "data_classification": "synthetic",
+  "declared_incident": {
+    "source": "synthetic_replay",
+    "declared_at": "2026-02-02T00:10:00Z",
+    "rule_id": "CORR-ACQUISITION-INTEGRITY-MISMATCH",
+    "trigger_refs": [
+      "acq:E002",
+      "mem:E003",
+      "mem:E004"
+    ],
+    "reason": "Two memory-analysis methods produced incompatible process inventories.",
+    "affected_assets": [
+      "design-ws-08"
+    ]
+  },
+  "evidence_scope": {
+    "collection_status": "incomplete",
+    "limitations": [
+      "The pagefile was not included in the acquisition.",
+      "The memory image ended before the expected physical-memory boundary.",
+      "The symbol table selected by the first parser did not exactly match the operating-system build.",
+      "The available evidence cannot distinguish deliberate process unlinking from acquisition or parser failure."
+    ]
+  },
+  "records": [
+    {
+      "ref": "acq:E001",
+      "lineage_id": "lineage:acquisition-manifest",
+      "artifact": "acquisition_manifest.json",
+      "kind": "acquisition",
+      "observed_at": "2026-02-01T23:17:00Z",
+      "observation": "The collection manifest lists physical memory but no pagefile.",
+      "fields": {
+        "memory_image_present": true,
+        "pagefile_present": false
+      }
+    },
+    {
+      "ref": "acq:E002",
+      "lineage_id": "lineage:acquisition-manifest",
+      "artifact": "acquisition_manifest.json",
+      "kind": "acquisition",
+      "observed_at": "2026-02-01T23:17:00Z",
+      "observation": "The image size was 268435456 bytes smaller than the collector's expected capture size.",
+      "fields": {
+        "actual_size_bytes": 16911433728,
+        "expected_size_bytes": 17179869184
+      }
+    },
+    {
+      "ref": "mem:E003",
+      "lineage_id": "lineage:memory-image-02",
+      "artifact": "active_process_list.json",
+      "kind": "memory",
+      "observed_at": "2026-02-01T23:20:00Z",
+      "observation": "The active-list parser returned zero processes and emitted a symbol-resolution warning.",
+      "fields": {
+        "process_count": 0,
+        "warning": "kernel symbols differ from detected build"
+      }
+    },
+    {
+      "ref": "mem:E004",
+      "lineage_id": "lineage:memory-image-02",
+      "artifact": "pool_scan_processes.json",
+      "kind": "memory",
+      "observed_at": "2026-02-01T23:22:00Z",
+      "observation": "A pool scan returned twenty candidate process structures, including browser, office, chat, and acquisition-tool names.",
+      "fields": {
+        "candidate_count": 20,
+        "validation_status": "partial"
+      }
+    },
+    {
+      "ref": "mem:E005",
+      "lineage_id": "lineage:memory-image-02",
+      "artifact": "pool_scan_processes.json",
+      "kind": "memory",
+      "observed_at": "2026-02-01T23:22:00Z",
+      "observation": "Several candidate structures had invalid parent identifiers or timestamps outside the capture window.",
+      "fields": {
+        "invalid_parent_identifiers": 4,
+        "out_of_window_timestamps": 3
+      }
+    },
+    {
+      "ref": "net:E006",
+      "lineage_id": "lineage:memory-image-02",
+      "artifact": "memory_network.json",
+      "kind": "network",
+      "observed_at": "2026-02-01T23:24:00Z",
+      "observation": "The network scan found browser connections to shared content-delivery services and no destination tied to a known incident indicator.",
+      "fields": {
+        "known_indicator_matches": 0,
+        "shared_service_connections": 6
+      }
+    },
+    {
+      "ref": "acq:E007",
+      "lineage_id": "lineage:acquisition-log",
+      "artifact": "collector_log.jsonl",
+      "kind": "acquisition",
+      "observed_at": "2026-02-01T23:17:10Z",
+      "observation": "The collector logged an early read termination before finalizing the image.",
+      "fields": {
+        "error": "short read",
+        "finalization_status": "partial"
+      }
+    }
+  ]
+}

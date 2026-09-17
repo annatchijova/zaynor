@@ -1,0 +1,163 @@
+{
+  "$schema": "./case.schema.json",
+  "schema_version": "zaynor-case-v1",
+  "case_id": "INC-2026-DOMAIN-001",
+  "title": "Directory Service Installation Media Creation",
+  "data_classification": "synthetic",
+  "declared_incident": {
+    "source": "synthetic_replay",
+    "declared_at": "2026-08-24T19:00:00Z",
+    "rule_id": "CORR-DOMAIN-MEDIA-EGRESS",
+    "trigger_refs": [
+      "proc:E003",
+      "net:E006",
+      "change:E009"
+    ],
+    "reason": "A domain controller created an Active Directory installation-media set outside an approved maintenance window.",
+    "affected_assets": [
+      "corp-dc-01"
+    ]
+  },
+  "evidence_scope": {
+    "collection_status": "complete_for_fixture",
+    "limitations": [
+      "The collected evidence does not establish whether the entire credential store left the network.",
+      "The account used for execution may have been compromised; keyboard attribution remains unknown.",
+      "The initial access path is outside the collected time window."
+    ]
+  },
+  "records": [
+    {
+      "ref": "svc:E001",
+      "lineage_id": "lineage:system-event-log",
+      "artifact": "system_events.jsonl",
+      "kind": "service_install",
+      "observed_at": "2026-08-24T18:22:04Z",
+      "observation": "Service HostTelemetry was installed to run C:\\Windows\\Tasks\\svhost.exe as LocalSystem.",
+      "fields": {
+        "account": "LocalSystem",
+        "event_id": 7045,
+        "image_path": "C:\\Windows\\Tasks\\svhost.exe",
+        "service": "HostTelemetry"
+      }
+    },
+    {
+      "ref": "fs:E002",
+      "lineage_id": "lineage:disk-image-04",
+      "artifact": "file_inventory.jsonl",
+      "kind": "filesystem",
+      "observed_at": "2026-08-24T18:21:55Z",
+      "observation": "svhost.exe was unsigned, unowned by any installed package, and first appeared nine seconds before the service event.",
+      "fields": {
+        "package_owner": null,
+        "path": "C:\\Windows\\Tasks\\svhost.exe",
+        "sha256": "2517634696e0538f7a556e1625433b45f6ef39cc863dc93bd56a8b44e4b43f15",
+        "signature_status": "unsigned"
+      }
+    },
+    {
+      "ref": "proc:E003",
+      "lineage_id": "lineage:security-event-log",
+      "artifact": "process_events.jsonl",
+      "kind": "process",
+      "observed_at": "2026-08-24T18:31:52Z",
+      "observation": "The domain administrator account launched ntdsutil.exe to create full installation media under C:\\ProgramData\\cache.",
+      "fields": {
+        "account": "CORP\\domain.admin",
+        "command_line": "ntdsutil.exe \"activate instance ntds\" \"ifm\" \"create full C:\\ProgramData\\cache\" quit quit",
+        "event_id": 4688,
+        "parent_process": "svhost.exe"
+      }
+    },
+    {
+      "ref": "fs:E004",
+      "lineage_id": "lineage:filesystem-audit",
+      "artifact": "filesystem_events.jsonl",
+      "kind": "filesystem",
+      "observed_at": "2026-08-24T18:33:40Z",
+      "observation": "The output directory received copies of ntds.dit and the SYSTEM registry hive.",
+      "fields": {
+        "paths": [
+          "C:\\ProgramData\\cache\\Active Directory\\ntds.dit",
+          "C:\\ProgramData\\cache\\registry\\SYSTEM"
+        ]
+      }
+    },
+    {
+      "ref": "proc:E005",
+      "lineage_id": "lineage:security-event-log",
+      "artifact": "process_events.jsonl",
+      "kind": "process",
+      "observed_at": "2026-08-24T18:35:12Z",
+      "observation": "svhost.exe launched tar.exe to create C:\\ProgramData\\cache.tar from the installation-media directory.",
+      "fields": {
+        "command_line": "tar.exe -cf C:\\ProgramData\\cache.tar C:\\ProgramData\\cache",
+        "parent_process": "svhost.exe"
+      }
+    },
+    {
+      "ref": "net:E006",
+      "lineage_id": "lineage:firewall-export",
+      "artifact": "network.jsonl",
+      "kind": "network",
+      "observed_at": "2026-08-24T18:36:21Z",
+      "observation": "corp-dc-01 sent 78433412 bytes over TLS to 203.0.113.72 after the archive was created.",
+      "fields": {
+        "bytes_observed": 78433412,
+        "destination": "203.0.113.72",
+        "host": "corp-dc-01",
+        "protocol": "TLS"
+      }
+    },
+    {
+      "ref": "gpo:E007",
+      "lineage_id": "lineage:sysvol-snapshot",
+      "artifact": "gpo_files.jsonl",
+      "kind": "configuration",
+      "observed_at": "2026-08-24T18:40:00Z",
+      "observation": "The default domain policy startup folder contained InstallHealthAgent.bat with a digest absent from the approved configuration repository.",
+      "fields": {
+        "approved_digest_match": false,
+        "path": "\\\\corp.example.invalid\\SYSVOL\\corp.example.invalid\\Policies\\DefaultDomainPolicy\\Machine\\Scripts\\Startup\\InstallHealthAgent.bat",
+        "sha256": "c33b75c9d0d808856e89a91c1435c6243f7ef2e36290d6b06bb7ac4298d21c3e"
+      }
+    },
+    {
+      "ref": "gpo:E008",
+      "lineage_id": "lineage:gpo-client-events",
+      "artifact": "gpo_client_events.jsonl",
+      "kind": "configuration",
+      "observed_at": "2026-08-24T18:50:00Z",
+      "observation": "Six domain clients reported applying the startup script after the file appeared in SYSVOL.",
+      "fields": {
+        "client_count": 6,
+        "script": "InstallHealthAgent.bat"
+      }
+    },
+    {
+      "ref": "change:E009",
+      "lineage_id": "lineage:change-management-export",
+      "artifact": "approved_changes.json",
+      "kind": "change_control",
+      "observed_at": "2026-08-24T18:55:00Z",
+      "observation": "No approved change covered installation-media creation, the new service, or the startup script.",
+      "fields": {
+        "matching_changes": 0,
+        "window_end": "2026-08-24T19:00:00Z",
+        "window_start": "2026-08-24T18:00:00Z"
+      }
+    },
+    {
+      "ref": "log:E010",
+      "lineage_id": "lineage:security-event-log",
+      "artifact": "security_events.jsonl",
+      "kind": "anti_forensics",
+      "observed_at": "2026-08-24T18:37:10Z",
+      "observation": "The Security event log recorded an audit-log clear event under the domain administrator account.",
+      "fields": {
+        "account": "CORP\\domain.admin",
+        "event_id": 1102
+      }
+    }
+  ]
+}

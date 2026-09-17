@@ -1,0 +1,141 @@
+{
+  "$schema": "./case.schema.json",
+  "schema_version": "zaynor-case-v1",
+  "case_id": "INC-2026-BANKER-001",
+  "title": "API Hooks and Recurring Temp Execution",
+  "data_classification": "synthetic",
+  "declared_incident": {
+    "source": "synthetic_replay",
+    "declared_at": "2026-07-09T21:10:00Z",
+    "rule_id": "CORR-RECURRING-TEMP-EGRESS",
+    "trigger_refs": [
+      "task:E003",
+      "net:E005"
+    ],
+    "reason": "Memory analysis found API hooks and recurring execution of an unapproved binary on an executive workstation.",
+    "affected_assets": [
+      "exec-ws-12"
+    ]
+  },
+  "evidence_scope": {
+    "collection_status": "complete_for_fixture",
+    "limitations": [
+      "The live acquisition occurred while the suspicious hooks were active.",
+      "No server-side records from the remote destination were collected.",
+      "The evidence establishes recurring unapproved execution and memory redirection but not the original delivery vector or operator attribution."
+    ]
+  },
+  "records": [
+    {
+      "ref": "mem:E001",
+      "lineage_id": "lineage:memory-image-03",
+      "artifact": "api_hooks.jsonl",
+      "kind": "memory",
+      "observed_at": "2026-07-09T20:52:56Z",
+      "observation": "services.exe redirected NtCreateThread and NtQueryDirectoryFile to executable memory outside every loaded module.",
+      "fields": {
+        "hooked_functions": [
+          "NtCreateThread",
+          "NtQueryDirectoryFile"
+        ],
+        "pid": 676,
+        "process": "services.exe",
+        "target_region_backed_by_module": false
+      }
+    },
+    {
+      "ref": "mem:E002",
+      "lineage_id": "lineage:memory-image-03",
+      "artifact": "injected_regions.jsonl",
+      "kind": "memory",
+      "observed_at": "2026-07-09T20:52:56Z",
+      "observation": "The hook destination contained a configuration block with a campaign identifier and a remote HTTPS path.",
+      "fields": {
+        "campaign_id": "BK-47",
+        "remote_path": "/gate/checkin",
+        "target_region_backed_by_module": false
+      }
+    },
+    {
+      "ref": "task:E003",
+      "lineage_id": "lineage:task-scheduler-log",
+      "artifact": "scheduled_tasks.jsonl",
+      "kind": "scheduled_task",
+      "observed_at": "2026-07-09T20:25:30Z",
+      "observation": "Task UpdateCache launched C:\\Users\\Public\\Temp\\cache.exe every 65 seconds.",
+      "fields": {
+        "command": "C:\\Users\\Public\\Temp\\cache.exe",
+        "interval_seconds": 65,
+        "task": "UpdateCache"
+      }
+    },
+    {
+      "ref": "fs:E004",
+      "lineage_id": "lineage:disk-image-03",
+      "artifact": "file_hashes.jsonl",
+      "kind": "filesystem",
+      "observed_at": "2026-07-09T20:55:00Z",
+      "observation": "Identical bytes were present as cache.exe in the user temp directory and as update.dat in the Windows temp directory.",
+      "fields": {
+        "paths": [
+          "C:\\Users\\Public\\Temp\\cache.exe",
+          "C:\\Windows\\Temp\\update.dat"
+        ],
+        "sha256": "680316497d450c3b56297de3b5de4c48a72074916d179e12249935441ef0efa1"
+      }
+    },
+    {
+      "ref": "net:E005",
+      "lineage_id": "lineage:proxy-log",
+      "artifact": "proxy.jsonl",
+      "kind": "network",
+      "observed_at": "2026-07-09T20:26:35Z",
+      "observation": "cache.exe sent repeated HTTPS POST requests to 192.0.2.143 using the path recovered from memory.",
+      "fields": {
+        "destination": "192.0.2.143",
+        "method": "POST",
+        "path": "/gate/checkin",
+        "process": "cache.exe"
+      }
+    },
+    {
+      "ref": "cert:E006",
+      "lineage_id": "lineage:certificate-service-log",
+      "artifact": "certificate_events.jsonl",
+      "kind": "authentication",
+      "observed_at": "2026-07-09T20:31:10Z",
+      "observation": "The workstation requested certificates for the executive account and a support account during the recurring task window.",
+      "fields": {
+        "accounts": [
+          "executive.12",
+          "support.04"
+        ],
+        "request_count": 3
+      }
+    },
+    {
+      "ref": "acq:E007",
+      "lineage_id": "lineage:acquisition-log",
+      "artifact": "acquisition.jsonl",
+      "kind": "acquisition",
+      "observed_at": "2026-07-09T20:52:56Z",
+      "observation": "The response agent collected memory from the live workstation while services.exe was hooked.",
+      "fields": {
+        "capture_mode": "live",
+        "collector": "ResponseAcquire.exe"
+      }
+    },
+    {
+      "ref": "dlp:E008",
+      "lineage_id": "lineage:dlp-export",
+      "artifact": "dlp.jsonl",
+      "kind": "data_loss",
+      "observed_at": "2026-07-09T21:00:00Z",
+      "observation": "The available data-loss log had no record proving that financial data was transferred.",
+      "fields": {
+        "confirmed_sensitive_transfers": 0,
+        "coverage_status": "partial"
+      }
+    }
+  ]
+}

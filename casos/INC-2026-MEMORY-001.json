@@ -1,0 +1,139 @@
+{
+  "$schema": "./case.schema.json",
+  "schema_version": "zaynor-case-v1",
+  "case_id": "INC-2026-MEMORY-001",
+  "title": "Executable Memory on a Workstation",
+  "data_classification": "synthetic",
+  "declared_incident": {
+    "source": "synthetic_replay",
+    "declared_at": "2026-04-08T03:10:00Z",
+    "rule_id": "CORR-PRIVATE-EXECUTABLE-MEMORY",
+    "trigger_refs": [
+      "mem:E001",
+      "mem:E002"
+    ],
+    "reason": "An endpoint snapshot showed a thread executing from private writable and executable memory.",
+    "affected_assets": [
+      "finance-ws-17"
+    ]
+  },
+  "evidence_scope": {
+    "collection_status": "complete_for_fixture",
+    "limitations": [
+      "The memory image was acquired while the system was running.",
+      "The payload's delivery vector is not present in the collected evidence.",
+      "The observed TLS destination is a shared cloud service and is not evidence of command and control by itself."
+    ]
+  },
+  "records": [
+    {
+      "ref": "mem:E001",
+      "lineage_id": "lineage:memory-image-01",
+      "artifact": "memory_processes.jsonl",
+      "kind": "process",
+      "observed_at": "2026-04-08T02:32:38Z",
+      "observation": "SearchUI.exe contained four private PAGE_EXECUTE_READWRITE regions not backed by an image file.",
+      "fields": {
+        "process": "SearchUI.exe",
+        "pid": 8312,
+        "private_rwx_regions": 4
+      }
+    },
+    {
+      "ref": "mem:E002",
+      "lineage_id": "lineage:memory-image-01",
+      "artifact": "memory_threads.jsonl",
+      "kind": "memory",
+      "observed_at": "2026-04-08T02:32:38Z",
+      "observation": "Thread 8440 in SearchUI.exe started at an address inside one of the private executable regions.",
+      "fields": {
+        "pid": 8312,
+        "region_start": "0x000001f4a8100000",
+        "thread_id": 8440,
+        "thread_start": "0x000001f4a81014b0"
+      }
+    },
+    {
+      "ref": "mem:E003",
+      "lineage_id": "lineage:memory-image-01",
+      "artifact": "memory_strings.jsonl",
+      "kind": "memory",
+      "observed_at": "2026-04-08T02:32:38Z",
+      "observation": "The same region contained a decoded PowerShell command that downloads no file but opens a named pipe and loads bytes in memory.",
+      "fields": {
+        "named_pipe": "\\\\.\\pipe\\diag-cache-17",
+        "pid": 8312,
+        "powershell_mode": "encoded_in_memory"
+      }
+    },
+    {
+      "ref": "proc:E004",
+      "lineage_id": "lineage:edr-process-export",
+      "artifact": "process_history.jsonl",
+      "kind": "process",
+      "observed_at": "2026-04-08T02:31:15Z",
+      "observation": "Unsigned utility DiagCapture.exe launched from D:\\Support\\ and opened a handle to SearchUI.exe with thread-creation rights.",
+      "fields": {
+        "access_rights": [
+          "PROCESS_VM_WRITE",
+          "PROCESS_CREATE_THREAD"
+        ],
+        "path": "D:\\Support\\DiagCapture.exe",
+        "signature_status": "unsigned",
+        "target_pid": 8312
+      }
+    },
+    {
+      "ref": "fs:E005",
+      "lineage_id": "lineage:disk-image-01",
+      "artifact": "file_inventory.jsonl",
+      "kind": "filesystem",
+      "observed_at": "2026-04-08T02:31:10Z",
+      "observation": "DiagCapture.exe was created from a browser download and was not in the approved support-tool catalog.",
+      "fields": {
+        "approved_catalog_match": false,
+        "origin": "browser_download",
+        "path": "D:\\Support\\DiagCapture.exe",
+        "sha256": "80ef35879b73cc117d70f4cd5905e8b67bf4a08b061658b24af614c61350baae"
+      }
+    },
+    {
+      "ref": "net:E006",
+      "lineage_id": "lineage:memory-image-01",
+      "artifact": "memory_network.jsonl",
+      "kind": "network",
+      "observed_at": "2026-04-08T02:32:21Z",
+      "observation": "SearchUI.exe had one established TLS connection to 203.0.113.81:443.",
+      "fields": {
+        "destination": "203.0.113.81",
+        "pid": 8312,
+        "port": 443
+      }
+    },
+    {
+      "ref": "intel:E007",
+      "lineage_id": "lineage:network-ownership-snapshot",
+      "artifact": "destination_context.json",
+      "kind": "context",
+      "observed_at": "2026-04-08T03:00:00Z",
+      "observation": "The destination address belonged to a multi-tenant cloud range at collection time.",
+      "fields": {
+        "destination": "203.0.113.81",
+        "shared_infrastructure": true
+      }
+    },
+    {
+      "ref": "acq:E008",
+      "lineage_id": "lineage:acquisition-log",
+      "artifact": "acquisition.jsonl",
+      "kind": "acquisition",
+      "observed_at": "2026-04-08T02:32:38Z",
+      "observation": "The collection agent was active during the memory capture.",
+      "fields": {
+        "capture_mode": "live",
+        "collector_process": "MemAcquire.exe",
+        "write_blocker_used": false
+      }
+    }
+  ]
+}

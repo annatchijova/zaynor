@@ -1,0 +1,142 @@
+{
+  "$schema": "./case.schema.json",
+  "schema_version": "zaynor-case-v1",
+  "case_id": "INC-2026-LINUX-001",
+  "title": "Scheduler and Package Integrity Mismatch",
+  "data_classification": "synthetic",
+  "declared_incident": {
+    "source": "synthetic_replay",
+    "declared_at": "2026-05-11T09:15:00Z",
+    "rule_id": "CORR-HIDDEN-WORKLOAD-SATURATION",
+    "trigger_refs": [
+      "cron:E005",
+      "proc:E006"
+    ],
+    "reason": "A Linux application server sustained unexplained CPU saturation while normal scheduler output showed no workload.",
+    "affected_assets": [
+      "api-linux-06"
+    ]
+  },
+  "evidence_scope": {
+    "collection_status": "complete_for_fixture",
+    "limitations": [
+      "The initial access vector was not captured.",
+      "The evidence does not establish the operator's identity or location.",
+      "Only the observed transfer metadata is available; packet payloads were not retained."
+    ]
+  },
+  "records": [
+    {
+      "ref": "pkg:E001",
+      "lineage_id": "lineage:package-db",
+      "artifact": "package_verification.jsonl",
+      "kind": "filesystem",
+      "observed_at": "2026-05-11T08:42:00Z",
+      "observation": "/usr/bin/crontab did not match the digest registered by the installed cron package.",
+      "fields": {
+        "actual_sha256": "d1e9a1b3c4f7e2a6b0c8d5f3e1a7b2c4d1e9a1b3c4f7e2a6b0c8d5f3e1a7b2",
+        "expected_sha256": "82355711757e1a6897d7b75f968cba43e2230e14d668614a00092e7515b5d4b2",
+        "path": "/usr/bin/crontab"
+      }
+    },
+    {
+      "ref": "pkg:E002",
+      "lineage_id": "lineage:apt-history",
+      "artifact": "apt_history.log",
+      "kind": "package_history",
+      "observed_at": "2026-05-11T08:43:00Z",
+      "observation": "No package operation involving cron occurred within thirty days of the file modification time.",
+      "fields": {
+        "lookback_days": 30,
+        "matching_operations": 0,
+        "package": "cron"
+      }
+    },
+    {
+      "ref": "fs:E003",
+      "lineage_id": "lineage:disk-snapshot",
+      "artifact": "filesystem.jsonl",
+      "kind": "filesystem",
+      "observed_at": "2026-05-11T08:45:00Z",
+      "observation": "/etc/ld.so.preload referenced /lib/libprocfilter.so, which was not owned by any installed package.",
+      "fields": {
+        "library": "/lib/libprocfilter.so",
+        "package_owner": null,
+        "preload_file": "/etc/ld.so.preload"
+      }
+    },
+    {
+      "ref": "cron:E004",
+      "lineage_id": "lineage:disk-snapshot",
+      "artifact": "cron_spool.jsonl",
+      "kind": "scheduled_task",
+      "observed_at": "2026-05-11T08:46:00Z",
+      "observation": "The root cron spool contained a job that launched /tmp/.sys-cache/worker every minute.",
+      "fields": {
+        "account": "root",
+        "command": "/tmp/.sys-cache/worker --quiet",
+        "schedule": "* * * * *"
+      }
+    },
+    {
+      "ref": "cron:E005",
+      "lineage_id": "lineage:live-command-output",
+      "artifact": "command_output.txt",
+      "kind": "tool_output",
+      "observed_at": "2026-05-11T08:46:30Z",
+      "observation": "Executing crontab -l as root returned no entries.",
+      "fields": {
+        "command": "crontab -l",
+        "exit_code": 0,
+        "stdout": ""
+      }
+    },
+    {
+      "ref": "proc:E006",
+      "lineage_id": "lineage:procfs-snapshot",
+      "artifact": "processes.jsonl",
+      "kind": "process",
+      "observed_at": "2026-05-11T08:47:00Z",
+      "observation": "A process launched from /tmp/.sys-cache/worker consumed 96 percent CPU and connected to 192.0.2.90:4444.",
+      "fields": {
+        "cpu_percent_integer": 96,
+        "destination": "192.0.2.90",
+        "path": "/tmp/.sys-cache/worker",
+        "pid": 22190,
+        "port": 4444
+      }
+    },
+    {
+      "ref": "proc:E007",
+      "lineage_id": "lineage:procfs-snapshot",
+      "artifact": "processes.jsonl",
+      "kind": "process",
+      "observed_at": "2026-05-11T08:48:00Z",
+      "observation": "A shell loop stored under /dev/.healthd repeatedly terminated processes whose command line contained common mining-client names.",
+      "fields": {
+        "interval_seconds": 45,
+        "path": "/dev/.healthd",
+        "target_patterns": [
+          "xmrig",
+          "cpuminer",
+          "cgminer"
+        ]
+      }
+    },
+    {
+      "ref": "net:E008",
+      "lineage_id": "lineage:egress-sensor",
+      "artifact": "network.jsonl",
+      "kind": "network",
+      "observed_at": "2026-05-11T08:49:00Z",
+      "observation": "The worker exchanged repeated fixed-size messages with 192.0.2.90:4444 for more than six hours.",
+      "fields": {
+        "destination": "192.0.2.90",
+        "duration_seconds": 21942,
+        "host": "api-linux-06",
+        "pid": 22190,
+        "port": 4444
+      }
+    }
+  ]
+}

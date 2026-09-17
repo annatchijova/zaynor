@@ -1,0 +1,96 @@
+{
+  "schema_version": "zaynor-case-index-v1",
+  "case_count": 9,
+  "cases": [
+    {
+      "case_id": "INC-2026-COVER-001",
+      "file": "INC-2026-COVER-001.json",
+      "title": "Privileged Session and External Transfer",
+      "focus": [
+        "pre-positioned persistence",
+        "social cover story",
+        "prompt injection in evidence"
+      ]
+    },
+    {
+      "case_id": "INC-2026-MERCY-001",
+      "file": "INC-2026-MERCY-001.json",
+      "title": "Web File Created During Session Intervention",
+      "focus": [
+        "webshell",
+        "social pressure",
+        "activity versus actor attribution"
+      ]
+    },
+    {
+      "case_id": "INC-2026-MEMORY-001",
+      "file": "INC-2026-MEMORY-001.json",
+      "title": "Executable Memory on a Workstation",
+      "focus": [
+        "process injection",
+        "shared cloud infrastructure",
+        "live-memory limitations"
+      ]
+    },
+    {
+      "case_id": "INC-2026-LINUX-001",
+      "file": "INC-2026-LINUX-001.json",
+      "title": "Scheduler and Package Integrity Mismatch",
+      "focus": [
+        "package integrity",
+        "LD_PRELOAD",
+        "scheduler output suppression"
+      ]
+    },
+    {
+      "case_id": "INC-2026-INCOMPLETE-001",
+      "file": "INC-2026-INCOMPLETE-001.json",
+      "title": "Incomplete Memory Process Inventories",
+      "focus": [
+        "incomplete acquisition",
+        "parser mismatch",
+        "honest abstention"
+      ]
+    },
+    {
+      "case_id": "INC-2026-NOISE-001",
+      "file": "INC-2026-NOISE-001.json",
+      "title": "Administration Requests Among Routine Traffic",
+      "focus": [
+        "relevance filtering",
+        "baseline anomaly",
+        "shared administrator workstation"
+      ]
+    },
+    {
+      "case_id": "INC-2026-LINEAGE-001",
+      "file": "INC-2026-LINEAGE-001.json",
+      "title": "Conflicting Dashboard and Host Records",
+      "focus": [
+        "shared provenance",
+        "telemetry integrity",
+        "contradictory host evidence"
+      ]
+    },
+    {
+      "case_id": "INC-2026-BANKER-001",
+      "file": "INC-2026-BANKER-001.json",
+      "title": "API Hooks and Recurring Temp Execution",
+      "focus": [
+        "API hooks",
+        "recurring persistence",
+        "impact uncertainty"
+      ]
+    },
+    {
+      "case_id": "INC-2026-DOMAIN-001",
+      "file": "INC-2026-DOMAIN-001.json",
+      "title": "Directory Service Installation Media Creation",
+      "focus": [
+        "credential store collection",
+        "domain persistence",
+        "unknown exfiltration completeness"
+      ]
+    }
+  ]
+}

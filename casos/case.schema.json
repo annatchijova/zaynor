@@ -1,0 +1,190 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/zaynor/case.schema.json",
+  "title": "ZAYNOR synthetic post-incident case",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "$schema",
+    "schema_version",
+    "case_id",
+    "title",
+    "data_classification",
+    "declared_incident",
+    "evidence_scope",
+    "records"
+  ],
+  "properties": {
+    "$schema": {
+      "const": "./case.schema.json"
+    },
+    "schema_version": {
+      "const": "zaynor-case-v1"
+    },
+    "case_id": {
+      "type": "string",
+      "pattern": "^INC-[0-9]{4}-[A-Z0-9-]+$"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "data_classification": {
+      "const": "synthetic"
+    },
+    "declared_incident": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source",
+        "declared_at",
+        "rule_id",
+        "trigger_refs",
+        "reason",
+        "affected_assets"
+      ],
+      "properties": {
+        "source": {
+          "const": "synthetic_replay"
+        },
+        "declared_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "rule_id": {
+          "type": "string",
+          "pattern": "^CORR-[A-Z0-9-]+$"
+        },
+        "trigger_refs": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9_-]+:E[0-9]{3}$"
+          }
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        },
+        "affected_assets": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "evidence_scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "collection_status",
+        "limitations"
+      ],
+      "properties": {
+        "collection_status": {
+          "enum": [
+            "complete_for_fixture",
+            "incomplete"
+          ]
+        },
+        "limitations": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "records": {
+      "type": "array",
+      "minItems": 2,
+      "items": {
+        "$ref": "#/$defs/record"
+      }
+    }
+  },
+  "$defs": {
+    "record": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "ref",
+        "lineage_id",
+        "artifact",
+        "kind",
+        "observed_at",
+        "observation",
+        "fields"
+      ],
+      "properties": {
+        "ref": {
+          "type": "string",
+          "pattern": "^[a-z0-9_-]+:E[0-9]{3}$"
+        },
+        "lineage_id": {
+          "type": "string",
+          "pattern": "^lineage:[a-z0-9-]+$"
+        },
+        "artifact": {
+          "type": "string",
+          "minLength": 1
+        },
+        "kind": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]*$"
+        },
+        "observed_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "observation": {
+          "type": "string",
+          "minLength": 1
+        },
+        "fields": {
+          "$ref": "#/$defs/fields"
+        }
+      }
+    },
+    "fields": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/exact_value"
+      }
+    },
+    "exact_value": {
+      "oneOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "integer"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/exact_value"
+          }
+        },
+        {
+          "$ref": "#/$defs/fields"
+        }
+      ]
+    }
+  }
+}
