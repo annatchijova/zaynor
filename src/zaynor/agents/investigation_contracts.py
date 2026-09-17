@@ -13,6 +13,7 @@ import json
 import re
 from dataclasses import dataclass, replace
 from enum import StrEnum
+from types import MappingProxyType
 from typing import Any, Mapping
 
 from zaynor.authority_seal import AuthoritySeal, verify_authoritative_result
@@ -75,10 +76,28 @@ def _reject_float(value: Any) -> None:
             _reject_float(item)
 
 
+def _freeze_json(value: Any) -> Any:
+    """Recursively detach and freeze JSON-shaped contract data."""
+    if isinstance(value, Mapping):
+        return MappingProxyType({key: _freeze_json(item) for key, item in value.items()})
+    if isinstance(value, (list, tuple)):
+        return tuple(_freeze_json(item) for item in value)
+    return value
+
+
+def _thaw_json(value: Any) -> Any:
+    """Return an ordinary JSON-shaped copy for transport."""
+    if isinstance(value, Mapping):
+        return {key: _thaw_json(item) for key, item in value.items()}
+    if isinstance(value, tuple):
+        return [_thaw_json(item) for item in value]
+    return value
+
+
 def _canonical_json(value: Any, field: str) -> bytes:
     _reject_float(value)
     try:
-        encoded = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        encoded = json.dumps(_thaw_json(value), ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
     except (TypeError, ValueError) as exc:
         raise InvestigationContractError(f"{field} must be JSON-compatible") from exc
     if len(encoded) > _MAX_ARGUMENT_BYTES:
@@ -146,7 +165,8 @@ class InvestigationProposal:
         _text(self.information_sought, "information_sought")
         if not isinstance(self.arguments, Mapping):
             raise InvestigationContractError("arguments must be an object")
-        _canonical_json(dict(self.arguments), "arguments")
+        object.__setattr__(self, "arguments", _freeze_json(dict(self.arguments)))
+        _canonical_json(self.arguments, "arguments")
 
     @property
     def arguments_digest(self) -> str:
@@ -160,7 +180,7 @@ class InvestigationProposal:
             "question": self.question,
             "rationale": self.rationale,
             "requested_tool": self.requested_tool,
-            "arguments": dict(self.arguments),
+            "arguments": _thaw_json(self.arguments),
             "information_sought": self.information_sought,
         }
 
@@ -215,6 +235,7 @@ class ObservationEnvelope:
             raise InvestigationContractError("tool observations are always UNTRUSTED")
         if self.instruction_authority is not InstructionAuthority.NONE:
             raise InvestigationContractError("tool observations never carry instruction authority")
+        object.__setattr__(self, "payload", _freeze_json(self.payload))
         expected = hashlib.sha256(_canonical_json(self.payload, "payload")).hexdigest()
         if expected != self.payload_sha256:
             raise InvestigationContractError("payload_sha256 does not match payload")
@@ -260,7 +281,7 @@ class ObservationEnvelope:
             "resource": self.resource,
             "arguments_digest": self.arguments_digest,
             "provider": self.provider,
-            "payload": self.payload,
+            "payload": _thaw_json(self.payload),
             "truncated": self.truncated,
             "status": self.status.value,
             "payload_sha256": self.payload_sha256,

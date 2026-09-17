@@ -144,6 +144,25 @@ def test_session_projection_rejects_tampered_observation_payload():
         InvestigationSession.from_dict(raw)
 
 
+def test_contract_data_is_deeply_immutable_after_hashing():
+    payload = {"nested": {"values": ["original"]}}
+    arguments = {"nested": {"path": "auth:E1"}}
+    proposal = _proposal(arguments=arguments)
+    observation = ObservationEnvelope.from_payload(
+        observation_id="O-1", case_id="CASE-1", proposal=proposal,
+        capability_effect=CapabilityEffect.READ, resource="custody", provider="test",
+        payload=payload,
+    )
+
+    payload["nested"]["values"][0] = "mutated outside"
+    arguments["nested"]["path"] = "../../escape"
+
+    assert observation.as_dict()["payload"] == {"nested": {"values": ["original"]}}
+    assert proposal.as_dict()["arguments"] == {"nested": {"path": "auth:E1"}}
+    with pytest.raises(TypeError):
+        observation.payload["nested"] = {}
+
+
 def test_authorized_facts_require_a_valid_seal_and_are_not_instructions():
     result = ZaynorAuthoritativeResult(case_id="CASE-1", engine={"name": "engine"}, verdict="ABSTAIN")
     facts = AuthorizedFacts.from_sealed_result(result, seal_authoritative_result(result))
