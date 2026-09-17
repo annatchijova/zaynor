@@ -110,7 +110,7 @@ export function SeniorConsole({ caseOverview, evidence }: SeniorConsoleProps) {
         <article>
           <p className={styles.eyebrow}>Señales y scores</p>
           <h2>Señales deterministas</h2>
-          <ul className={styles.recordList}>
+          <ul className={styles.recordList} role="list">
             {result.signals.map((signal) => (
               <li key={signal.signal_id}>
                 <strong>{signal.signal_id}</strong>
@@ -125,7 +125,7 @@ export function SeniorConsole({ caseOverview, evidence }: SeniorConsoleProps) {
         <article>
           <p className={styles.eyebrow}>Fracturas e hipótesis</p>
           <h2>Límites y alternativas</h2>
-          <ul className={styles.recordList}>
+          <ul className={styles.recordList} role="list">
             {result.fractures.map((fracture) => (
               <li key={fracture.fracture_id}>
                 <strong>{fracture.fracture_id} · {fracture.type}</strong>

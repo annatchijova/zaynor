@@ -137,7 +137,7 @@ export function InvestigationTimeline({ investigation }: InvestigationTimelinePr
   }
 
   return (
-    <ol aria-label="Secuencia de investigación" className={styles.timeline}>
+    <ol aria-label="Secuencia de investigación" className={styles.timeline} role="list">
       {investigation.proposals.map((proposal) => (
         <li key={proposal.proposal_id}>
           <ProposalCard proposal={proposal} />

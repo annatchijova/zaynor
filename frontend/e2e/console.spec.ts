@@ -44,8 +44,22 @@ test("returns authority-bounded answers for every suggested assistance question"
   }
 });
 
+test("keeps authoritative findings distinct from investigation records", async ({ page }) => {
+  await page.goto("/cases/CASE-001/senior");
+  await expect(page.getByRole("heading", { name: "Matriz técnica de resultados" })).toBeVisible();
+  await expect(page.getByText("Hallazgos autoritativos y las referencias que los sostienen o limitan.")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Investigación no autoritativa" })).toBeVisible();
+
+  await page.goto("/cases/CASE-001/investigation");
+  await expect(page.getByText("No es un hallazgo")).toBeVisible();
+  await expect(page.getByText("No es un veredicto")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "P001" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "O001" })).toBeVisible();
+  await expect(page.getByText("AUTHORITATIVE_RESULT_UNCHANGED")).toBeVisible();
+});
+
 test("has no automatically detectable accessibility violations on core screens", async ({ page }) => {
-  for (const path of ["/", "/cases/CASE-001", "/cases/CASE-001/evidence", "/cases/CASE-001/chat", "/cases/CASE-001/investigation"]) {
+  for (const path of ["/", "/cases/CASE-001", "/cases/CASE-001/evidence", "/cases/CASE-001/chat", "/cases/CASE-001/senior", "/cases/CASE-001/investigation"]) {
     await page.goto(path);
     const results = await new AxeBuilder({ page }).analyze();
     expect(results.violations).toEqual([]);
@@ -57,7 +71,7 @@ test("keeps the primary mobile workflow within the viewport", async ({ page }) =
 
   await page.setViewportSize({ width: 375, height: 812 });
 
-  for (const path of ["/", "/cases/CASE-001", "/cases/CASE-001/evidence", "/cases/CASE-001/chat", "/cases/CASE-001/investigation"]) {
+  for (const path of ["/", "/cases/CASE-001", "/cases/CASE-001/evidence", "/cases/CASE-001/chat", "/cases/CASE-001/senior", "/cases/CASE-001/investigation"]) {
     await page.goto(path);
     const hasHorizontalOverflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
     expect(hasHorizontalOverflow).toBe(false);
