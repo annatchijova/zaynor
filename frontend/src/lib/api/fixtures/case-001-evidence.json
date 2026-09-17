@@ -1,0 +1,82 @@
+[
+  {
+    "evidence_id": "E001",
+    "type": "authentication",
+    "source": "fixture",
+    "relative_path": "evidence/authentication/svc-backup-login.jsonl",
+    "sha256": "1f6bac77b5d4293ca7d173f0fc9c411e6ab2c07d0387d0f0ac8d75286d0675b9",
+    "size_bytes": 1842,
+    "manifest_status": "VERIFIED",
+    "lineage_id": "auth-srv-files-01-20260916",
+    "provenance": [
+      { "label": "Collector", "value": "fixture-auth-export", "status": "DECLARED" },
+      { "label": "Manifest", "value": "CASE-001 manifest entry 1", "status": "VERIFIED" }
+    ],
+    "finding_refs": ["F001", "F002"],
+    "metadata": { "host": "srv-files-01", "account": "svc-backup", "event_count": 1 }
+  },
+  {
+    "evidence_id": "E002",
+    "type": "endpoint_protection",
+    "source": "fixture",
+    "relative_path": "evidence/endpoint/agent-health.json",
+    "sha256": "db5b530bf0fb1e9f6f1a54624c18e5c2e3b370426cbca94b52799f65f1903474",
+    "size_bytes": 928,
+    "manifest_status": "VERIFIED",
+    "lineage_id": "endpoint-srv-files-01-20260916",
+    "provenance": [
+      { "label": "Collector", "value": "fixture-edr-export", "status": "DECLARED" },
+      { "label": "Manifest", "value": "CASE-001 manifest entry 2", "status": "VERIFIED" }
+    ],
+    "finding_refs": [],
+    "metadata": { "host": "srv-files-01", "agent_status": "healthy" }
+  },
+  {
+    "evidence_id": "E003",
+    "type": "process",
+    "source": "fixture",
+    "relative_path": "evidence/endpoint/process-context.jsonl",
+    "sha256": "f20df1a548d5c0cfe2169879332373164309234e1a6f8e5f72fd5602fb0f378a",
+    "size_bytes": 1481,
+    "manifest_status": "VERIFIED",
+    "lineage_id": "endpoint-srv-files-01-20260916",
+    "provenance": [
+      { "label": "Collector", "value": "fixture-edr-export", "status": "DECLARED" },
+      { "label": "Manifest", "value": "CASE-001 manifest entry 3", "status": "VERIFIED" }
+    ],
+    "finding_refs": ["F002", "F003"],
+    "metadata": { "host": "srv-files-01", "process_id": "4182", "command_line": null }
+  },
+  {
+    "evidence_id": "E004",
+    "type": "network",
+    "source": "fixture",
+    "relative_path": "evidence/network/egress-summary.json",
+    "sha256": "ab28faf49e8431fb289275158a9e1b3dcacb44f18f48dc8f26461b820b3eff36",
+    "size_bytes": 704,
+    "manifest_status": "VERIFIED",
+    "lineage_id": "network-srv-files-01-20260916",
+    "provenance": [
+      { "label": "Collector", "value": "fixture-network-export", "status": "DECLARED" },
+      { "label": "Manifest", "value": "CASE-001 manifest entry 4", "status": "VERIFIED" }
+    ],
+    "finding_refs": ["F003"],
+    "metadata": { "host": "srv-files-01", "external_transfer_events": 0 }
+  },
+  {
+    "evidence_id": "E005",
+    "type": "case_note",
+    "source": "fixture",
+    "relative_path": "evidence/case/maintenance-window.json",
+    "sha256": "0699f3dfe9fcb8bde7ff2180e267b3cc6c1fe04ad36dd78f70b327bde1bc2b08",
+    "size_bytes": 632,
+    "manifest_status": "VERIFIED",
+    "lineage_id": "analyst-case-001",
+    "provenance": [
+      { "label": "Collector", "value": "fixture-case-export", "status": "DECLARED" },
+      { "label": "Manifest", "value": "CASE-001 manifest entry 5", "status": "VERIFIED" }
+    ],
+    "finding_refs": ["F001"],
+    "metadata": { "maintenance_window": "02:00-03:00 UTC", "declared_by": "operations" }
+  }
+]

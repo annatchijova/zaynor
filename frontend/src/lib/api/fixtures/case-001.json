@@ -1,0 +1,176 @@
+{
+  "case_id": "CASE-001",
+  "snapshot": {
+    "status": "VERIFIED",
+    "manifest_sha256": "27e39a5682845ebf2f259a1e0f6a4e1a3d0a94ac8fbdf282a21f4454ef8a74cf",
+    "evidence_set_sha256": "9df8a08c0215bb81c0571b793c50981539848a0e3e1de5e9664b0f7fcb3f414f",
+    "artifact_count": 5,
+    "sealed_at": "2026-09-16T10:42:18Z"
+  },
+  "authoritative_result": {
+    "case_id": "CASE-001",
+    "verdict": "ABSTAIN",
+    "confidence": "MEDIUM",
+    "findings": [
+      {
+        "finding_id": "F001",
+        "state": "CORROBORATED",
+        "rationale": "La cuenta svc-backup inició sesión fuera de su ventana de mantenimiento documentada.",
+        "evidence_refs": [
+          { "artifact": "E001", "lineage_id": "auth-srv-files-01-20260916" },
+          { "artifact": "E005", "lineage_id": "analyst-case-001" }
+        ],
+        "lineage_ids": ["auth-srv-files-01-20260916", "analyst-case-001"],
+        "mitre": { "technique_id": "T1078", "name": "Valid Accounts" },
+        "nist": { "function": "Detect", "category": "Anomalies and Events" }
+      },
+      {
+        "finding_id": "F002",
+        "state": "INSUFFICIENT",
+        "rationale": "La telemetría disponible no permite atribuir la sesión a un uso autorizado ni a una intrusión.",
+        "evidence_refs": [
+          { "artifact": "E001", "lineage_id": "auth-srv-files-01-20260916" },
+          { "artifact": "E003", "lineage_id": "endpoint-srv-files-01-20260916" }
+        ],
+        "lineage_ids": ["auth-srv-files-01-20260916", "endpoint-srv-files-01-20260916"],
+        "mitre": null,
+        "nist": { "function": "Analyze", "category": "Investigation" }
+      },
+      {
+        "finding_id": "F003",
+        "state": "CONTRADICTED",
+        "rationale": "No se corroboró una transferencia de datos hacia un destino externo en el conjunto congelado.",
+        "evidence_refs": [
+          { "artifact": "E004", "lineage_id": "network-srv-files-01-20260916" }
+        ],
+        "lineage_ids": ["network-srv-files-01-20260916"],
+        "mitre": null,
+        "nist": { "function": "Analyze", "category": "Incident Analysis" }
+      }
+    ],
+    "unknowns": [
+      {
+        "id": "U001",
+        "statement": "No hay un registro independiente de aprobación para la sesión fuera de horario.",
+        "what_would_resolve": "Una aprobación de cambio verificada y con linaje independiente."
+      },
+      {
+        "id": "U002",
+        "statement": "La evidencia congelada no incluye la línea de comandos completa del proceso observado.",
+        "what_would_resolve": "Una consulta read-only permitida sobre la telemetría de endpoint retenida."
+      }
+    ],
+    "hypotheses": [
+      {
+        "hypothesis_id": "H001",
+        "statement": "La sesión fue una tarea de mantenimiento autorizada fuera de la ventana registrada.",
+        "status": "OPEN",
+        "rationale": "El registro de mantenimiento no permite confirmar la excepción."
+      },
+      {
+        "hypothesis_id": "H002",
+        "statement": "Las credenciales de svc-backup fueron usadas sin autorización.",
+        "status": "OPEN",
+        "rationale": "La anomalía de horario está corroborada, pero no prueba control adversario."
+      }
+    ],
+    "fractures": [
+      {
+        "fracture_id": "FR001",
+        "type": "MAINTENANCE_WINDOW_GAP",
+        "severity": "MEDIUM",
+        "description": "La ventana declarada y el inicio de sesión no coinciden.",
+        "evidence_refs": [
+          { "artifact": "E001", "lineage_id": "auth-srv-files-01-20260916" },
+          { "artifact": "E005", "lineage_id": "analyst-case-001" }
+        ]
+      },
+      {
+        "fracture_id": "FR002",
+        "type": "PROCESS_CONTEXT_MISSING",
+        "severity": "LOW",
+        "description": "El evento de endpoint conserva el identificador de proceso pero no su línea de comandos completa.",
+        "evidence_refs": [
+          { "artifact": "E003", "lineage_id": "endpoint-srv-files-01-20260916" }
+        ]
+      }
+    ],
+    "signals": [
+      {
+        "signal_id": "S001",
+        "artifact": "E001",
+        "source": "authentication-baseline",
+        "score": "72",
+        "confidence": "MEDIUM",
+        "metadata": { "rule": "service_account_outside_maintenance_window" }
+      },
+      {
+        "signal_id": "S002",
+        "artifact": "E003",
+        "source": "endpoint-context",
+        "score": "41",
+        "confidence": "LOW",
+        "metadata": { "rule": "incomplete_process_context" }
+      }
+    ],
+    "result_sha256": "9ccdc8e2843eac95c35de5c70ece54c7d124acd2226f1d98106aa2237a5a2dc1",
+    "engine": {
+      "name": "VIGIA",
+      "version": "adapter-demo-1",
+      "configuration_hash": "120ab81ff448f2e2fec4c3f562d9d10ff9b0a02b5b7c15331471f4f91b9b3c60"
+    },
+    "audit_refs": ["AUDIT-CASE-001-001"]
+  },
+  "seal": {
+    "status": "VERIFIED",
+    "result_sha256": "9ccdc8e2843eac95c35de5c70ece54c7d124acd2226f1d98106aa2237a5a2dc1",
+    "canonicalize_version": "zaynor-c14n-v1"
+  },
+  "audit": {
+    "status": "VERIFIED",
+    "manifest": "VERIFIED",
+    "snapshot": "VERIFIED",
+    "evidence": "VERIFIED",
+    "result": "VERIFIED",
+    "seal": "VERIFIED",
+    "provenance": "PRESENT",
+    "checked_at": "2026-09-16T10:43:04Z",
+    "detail": "El manifiesto, las evidencias, el resultado y el sello coinciden con sus hashes registrados."
+  },
+  "investigation": {
+    "session_id": "INV-CASE-001-001",
+    "status": "COMPLETE",
+    "proposals": [
+      {
+        "proposal_id": "P001",
+        "case_id": "CASE-001",
+        "question": "¿Existe una aprobación de cambio para la sesión de svc-backup?",
+        "rationale": "Resolvería la incertidumbre U001 sin modificar la evidencia congelada.",
+        "requested_tool": "query_change_records",
+        "capability": "read_change_records",
+        "arguments_digest": "8abf0ca2c0af8c9b68ecff03892e58a677685d2e8d4fdd183c03fac3a25cd080",
+        "information_sought": "Aprobación de cambio vinculada al host y a la ventana temporal observada.",
+        "status": "EXECUTED",
+        "created_at": "2026-09-16T10:48:12Z"
+      }
+    ],
+    "observations": [
+      {
+        "observation_id": "O001",
+        "case_id": "CASE-001",
+        "proposal_id": "P001",
+        "tool_name": "query_change_records",
+        "capability": "read_change_records",
+        "arguments_digest": "8abf0ca2c0af8c9b68ecff03892e58a677685d2e8d4fdd183c03fac3a25cd080",
+        "payload_sha256": "c45edc31d45b18a9cac1f128544768242201501bc5f9e53a8ff0f9ce20c5141f",
+        "payload": {
+          "record_count": 0,
+          "query_window": "2026-09-16T00:00:00Z/2026-09-16T23:59:59Z"
+        },
+        "status": "OBSERVED",
+        "recorded_at": "2026-09-16T10:48:39Z"
+      }
+    ],
+    "authoritative_result_unchanged": true
+  }
+}

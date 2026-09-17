@@ -1,0 +1,226 @@
+.workspace {
+  width: min(100% - 2rem, 82rem);
+  margin-inline: auto;
+  padding-block: var(--space-8) var(--space-12);
+}
+
+.header {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: var(--space-6);
+  padding-block-end: var(--space-6);
+  border-block-end: 1px solid var(--color-border);
+}
+
+.header h1,
+.authorityState h2,
+.sectionHeading h2,
+.twoColumn h2 {
+  margin: var(--space-2) 0 0;
+  line-height: 1.08;
+  letter-spacing: -0.03em;
+}
+
+.header h1 {
+  font-size: clamp(1.75rem, 4vw, 2.75rem);
+}
+
+.header p:not(.eyebrow) {
+  max-inline-size: 70ch;
+  margin: var(--space-3) 0 0;
+  color: var(--color-text-muted);
+}
+
+.eyebrow {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.headerStatus {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: end;
+  gap: var(--space-2);
+}
+
+.authorityState {
+  display: grid;
+  grid-template-columns: minmax(13rem, 0.75fr) minmax(0, 1.75fr);
+  gap: var(--space-6);
+  margin-block: var(--space-5);
+  padding: var(--space-5);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-raised);
+}
+
+.authorityState h2 {
+  font-family: var(--font-mono);
+  font-size: 1.5rem;
+}
+
+.authorityState dl,
+.definitionList {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.authorityState dl div,
+.definitionList div {
+  min-inline-size: 0;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.authorityState dt,
+.definitionList dt {
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.authorityState dd,
+.definitionList dd {
+  margin: var(--space-1) 0 0;
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  overflow-wrap: anywhere;
+}
+
+.section {
+  margin-block-start: var(--space-10);
+}
+
+.sectionHeading {
+  margin-block-end: var(--space-5);
+}
+
+.sectionHeading h2 {
+  font-size: 1.5rem;
+}
+
+.tableWrapper {
+  overflow-x: auto;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.tableWrapper table {
+  inline-size: 100%;
+  min-inline-size: 74rem;
+  border-collapse: collapse;
+  text-align: start;
+}
+
+.tableWrapper caption {
+  padding: var(--space-4);
+  border-block-end: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  text-align: start;
+}
+
+.tableWrapper th,
+.tableWrapper td {
+  padding: var(--space-3);
+  border-block-end: 1px solid var(--color-border);
+  vertical-align: top;
+  font-size: 0.8125rem;
+}
+
+.tableWrapper thead th {
+  background: var(--color-surface-raised);
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+}
+
+.tableWrapper tbody tr:last-child th,
+.tableWrapper tbody tr:last-child td {
+  border-block-end: 0;
+}
+
+.twoColumn {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+  margin-block-start: var(--space-10);
+}
+
+.twoColumn > article {
+  min-inline-size: 0;
+  padding: var(--space-5);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-surface);
+}
+
+.twoColumn h2 {
+  font-size: 1.25rem;
+}
+
+.recordList {
+  display: grid;
+  gap: var(--space-3);
+  margin: var(--space-5) 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.recordList li {
+  display: grid;
+  gap: var(--space-1);
+  padding-block-end: var(--space-3);
+  border-block-end: 1px solid var(--color-border);
+  font-size: 0.875rem;
+}
+
+.recordList li:last-child {
+  padding-block-end: 0;
+  border: 0;
+}
+
+.recordList strong,
+.recordList span:nth-child(n + 3) {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+}
+
+.recordList span {
+  color: var(--color-text-muted);
+}
+
+.emptyData {
+  max-inline-size: 60ch;
+  margin: var(--space-5) 0;
+  color: var(--color-text-muted);
+}
+
+@media (max-width: 56rem) {
+  .authorityState,
+  .twoColumn {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 48rem) {
+  .header {
+    display: grid;
+    align-items: start;
+  }
+
+  .headerStatus {
+    justify-content: start;
+  }
+
+  .authorityState dl,
+  .definitionList {
+    grid-template-columns: 1fr;
+  }
+}

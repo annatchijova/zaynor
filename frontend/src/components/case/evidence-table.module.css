@@ -1,0 +1,177 @@
+.tableWrapper {
+  overflow-x: auto;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-surface);
+}
+
+.table {
+  inline-size: 100%;
+  min-inline-size: 60rem;
+  border-collapse: collapse;
+  text-align: start;
+}
+
+.table caption {
+  padding: var(--space-4) var(--space-5);
+  border-block-end: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  text-align: start;
+}
+
+.table th,
+.table td {
+  padding: var(--space-4) var(--space-5);
+  border-block-end: 1px solid var(--color-border);
+  vertical-align: top;
+}
+
+.table thead th {
+  background: var(--color-surface-raised);
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+}
+
+.table tbody th,
+.table tbody td {
+  font-size: 0.875rem;
+}
+
+.table tbody th > *,
+.table tbody td code,
+.integrityStatus {
+  display: block;
+}
+
+.table tbody th strong {
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+}
+
+.table tbody th span,
+.table tbody td span:not(.integrityStatus) {
+  margin-block-start: var(--space-1);
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+}
+
+.table tbody td code {
+  margin-block: var(--space-2);
+  overflow-wrap: anywhere;
+}
+
+.integrityStatus {
+  color: var(--color-integrity);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.actions button,
+.dialog button {
+  min-block-size: 2.5rem;
+  padding-inline: var(--space-3);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  color: var(--color-text);
+  cursor: pointer;
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+
+.actions button:hover,
+.dialog button:hover {
+  border-color: var(--color-interactive);
+  background: var(--color-integrity-soft);
+}
+
+.dialog {
+  inline-size: min(100% - 2rem, 42rem);
+  max-block-size: min(85dvh, 42rem);
+  padding: 0;
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-surface);
+  color: var(--color-text);
+  box-shadow: 0 1.5rem 4rem rgb(15 23 42 / 30%);
+}
+
+.dialog::backdrop {
+  background: rgb(10 20 32 / 62%);
+}
+
+.dialogContent {
+  display: grid;
+  gap: var(--space-5);
+  padding: var(--space-6);
+}
+
+.dialogContent h2,
+.dialogContent p {
+  margin: 0;
+}
+
+.dialogEyebrow {
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  font-weight: 700;
+}
+
+.detailHash,
+.detailCode {
+  display: block;
+  max-block-size: 22rem;
+  margin: 0;
+  padding: var(--space-4);
+  overflow: auto;
+  background: var(--color-surface-raised);
+  color: var(--color-text);
+  font-family: var(--font-mono);
+  font-size: 0.8125rem;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.provenanceList {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.provenanceList div {
+  padding-block-end: var(--space-3);
+  border-block-end: 1px solid var(--color-border);
+}
+
+.provenanceList dt {
+  color: var(--color-text-muted);
+  font-size: 0.8125rem;
+}
+
+.provenanceList dd {
+  margin: var(--space-1) 0 0;
+  font-weight: 700;
+}
+
+.provenanceList dd span {
+  margin-inline-start: var(--space-2);
+  color: var(--color-integrity);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+}
+
+.referenceList {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding-inline-start: var(--space-5);
+  font-family: var(--font-mono);
+}
