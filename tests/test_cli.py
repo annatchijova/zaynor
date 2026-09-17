@@ -322,3 +322,33 @@ def test_chat_rejects_a_case_id_that_was_never_analyzed(tmp_path, capsys):
         "--question", "What happened?",
     ]) == 2
     assert "error de entrada" in capsys.readouterr().err
+
+
+def test_no_model_is_required_env_var_picks_it_over_the_fallback(tmp_path, capsys, monkeypatch):
+    """Nobody has to run one specific Ollama model: --model wins, then
+    $ZAYNOR_OLLAMA_MODEL, then the bundled fallback in model_catalog.py."""
+    from zaynor.agents.ollama_client import OllamaClient
+
+    _, _, output_root = _analyzed_case(tmp_path, capsys)
+    seen_models = []
+    monkeypatch.setattr(
+        OllamaClient,
+        "generate",
+        lambda self, *, system, prompt: (seen_models.append(self.model), "ok")[1],
+    )
+    monkeypatch.setenv("ZAYNOR_OLLAMA_MODEL", "qwen2.5:1.5b")
+    assert main([
+        "chat", "--case-id", "INC-CLI-AUDIT", "--output-root", str(output_root), "--question", "Verdict?",
+    ]) == 0
+    capsys.readouterr()
+    assert seen_models == ["qwen2.5:1.5b"]
+
+
+def test_models_lists_suggestions_without_requiring_any_of_them(capsys):
+    assert main(["models", "--host", "http://127.0.0.1:1", "--json"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload["installed"] is None
+    assert payload["error"]
+    names = {model["name"] for model in payload["suggested"]}
+    assert "llama3.2:1b" in names
+    assert payload["env_var"] == "ZAYNOR_OLLAMA_MODEL"

@@ -161,43 +161,37 @@ La explicación recomendada para el jurado es:
 
 ## Cómo correrlo
 
-Zaynor integra a VIGÍA (el motor matemático determinista) en vez de
-reimplementarlo — es una decisión de arquitectura, no un accidente (ver
-"Referencias de diseño" más abajo). Eso significa que **`analyze` y
-`audit` necesitan el repositorio de VIGÍA clonado aparte**; `replay`,
-`detect`, `case` y `freeze` no lo necesitan.
+Zaynor integra el motor matemático determinista de VIGÍA vendorizado dentro
+de este mismo repositorio (`vendor/vigia_engine/`) en vez de reimplementarlo
+— es una decisión de arquitectura, no un accidente (ver "Referencias de
+diseño" más abajo). **Un solo `git clone` alcanza**: no hace falta clonar
+ni instalar un segundo repositorio para que `analyze`/`audit` funcionen.
 
 ```bash
-# 1. Clonar los dos repositorios (VIGÍA es público, sin restricción de acceso).
+# 1. Clonar.
 git clone https://github.com/annatchijova/zaynor.git
-git clone https://github.com/annatchijova/vigia-intent-analysis.git vigia-repo
-
-# 2. Instalar Zaynor (requiere Python >=3.12).
 cd zaynor
 
+# 2. Instalar (requiere Python >=3.12).
 python3 -m venv .venv && source .venv/bin/activate
 pip install -e .
 
-# 3. Instalar las dependencias de VIGÍA (las necesita `analyze`).
-cd ../vigia-repo && pip install -r requirements.txt && cd ../zaynor
-
-# 4. Probar sin VIGÍA — el pipeline propio de Zaynor (replay/detect/case).
+# 3. Probar el pipeline propio de Zaynor (replay/detect/case).
 zaynor case --fixture scenarios/inc-2026-demo-001/telemetry.jsonl --json
 
-# 5. Congelar, analizar y auditar un caso — todo local, sin dependencias externas.
+# 4. Congelar, analizar y auditar un caso — todo local, sin dependencias externas.
 zaynor freeze --case-id CASO-001 --evidence-profile admin-session-investigation \
   --profile-map scenarios/inc-2026-demo-001/evidence_profile.json \
   --source-root scenarios/inc-2026-demo-001 --cases-root ./cases
 
-zaynor analyze --case-id CASO-001 --cases-root ./cases \
-  --engine-repo ../vigia-repo --output-root ./outputs
+zaynor analyze --case-id CASO-001 --cases-root ./cases --output-root ./outputs
 
 zaynor audit --case-id CASO-001 --cases-root ./cases --output-root ./outputs
 ```
 
-Cualquier JSON de caso de VIGÍA (`vigia-repo/cases/*.json`) también sirve
-como evidencia — usar su nombre de archivo en un `profile_map.json`
-propio y `--source-root` apuntando a la carpeta que lo contiene.
+`--engine-repo` sigue existiendo por si alguien quiere apuntar a un
+checkout de VIGÍA propio (desarrollo sobre VIGÍA, o una versión más nueva
+del motor) — es un override, no un requisito.
 
 ## Requisitos y soberanía
 
