@@ -1,6 +1,5 @@
 import sys
 from fractions import Fraction
-from pathlib import Path
 
 from zaynor.vendored_engine import VENDORED_ENGINE_PATH
 

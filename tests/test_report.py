@@ -96,30 +96,6 @@ def test_pdf_report_renders_real_bytes_or_reports_missing_dependency():
     else:
         assert pdf_bytes.startswith(b"%PDF-")
 
-
-def test_pdf_report_wraps_table_cells_without_cutting_text():
-    if shutil.which("pdftotext") is None:
-        pytest.skip("pdftotext is required to inspect rendered PDF text")
-
-    result = _result()
-    seal = seal_authoritative_result(result)
-    try:
-        pdf_bytes = render_pdf(result, seal)
-    except ReportError as exc:
-        pytest.skip(str(exc))
-    extracted = subprocess.run(
-        ["pdftotext", "-layout", "-", "-"],
-        input=pdf_bytes,
-        stdout=subprocess.PIPE,
-        check=True,
-    ).stdout.decode("utf-8")
-
-    assert "FLEET_COMMANDER" in extracted
-    assert "DETECTION_ENGINEER" in extracted
-    assert "independent deterministic basis" in extracted
-    assert "Every claim in a narration is checked against this sealed result" in extracted
-
-
 def test_pdf_report_wraps_table_cells_without_cutting_text():
     if shutil.which("pdftotext") is None:
         pytest.skip("pdftotext is required to inspect rendered PDF text")
