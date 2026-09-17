@@ -45,6 +45,7 @@ import hashlib
 import json
 import os
 import tempfile
+import contextlib
 from dataclasses import dataclass
 from fractions import Fraction
 from pathlib import Path
@@ -267,10 +268,8 @@ def write_ebs_evidence(case_id: str, rules: list[ScoringRule], output_path: Path
             os.fsync(handle.fileno())
         os.replace(temp_name, output_path)
     except BaseException:
-        try:
+        with contextlib.suppress(OSError):
             os.unlink(temp_name)
-        except OSError:
-            pass
         raise
     return output_path
 

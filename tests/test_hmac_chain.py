@@ -1,5 +1,3 @@
-import pytest
-
 from zaynor.hmac_chain import compute_entry_hmac, resolve_hmac_key
 
 

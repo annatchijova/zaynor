@@ -15,20 +15,27 @@ from .contracts import AgentRole, AgentSpec, Capability, CapabilityEffect
 REGISTRY_VERSION = "zaynor-agent-v1"
 
 
-_READ = lambda resource: Capability(CapabilityEffect.READ, resource)
-_DERIVE = lambda resource: Capability(CapabilityEffect.DERIVE, resource)
-_ACQUIRE = lambda resource: Capability(CapabilityEffect.ACQUIRE, resource, True)
+def _read_capability(resource: str) -> Capability:
+    return Capability(CapabilityEffect.READ, resource)
+
+
+def _derive_capability(resource: str) -> Capability:
+    return Capability(CapabilityEffect.DERIVE, resource)
+
+
+def _acquire_capability(resource: str) -> Capability:
+    return Capability(CapabilityEffect.ACQUIRE, resource, True)
 
 
 _SPECS = (
-    AgentSpec(AgentRole.DISPATCHER, REGISTRY_VERSION, ("list_hunts",), ("case_memory",), capabilities=(_READ("hunt_catalog"),)),
-    AgentSpec(AgentRole.ENDPOINT_HUNTER, REGISTRY_VERSION, ("collect_endpoint_window",), ("endpoint_telemetry",), capabilities=(_ACQUIRE("endpoint_telemetry"),)),
-    AgentSpec(AgentRole.PERSISTENCE_HUNTER, REGISTRY_VERSION, ("collect_persistence_window",), ("persistence_artifacts",), capabilities=(_ACQUIRE("persistence_artifacts"),)),
-    AgentSpec(AgentRole.THREAT_INTEL, REGISTRY_VERSION, ("enrich_indicators",), ("external_enrichment",), capabilities=(_DERIVE("threat_intel"),)),
-    AgentSpec(AgentRole.DETECTION_ENGINEER, REGISTRY_VERSION, ("draft_sigma_rule",), ("sealed_results", "telemetry"), capabilities=(_DERIVE("detection_rule"),)),
-    AgentSpec(AgentRole.INVESTIGATOR, REGISTRY_VERSION, ("list_hunts", "collect_window", "request_adjudication", "verify_custody"), ("frozen_evidence", "sealed_results"), capabilities=(_READ("hunt_catalog"), _ACQUIRE("evidence_window"), _READ("sealed_results"), _READ("custody"))),
-    AgentSpec(AgentRole.FLEET_COMMANDER, REGISTRY_VERSION, ("read_mission", "task_specialist", "record_hypothesis_proposal", "schedule_review", "escalate_human", "stand_down"), ("case_memory",), capabilities=(_READ("case_memory"), _DERIVE("investigation_plan"))),
-    AgentSpec(AgentRole.MENTOR, REGISTRY_VERSION, ("explain_result", "explain_framework", "list_hunts"), ("sealed_results", "reference_material"), capabilities=(_READ("sealed_results"), _READ("reference_material"))),
+    AgentSpec(AgentRole.DISPATCHER, REGISTRY_VERSION, ("list_hunts",), ("case_memory",), capabilities=(_read_capability("hunt_catalog"),)),
+    AgentSpec(AgentRole.ENDPOINT_HUNTER, REGISTRY_VERSION, ("collect_endpoint_window",), ("endpoint_telemetry",), capabilities=(_acquire_capability("endpoint_telemetry"),)),
+    AgentSpec(AgentRole.PERSISTENCE_HUNTER, REGISTRY_VERSION, ("collect_persistence_window",), ("persistence_artifacts",), capabilities=(_acquire_capability("persistence_artifacts"),)),
+    AgentSpec(AgentRole.THREAT_INTEL, REGISTRY_VERSION, ("enrich_indicators",), ("external_enrichment",), capabilities=(_derive_capability("threat_intel"),)),
+    AgentSpec(AgentRole.DETECTION_ENGINEER, REGISTRY_VERSION, ("draft_sigma_rule",), ("sealed_results", "telemetry"), capabilities=(_derive_capability("detection_rule"),)),
+    AgentSpec(AgentRole.INVESTIGATOR, REGISTRY_VERSION, ("list_hunts", "collect_window", "request_adjudication", "verify_custody"), ("frozen_evidence", "sealed_results"), capabilities=(_read_capability("hunt_catalog"), _acquire_capability("evidence_window"), _read_capability("sealed_results"), _read_capability("custody"))),
+    AgentSpec(AgentRole.FLEET_COMMANDER, REGISTRY_VERSION, ("read_mission", "task_specialist", "record_hypothesis_proposal", "schedule_review", "escalate_human", "stand_down"), ("case_memory",), capabilities=(_read_capability("case_memory"), _derive_capability("investigation_plan"))),
+    AgentSpec(AgentRole.MENTOR, REGISTRY_VERSION, ("explain_result", "explain_framework", "list_hunts"), ("sealed_results", "reference_material"), capabilities=(_read_capability("sealed_results"), _read_capability("reference_material"))),
 )
 
 

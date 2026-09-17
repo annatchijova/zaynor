@@ -1,5 +1,3 @@
-import pytest
-
 from zaynor.authority_seal import seal_authoritative_result
 from zaynor.report import ReportError, render_html, render_markdown, render_pdf
 from zaynor.schemas import AuthoritativeFinding, EvidenceRef, ZaynorAuthoritativeResult

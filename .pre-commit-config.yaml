@@ -1,0 +1,42 @@
+# Pre-commit for ZAYNOR — stdlib-safe hooks only.
+#
+# Every hook here resolves from the local pre-commit cache (no network at
+# install time): the `pre-commit-hooks` rev below is the exact checkout
+# already present in this environment's cache. No ruff/black/mypy mirrors
+# are pinned here on purpose — contributors run those from `pip install
+# -e ".[dev]"` (pyproject `[tool.ruff]` / `[tool.black]` / `[tool.mypy]`
+# carry the config), and CI runs them as its own jobs. Pinning binary
+# mirrors would trade a reproducible gate for a network dependency at
+# `pre-commit install` time, against this repo's local-sovereignty rule.
+#
+# Setup:
+#   pip install pre-commit
+#   pre-commit install
+# Run on demand:
+#   pre-commit run --all-files
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: e1668fe86af3810fbca72b8653fe478e66a0afdc # v3.2.0 (cached)
+    hooks:
+      # Scoped to files this repo owns. vendor/, casos/, results/, generated
+      # docs pages and the skills corpus keep their upstream bytes untouched —
+      # running whitespace fixers there rewrites vendored evidence fixtures,
+      # which AGENTS.md section 2.1 forbids without a documented reason.
+      - id: trailing-whitespace
+        exclude: ^(vendor/|casos/|results/|docs/)
+      - id: end-of-file-fixer
+        exclude: ^(vendor/|casos/|results/|docs/)
+      - id: check-yaml
+      - id: check-toml
+      - id: check-json
+        exclude: ^(vendor/|casos/|results/|docs/)
+      - id: check-merge-conflict
+      - id: check-case-conflict
+      - id: mixed-line-ending
+        args: ["--fix=lf"]
+        exclude: ^(vendor/|casos/|results/|docs/)
+      - id: check-added-large-files
+        args: ["--maxkb=500"]
+        # Evidence fixtures and generated reports are intentionally large;
+        # the gate applies to new code and docs, not the corpus.

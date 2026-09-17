@@ -1,7 +1,5 @@
-import hashlib
 import json
 import shutil
-import sys
 import textwrap
 from pathlib import Path
 
@@ -458,4 +456,3 @@ def test_consult_rejects_a_case_id_that_was_never_analyzed(tmp_path):
     output_root = tmp_path / "outputs"
     output_root.mkdir()
     assert main(["consult", "--case-id", "NEVER-ANALYZED", "--output-root", str(output_root), "--json"]) == 2
-

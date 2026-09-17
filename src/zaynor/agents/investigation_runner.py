@@ -12,7 +12,7 @@ import json
 from collections.abc import Mapping
 from typing import Any, Callable, Protocol, runtime_checkable
 
-from .contracts import AgentRole, CapabilityEffect, ToolRequest
+from .contracts import AgentRole, ToolRequest
 from .investigation_contracts import (
     AuthorizedFacts,
     InvestigationContractError,

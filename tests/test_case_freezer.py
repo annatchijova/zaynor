@@ -4,7 +4,6 @@ from pathlib import Path
 import pytest
 
 from zaynor.case_freezer import freeze_case
-from zaynor.path_guard import PathGuard
 
 SCENARIO_ROOT = Path(__file__).parent.parent / "scenarios" / "inc-2026-demo-001"
 PROFILE_MAP = json.loads((SCENARIO_ROOT / "evidence_profile.json").read_text())
@@ -96,7 +95,6 @@ def test_frozen_evidence_is_only_readable_through_the_case_boundary(tmp_path):
     _, evidence_dir = freeze_case(
         "INC-TEST-004", "admin-session-investigation", PROFILE_MAP, SCENARIO_ROOT, tmp_path
     )
-    guard = PathGuard(allowed_base_paths=[evidence_dir])
     names = {p.name for p in evidence_dir.rglob("*") if p.is_file()}
     assert "GROUND_TRUTH.md" not in names
     assert not any("ground-truth" in name.lower() for name in names)

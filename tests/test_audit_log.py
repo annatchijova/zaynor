@@ -60,7 +60,6 @@ def test_entry_hmac_detects_a_wholesale_forged_chain(tmp_path):
     """
     log = AuditLog(tmp_path / "audit.jsonl", case_id="CASE-1", hmac_key=KEY_A)
     log.append("CASE_FROZEN", {"x": 1}, reason="case evidence frozen")
-    path = tmp_path / "audit.jsonl"
 
     # Attacker forges a brand-new, internally-consistent chain without the
     # real key - by using AuditLog itself with a key it doesn't have.

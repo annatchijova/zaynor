@@ -70,7 +70,7 @@ def test_unbacked_summary_entry_is_detected():
 def test_in_place_field_flip_is_detected_by_journal_backing():
     """A summary mutation without a matching journal mutation is detected."""
     log = new_investigation_log("INC-TEST-001")
-    h = add_hypothesis(log, actor="investigator", text="Stolen admin credential")
+    add_hypothesis(log, actor="investigator", text="Stolen admin credential")
     log["hypotheses"][0]["status"] = "supported"  # no record() call
     result = verify_log(log)
     assert not result["log_ok"]

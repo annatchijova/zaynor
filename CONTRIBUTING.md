@@ -25,18 +25,56 @@ should help preserve that usefulness as the project evolves.
 1. Read the live file before patching it — don't assume what a function
    does from its name or from memory of an earlier version.
 2. One focused change per commit. Explain *why*, not just what.
-3. Propose tests with every change. Tests should cover intended behavior,
+3. Write commits in [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/)
+   format — `<type>[optional scope][!]: <imperative description>` — with one
+   of `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`, `perf`,
+   `ci`, `build`, `security`, `revert` (the full list enforced by
+   `scripts/commitlint.py` — `ALLOWED_TYPES` is the source of truth). Examples:
+   `feat(core): add new evidence profile`,
+   `fix(telemetry): correct OTel span naming`,
+   `feat(frontend): establish forensic analysis interface`.
+   The `commit-msg` hook (`scripts/commitlint.py`, installed via
+   `./scripts/install-hooks.sh`) rejects non-conforming headers; the few
+   pre-gate headers it grandfathers are listed in `.commitlint-allowlist`.
+   `Merge ...` / `Revert ...` headers pass untouched.
+4. Propose tests with every change. Tests should cover intended behavior,
    boundary conditions, negative cases, and relevant adversarial cases. A
    pull request without a test proposal is incomplete.
-4. Run the full test suite before proposing a change:
+5. Set up the local gates once per clone:
+   ```bash
+   pip install -e ".[dev]" && pip install pre-commit
+   ./scripts/install-hooks.sh   # commit-msg (commitlint) + pre-push (force-push guard)
+   pre-commit install           # whitespace/EOF/YAML/TOML/JSON hygiene
+   ```
+   Then run the verification suite before proposing a change:
    ```bash
    python3 -m pytest tests/ -q
+   ruff check src tests scripts conftest.py
    ```
-5. If you touch `src/zaynor/report.py`, `audit_log.py`, or anything
+   `black --check src tests scripts conftest.py` and `mypy src/zaynor/`
+   are advisory (the tree predates formatting; 20 pre-existing mypy notes
+   are tracked in `pyproject.toml [tool.mypy]`). Match surrounding style
+   in files you touch, fix new mypy notes there, but neither gates a merge.
+6. If you touch `src/zaynor/report.py`, `audit_log.py`, or anything
    sealed/hashed, add a test that would fail if your change broke
    determinism or tamper-evidence — not just a happy-path test.
-6. No `git rebase`, no `git push --force`, no squashing history. See
-   `CLAUDE.md` §2 for the full git discipline this repo follows.
+7. No `git rebase`, no `git push --force`, no squashing history. See
+   `CLAUDE.md` §2 for the full git discipline this repo follows. (The
+   `pre-push` hook enforces the force-push ban mechanically.)
+
+## Releases (SemVer + Keep a Changelog)
+
+- Versioning follows [SemVer](https://semver.org/spec/v2.0.0.html):
+  `MAJOR` breaks the public interface or evidence semantics (CLI surface,
+  sealed-result contract, manifest/seal format); `MINOR` adds
+  backward-compatible functionality (commands, roles, evidence profiles,
+  framework annotations); `PATCH` fixes bugs or docs.
+- Every user-facing change adds an entry under `CHANGELOG.md`
+  `## [Unreleased]`, grouped as `Added` / `Changed` / `Fixed` /
+  `Security` / `Removed`, per [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+- The maintainer cuts a release by moving `Unreleased` entries under a
+  `## [x.y.z] - YYYY-MM-DD` header, bumping `version` in
+  `pyproject.toml`, and tagging `vX.Y.Z`.
 
 ## Adding cases and adversarial coverage
 
