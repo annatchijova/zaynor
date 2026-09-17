@@ -347,6 +347,21 @@ def _load_stored_seal(seal_path: Path) -> AuthoritySeal:
     return AuthoritySeal(raw["canonicalize_version"], raw["sha256"])
 
 
+def load_verified_stored_case(
+    case_id: str, result_path: Path, seal_path: Path
+) -> tuple[Any, AuthoritySeal]:
+    """Load one stored result and prove that its seal covers that result."""
+    try:
+        result = _load_stored_result(case_id, result_path)
+        seal = _load_stored_seal(seal_path)
+        verify_authoritative_result(result, seal)
+    except (RuntimeError, ValueError) as exc:
+        raise CliInputError("stored authority verification failed") from exc
+    if result.case_id != case_id:
+        raise CliInputError("stored authority case_id does not match requested case")
+    return result, seal
+
+
 def _run_audit(args: argparse.Namespace) -> int:
     report: dict[str, Any] = {
         "case_id": args.case_id,
@@ -462,8 +477,9 @@ def _run_chat(args: argparse.Namespace) -> int:
         raise CliInputError("question must not be empty")
     output_root = _directory_path(args.output_root)
     output_case_dir = output_root / args.case_id
-    result = _load_stored_result(args.case_id, output_case_dir / "result.json")
-    seal = _load_stored_seal(output_case_dir / "result.seal.json")
+    result, seal = load_verified_stored_case(
+        args.case_id, output_case_dir / "result.json", output_case_dir / "result.seal.json"
+    )
     try:
         audience = Audience(args.audience)
     except ValueError as exc:
@@ -537,6 +553,21 @@ def _run_report(args: argparse.Namespace) -> int:
     else:
         out_path.write_bytes(rendered)
     print(str(out_path))
+    return 0
+
+
+def _run_hunts(args: argparse.Namespace) -> int:
+    """DISPATCHER, wired for real: a deterministic catalog lookup, no LLM
+    round-trip needed (see agents/README.md's "before wiring a new role").
+    """
+    from zaynor.agents.dispatcher_tools import build_dispatcher_tools
+
+    payload = build_dispatcher_tools()["list_hunts"]({})
+    if args.json:
+        _emit(payload, as_json=True)
+    else:
+        for hunt in payload["hunts"]:
+            print(f"- {hunt['id']}: {hunt['description']}")
     return 0
 
 
@@ -657,6 +688,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     serve_parser.add_argument("--timeout", type=int, default=120)
     serve_parser.set_defaults(handler=_run_serve)
+
+    hunts_parser = subparsers.add_parser(
+        "hunts", help="catálogo de tipos de investigación que Mode 1 puede analizar realmente (rol DISPATCHER)"
+    )
+    hunts_parser.add_argument("--json", action="store_true", help="emitir JSON estable")
+    hunts_parser.set_defaults(handler=_run_hunts)
 
     models_parser = subparsers.add_parser(
         "models", help="mostrar modelos de Ollama instalados y sugeridos por tamaño de hardware"

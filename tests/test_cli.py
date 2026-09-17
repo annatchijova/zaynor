@@ -391,3 +391,11 @@ def test_report_rejects_a_case_id_that_was_never_analyzed(tmp_path, capsys):
         "report", "--case-id", "INC-NEVER-ANALYZED", "--output-root", str(output_root), "--format", "md",
     ]) == 2
     assert "error de entrada" in capsys.readouterr().err
+
+
+def test_hunts_lists_the_real_dispatcher_catalog(capsys):
+    assert main(["hunts", "--json"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+    ids = {hunt["id"] for hunt in payload["hunts"]}
+    assert {"registry", "prefetch", "browser", "event_log", "memory", "mft", "ebs_json"} == ids
+
