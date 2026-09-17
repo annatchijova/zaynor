@@ -18,6 +18,7 @@ def test_resolves_hex_key_from_env(monkeypatch):
 def test_invalid_hex_key_falls_back_to_file(monkeypatch, tmp_path):
     key_file = tmp_path / "key.bin"
     key_file.write_bytes(b"raw-key-bytes")
+    key_file.chmod(0o600)
     monkeypatch.setenv("ZAYNOR_HMAC_KEY", "not-valid-hex")
     monkeypatch.setenv("ZAYNOR_HMAC_KEY_FILE", str(key_file))
     assert resolve_hmac_key() == b"raw-key-bytes"
@@ -26,6 +27,7 @@ def test_invalid_hex_key_falls_back_to_file(monkeypatch, tmp_path):
 def test_resolves_key_from_file(monkeypatch, tmp_path):
     key_file = tmp_path / "key.bin"
     key_file.write_bytes(b"  raw-key-bytes  \n")
+    key_file.chmod(0o600)
     monkeypatch.delenv("ZAYNOR_HMAC_KEY", raising=False)
     monkeypatch.setenv("ZAYNOR_HMAC_KEY_FILE", str(key_file))
     assert resolve_hmac_key() == b"raw-key-bytes"
