@@ -9,7 +9,7 @@ const views = [
   { key: "overview", label: "Resultado", suffix: "" },
   { key: "evidence", label: "Evidencia", suffix: "/evidence" },
   { key: "audit", label: "Auditoría", suffix: "/audit" },
-  { key: "chat", label: "Junior", suffix: "/chat" },
+  { key: "chat", label: "Asistencia", suffix: "/chat" },
   { key: "senior", label: "Senior", suffix: "/senior" },
   { key: "investigation", label: "Investigación", suffix: "/investigation" },
   { key: "reports", label: "Reportes", suffix: "/reports" },

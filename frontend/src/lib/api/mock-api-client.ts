@@ -45,7 +45,7 @@ export const defaultMockDataset: MockApiDataset = {
   },
   health: operationalHealth,
   narrativesByCase: {
-    // Junior chat narration is only prepared for case001 today; the demo
+    // Assistance chat narration is only prepared for case001 today; the demo
     // corpus's other cases correctly surface INVALID_REQUEST from
     // MockApiClient.explain() rather than a fabricated narrative.
     [case001.case_id]: case001Narratives,

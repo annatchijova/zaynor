@@ -1,0 +1,42 @@
+import AxeBuilder from "@axe-core/playwright";
+import { expect, test } from "@playwright/test";
+
+test("keeps the primary mock journey within the authority boundary", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: "Consola de análisis forense." })).toBeVisible();
+
+  await page.getByRole("link", { name: "Abrir caso" }).click();
+  await expect(page.getByRole("heading", { name: "CASE-001" })).toBeVisible();
+  await expect(page.getByText("ABSTAIN", { exact: true }).first()).toBeVisible();
+
+  const caseNavigation = page.getByRole("navigation", { name: "Caso" });
+
+  await caseNavigation.getByRole("link", { name: "Evidencia", exact: true }).click();
+  await expect(page.locator("caption")).toHaveText("Evidencia preservada en el snapshot del caso.");
+
+  await caseNavigation.getByRole("link", { name: "Asistencia" }).click();
+  await expect(page.getByText("La explicación se limita al paquete autoritativo ya sellado.")).toBeVisible();
+
+  await caseNavigation.getByRole("link", { name: "Investigación" }).click();
+  await expect(page.getByText("AUTHORITATIVE_RESULT_UNCHANGED")).toBeVisible();
+});
+
+test("has no automatically detectable accessibility violations on core screens", async ({ page }) => {
+  for (const path of ["/", "/cases/CASE-001", "/cases/CASE-001/evidence", "/cases/CASE-001/chat"]) {
+    await page.goto(path);
+    const results = await new AxeBuilder({ page }).analyze();
+    expect(results.violations).toEqual([]);
+  }
+});
+
+test("keeps the primary mobile workflow within the viewport", async ({ page }) => {
+  test.skip(test.info().project.name !== "mobile-chromium", "The mobile project provides the 375 px baseline.");
+
+  await page.setViewportSize({ width: 375, height: 812 });
+
+  for (const path of ["/", "/cases/CASE-001", "/cases/CASE-001/evidence", "/cases/CASE-001/investigation"]) {
+    await page.goto(path);
+    const hasHorizontalOverflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
+    expect(hasHorizontalOverflow).toBe(false);
+  }
+});

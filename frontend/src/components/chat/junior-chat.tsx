@@ -16,7 +16,7 @@ const suggestedQuestions = [
   "¿Qué encontró el motor y con qué evidencia lo sostiene?",
   "¿Por qué el sistema llegó a este veredicto?",
   "¿Qué preguntas todavía quedan sin responder?",
-  "¿Qué debería revisar primero como analista junior?",
+  "¿Qué debería revisar primero como analista?",
   "¿Este resultado podría cambiar con más evidencia?",
 ] as const;
 
@@ -168,7 +168,7 @@ export function JuniorChat({ caseId, sealStatus, verdict }: JuniorChatProps) {
       <div className={styles.console}>
         <header className={styles.consoleHeader}>
           <div>
-            <span className={styles.eyebrow}>Consola junior</span>
+            <span className={styles.eyebrow}>Consola de asistencia</span>
             <h1>
               Consultá el caso <span className={styles.thin}>— sin alterar su resultado</span>
             </h1>

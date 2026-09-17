@@ -7,7 +7,7 @@ const ENGINE_DISPLAY_NAME = "ZAYNOR deterministic engine (Mode 1)";
  *
  * `result.engine.name` is real, correct provenance metadata for an audit
  * trail (the backend's actual engine identifier), but this function's
- * output is what a perito or a senior/junior analyst reads on the case
+ * output is what an analyst reads on the case
  * screens. Mirrors the same fix already applied on the report-rendering
  * side (`src/zaynor/report.py::_engine_display`) -- ZAYNOR is its own
  * product, the vendored engine's raw name does not belong in the UI.

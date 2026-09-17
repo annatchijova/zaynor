@@ -56,7 +56,7 @@ export default function AboutPage() {
       <section aria-labelledby="audiences-title" className={styles.section}>
         <div className={styles.sectionHeading}>
           <p className={styles.eyebrow}>Dos audiencias, un mismo resultado sellado</p>
-          <h2 id="audiences-title">Senior en la terminal, junior en el chat</h2>
+          <h2 id="audiences-title">Senior en la terminal, asistencia en el chat</h2>
         </div>
         <div className={styles.branchGrid}>
           <article className={styles.seniorBranch}>
@@ -68,7 +68,7 @@ export default function AboutPage() {
             </p>
           </article>
           <article className={styles.juniorBranch}>
-            <h3>Analista junior — chat</h3>
+            <h3>Asistencia analítica — chat</h3>
             <p>
               Le pregunta al caso en lenguaje natural. La respuesta se narra a partir del
               resultado ya sellado, con cada afirmación verificada contra ese resultado antes de

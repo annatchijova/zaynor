@@ -66,7 +66,7 @@ export default function ArchitecturePage() {
             <h3>Narración local</h3>
             <ol>
               <li>Consume sólo el paquete autoritativo sellado.</li>
-              <li>Explica para audiencias junior y senior.</li>
+              <li>Explica para distintos perfiles analistas.</li>
               <li>Produce reportes como proyección del resultado existente.</li>
             </ol>
           </article>
