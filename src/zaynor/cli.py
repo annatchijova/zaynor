@@ -1,9 +1,12 @@
 """Command-line entry point for ZAYNOR's deterministic front end.
 
 The CLI is an interface, not a second decision engine. It only composes the
-existing replay, detection, correlation, and case contracts. Later commands
-(`freeze`, `analyze`, `chat`) must follow the same rule: parse at the edge,
-delegate to the core, and never manufacture an authoritative result.
+existing replay, detection, correlation, case, and chat contracts (`freeze`,
+`analyze`, `audit`, `chat`, `serve`). Every command follows the same rule:
+parse at the edge, delegate to the core, and never manufacture an
+authoritative result. `chat` and `serve` narrate through
+`agents/chat_service.py`, the one seal-verified path both share — neither
+lets the LLM touch a verdict, finding, or seal.
 """
 
 from __future__ import annotations
@@ -408,6 +411,62 @@ def _run_audit(args: argparse.Namespace) -> int:
         return 1
 
 
+def _run_chat(args: argparse.Namespace) -> int:
+    from zaynor.agents.chat_service import answer_question
+    from zaynor.agents.contracts import Audience
+    from zaynor.agents.ollama_client import OllamaClient, OllamaError
+
+    if not _SAFE_CASE_ID.fullmatch(args.case_id):
+        raise CliInputError("case-id must be a bounded path-safe identifier")
+    if not isinstance(args.question, str) or not args.question.strip():
+        raise CliInputError("question must not be empty")
+    output_root = _directory_path(args.output_root)
+    output_case_dir = output_root / args.case_id
+    result = _load_stored_result(args.case_id, output_case_dir / "result.json")
+    seal = _load_stored_seal(output_case_dir / "result.seal.json")
+    try:
+        audience = Audience(args.audience)
+    except ValueError as exc:
+        raise CliInputError(f"unknown audience: {args.audience}") from exc
+    try:
+        client = OllamaClient(host=args.host, model=args.model, timeout_seconds=args.timeout)
+        checked = answer_question(args.question, result=result, seal=seal, client=client, audience=audience)
+    except OllamaError as exc:
+        raise CliInputError(f"chat failed: {exc}") from exc
+    if args.json:
+        payload = {"narration": checked.safe_narration, **checked.to_dict()}
+        _emit(payload, as_json=True)
+    else:
+        print(checked.safe_narration)
+        if checked.suspicious:
+            print(
+                f"\n[warning] {checked.claims_hallucinated} unsupported claim(s) removed "
+                f"out of {checked.claims_total}; see --json for detail",
+                file=sys.stderr,
+            )
+    return 0
+
+
+def _run_serve(args: argparse.Namespace) -> int:
+    output_root = _directory_path(args.output_root)
+    try:
+        import uvicorn
+
+        from zaynor.api import create_app
+    except ImportError as exc:
+        raise CliInputError(
+            "serve requires the optional 'api' dependencies: pip install -e '.[api]'"
+        ) from exc
+    app = create_app(
+        output_root=output_root,
+        ollama_host=args.ollama_host,
+        model=args.model,
+        timeout_seconds=args.timeout,
+    )
+    uvicorn.run(app, host=args.host, port=args.port)
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="zaynor", description="Investigación DFIR local y trazable")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -461,6 +520,30 @@ def build_parser() -> argparse.ArgumentParser:
     audit_parser.add_argument("--output-root", required=True)
     audit_parser.add_argument("--json", action="store_true", help="emitir JSON estable")
     audit_parser.set_defaults(handler=_run_audit)
+
+    chat_parser = subparsers.add_parser(
+        "chat", help="preguntar sobre un caso ya analizado, narrado por un LLM local y verificado contra el sello"
+    )
+    chat_parser.add_argument("--case-id", required=True)
+    chat_parser.add_argument("--output-root", required=True)
+    chat_parser.add_argument("--question", required=True)
+    chat_parser.add_argument("--audience", default="senior", choices=["junior", "senior"])
+    chat_parser.add_argument("--host", default="http://127.0.0.1:11434", help="Ollama local-only")
+    chat_parser.add_argument("--model", default="llama3.1:8b")
+    chat_parser.add_argument("--timeout", type=int, default=120)
+    chat_parser.add_argument("--json", action="store_true", help="emitir JSON estable")
+    chat_parser.set_defaults(handler=_run_chat)
+
+    serve_parser = subparsers.add_parser(
+        "serve", help="exponer un API compatible con OpenAI/OpenWebUI sobre casos ya analizados"
+    )
+    serve_parser.add_argument("--output-root", required=True)
+    serve_parser.add_argument("--host", default="127.0.0.1", help="dirección de escucha de este API")
+    serve_parser.add_argument("--port", type=int, default=8420)
+    serve_parser.add_argument("--ollama-host", default="http://127.0.0.1:11434", help="Ollama local-only")
+    serve_parser.add_argument("--model", default="llama3.1:8b")
+    serve_parser.add_argument("--timeout", type=int, default=120)
+    serve_parser.set_defaults(handler=_run_serve)
     return parser
 
 

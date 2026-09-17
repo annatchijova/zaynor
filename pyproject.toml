@@ -10,6 +10,11 @@ dependencies = [
     "mcp>=1.27",
 ]
 
+[project.optional-dependencies]
+# `zaynor serve` — the OpenAI-compatible HTTP surface OpenWebUI talks to.
+# Optional: `analyze`/`freeze`/`audit`/`chat` do not need an HTTP server.
+api = ["fastapi>=0.110", "uvicorn>=0.27", "pydantic>=2"]
+
 [project.scripts]
 zaynor = "zaynor.cli:main"
 
