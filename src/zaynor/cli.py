@@ -18,7 +18,7 @@ import os
 import re
 import sys
 import tempfile
-from dataclasses import asdict
+from dataclasses import asdict, replace
 from pathlib import Path
 from typing import Any, Sequence
 
@@ -228,6 +228,14 @@ def _run_freeze(args: argparse.Namespace) -> int:
         )
     except (KeyError, OSError, ValueError) as exc:
         raise CliInputError(f"case freeze failed: {exc}") from exc
+    from zaynor.audit_log import AuditLog
+
+    audit = AuditLog(cases_root / args.case_id / "audit.jsonl", case_id=args.case_id)
+    audit.append(
+        "CASE_FROZEN",
+        {"manifest_sha256": manifest.content_sha256, "sealed_at": manifest.sealed_at},
+        reason=f"case evidence frozen under profile {args.evidence_profile!r}",
+    )
     payload = {"manifest": manifest, "evidence_dir": str(evidence_dir)}
     _emit(payload, as_json=args.json)
     return 0
@@ -281,6 +289,14 @@ def _run_analyze(args: argparse.Namespace) -> int:
     evidence_dir = case_dir / "evidence"
     engine_repo = _directory_path(args.engine_repo) if args.engine_repo else _default_engine_repo()
     output_root = _directory_path(args.output_root, create=True)
+    from zaynor.audit_log import AuditLog
+
+    audit = AuditLog(case_dir / "audit.jsonl", case_id=args.case_id)
+    engine_entry = audit.append(
+        "ENGINE_INVOKED",
+        {"engine_repo": str(engine_repo), "timeout_seconds": args.timeout},
+        reason="running the deterministic engine against the frozen evidence",
+    )
     try:
         from zaynor.adapter import ZaynorMode1Adapter
 
@@ -292,11 +308,17 @@ def _run_analyze(args: argparse.Namespace) -> int:
         ).analyze(manifest, evidence_dir)
     except (OSError, RuntimeError, ValueError) as exc:
         raise CliInputError(f"case analysis failed: {exc}") from exc
+    result = replace(result, audit_refs=(engine_entry.entry_hash,))
     result_path = output_root / args.case_id / "result.json"
     seal = seal_authoritative_result(result)
     seal_path = output_root / args.case_id / "result.seal.json"
     _atomic_json_write(result_path, result)
     _atomic_json_write(seal_path, seal)
+    audit.append(
+        "RESULT_SEALED",
+        {"result_sha256": seal.sha256, "verdict": result.verdict},
+        reason="authoritative result sealed",
+    )
     _emit({"result": result, "seal": seal, "result_path": str(result_path), "seal_path": str(seal_path)}, as_json=args.json)
     return 0
 

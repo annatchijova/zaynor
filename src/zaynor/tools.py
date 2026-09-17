@@ -90,15 +90,20 @@ def audited_tool(audit_log: AuditLog) -> Callable[[Callable], Callable]:
             audit_log.append(
                 "TOOL_INVOKED",
                 {"tool": func.__name__, "arguments": _audit_argument_summary(func, args, kwargs)},
+                reason=f"invoking read-only tool {func.__name__}",
             )
             try:
                 result = func(*args, **kwargs)
             except Exception as exc:  # noqa: BLE001 - audited then re-raised
                 audit_log.append(
-                    "TOOL_FAILED", {"tool": func.__name__, "error": type(exc).__name__}
+                    "TOOL_FAILED", {"tool": func.__name__, "error": type(exc).__name__},
+                    reason=f"tool {func.__name__} raised {type(exc).__name__}",
                 )
                 raise
-            audit_log.append("TOOL_SUCCEEDED", {"tool": func.__name__})
+            audit_log.append(
+                "TOOL_SUCCEEDED", {"tool": func.__name__},
+                reason=f"tool {func.__name__} completed without error",
+            )
             return result
 
         return wrapped

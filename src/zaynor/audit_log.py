@@ -25,6 +25,25 @@ so a wholesale-forged chain is distinguishable from the genuine one.
 Optional, same as VIGÍA's own `VIGIA_HMAC_KEY`: absent, the log operates
 in hash-only mode, reported as a caveat by `verify_with_report`, never a
 silent "verified."
+
+Genesis is bound to `case_id` (Anna, adapting Mneme's
+`custody.py::genesis_hash` design — same idea, one project down: a
+per-memory chain there, a per-case chain here): `genesis = sha256(b"ZAYNOR_AUDIT_GENESIS:" + case_id)`,
+not a shared constant. A chain for case A cannot be grafted onto case B
+even if every entry after the graft point is internally consistent — the
+graft fails at seq 1, because case B's verifier computes a different
+genesis than case A's chain was built on. A shared genesis constant (the
+original design here, and Cronos's `chain.py`) only binds the case
+identity *inside* each hashed entry, which a verifier must be told to
+check; binding it into genesis makes the check unconditional — the chain
+cannot even begin to verify against the wrong case.
+
+`action` is a closed vocabulary (`_ACTIONS`), same discipline as Mneme's
+`EVENT_TYPES`: an unreasoned or unknown-shaped audit event should fail to
+append, not silently record whatever a caller happened to pass. Scoped to
+what ZAYNOR's own pipeline actually does today (case-freeze, snapshot
+materialization, engine invocation, result sealing) — extending it is a
+protocol change, not a call-site choice.
 """
 
 from __future__ import annotations
@@ -38,7 +57,33 @@ from typing import Any
 
 from zaynor.hmac_chain import compute_entry_hmac, resolve_hmac_key
 
-_GENESIS_HASH = "0" * 64
+_GENESIS_PREFIX = b"ZAYNOR_AUDIT_GENESIS:"
+
+_ACTIONS = frozenset(
+    {
+        # Case lifecycle (freeze -> analyze), one entry per real pipeline step.
+        "CASE_FROZEN",
+        "SNAPSHOT_MATERIALIZED",
+        "ENGINE_INVOKED",
+        "RESULT_SEALED",
+        # Read-only tool calls (tools.py::audited_tool / ReadOnlyToolRegistry),
+        # one TOOL_INVOKED per call, followed by exactly one of the other two.
+        "TOOL_INVOKED",
+        "TOOL_SUCCEEDED",
+        "TOOL_FAILED",
+    }
+)
+
+
+def genesis_hash(case_id: str) -> str:
+    """Per-case genesis — binding case_id here, not just inside each entry,
+    is what makes chain grafting (case A's audit trail presented as case
+    B's) structurally impossible rather than merely detectable by a
+    verifier that remembered to check.
+    """
+    if not isinstance(case_id, str) or not case_id:
+        raise ValueError("case_id must be a non-empty string")
+    return hashlib.sha256(_GENESIS_PREFIX + case_id.encode("utf-8")).hexdigest()
 
 
 def _canonical(obj: Any) -> str:
@@ -48,8 +93,10 @@ def _canonical(obj: Any) -> str:
 @dataclass(frozen=True)
 class AuditEntry:
     seq: int
+    case_id: str
     action: str
     detail: dict[str, Any]
+    reason: str
     prev_hash: str
     entry_hash: str
     entry_hmac: str | None = None
@@ -62,31 +109,49 @@ class AuditLog:
     audit trail for one investigation run, not a shared service.
     """
 
-    def __init__(self, log_path: str | Path, *, hmac_key: bytes | None = None):
+    def __init__(self, log_path: str | Path, *, case_id: str, hmac_key: bytes | None = None):
         self._path = Path(log_path)
         self._tail_path = self._path.with_suffix(self._path.suffix + ".tail")
         self._path.parent.mkdir(parents=True, exist_ok=True)
+        self._case_id = case_id
+        self._genesis = genesis_hash(case_id)
         self._hmac_key = hmac_key if hmac_key is not None else resolve_hmac_key()
         self._seq, self._prev_hash = self._resume()
 
     def _resume(self) -> tuple[int, str]:
         if not self._path.exists():
-            return 0, _GENESIS_HASH
+            return 0, self._genesis
         seq = 0
-        prev_hash = _GENESIS_HASH
+        prev_hash = self._genesis
         with self._path.open("r", encoding="utf-8") as handle:
             for line in handle:
                 line = line.strip()
                 if not line:
                     continue
                 record = json.loads(line)
+                if record.get("case_id") != self._case_id:
+                    raise ValueError(
+                        f"audit log at {self._path} belongs to case "
+                        f"{record.get('case_id')!r}, not {self._case_id!r} — refusing to graft"
+                    )
                 seq = record["seq"]
                 prev_hash = record["entry_hash"]
         return seq, prev_hash
 
-    def append(self, action: str, detail: dict[str, Any]) -> AuditEntry:
+    def append(self, action: str, detail: dict[str, Any], *, reason: str) -> AuditEntry:
+        if action not in _ACTIONS:
+            raise ValueError(f"unknown audit action {action!r}; the vocabulary is closed: {sorted(_ACTIONS)}")
+        if not isinstance(reason, str) or not reason.strip():
+            raise ValueError("reason must be a non-empty string — an unreasoned audit event cannot exist")
         seq = self._seq + 1
-        body = {"seq": seq, "action": action, "detail": detail, "prev_hash": self._prev_hash}
+        body = {
+            "seq": seq,
+            "case_id": self._case_id,
+            "action": action,
+            "detail": detail,
+            "reason": reason,
+            "prev_hash": self._prev_hash,
+        }
         entry_hash = hashlib.sha256(_canonical(body).encode("utf-8")).hexdigest()
         record = {**body, "entry_hash": entry_hash}
         tail_anchor: dict[str, Any] = {"seq": seq, "entry_hash": entry_hash}
@@ -113,7 +178,7 @@ class AuditLog:
         return AuditEntry(**record)
 
     @staticmethod
-    def verify(log_path: str | Path, *, hmac_key: bytes | None = None) -> bool:
+    def verify(log_path: str | Path, *, case_id: str, hmac_key: bytes | None = None) -> bool:
         """Recompute every entry's hash from its own fields, confirm each
         one references the true previous entry, and confirm the sidecar
         tail-anchor file (if present) matches the JSONL's actual last entry
@@ -129,21 +194,22 @@ class AuditLog:
         resolution `AuditLog.__init__` uses) — pass an explicit key or
         `b""`-truthy-check-avoiding sentinel only to override that.
         """
-        ok, _ = AuditLog.verify_with_report(log_path, hmac_key=hmac_key)
+        ok, _ = AuditLog.verify_with_report(log_path, case_id=case_id, hmac_key=hmac_key)
         return ok
 
     @staticmethod
     def verify_with_report(
-        log_path: str | Path, *, hmac_key: bytes | None = None
+        log_path: str | Path, *, case_id: str, hmac_key: bytes | None = None
     ) -> tuple[bool, str]:
         path = Path(log_path)
         if not path.exists():
             return True, "no log file"
         key = hmac_key if hmac_key is not None else resolve_hmac_key()
+        genesis = genesis_hash(case_id)
 
-        prev_hash = _GENESIS_HASH
+        prev_hash = genesis
         last_seq = 0
-        last_hash = _GENESIS_HASH
+        last_hash = genesis
         saw_any = False
         saw_any_hmac = False
         saw_any_missing_hmac = False
@@ -154,12 +220,20 @@ class AuditLog:
                     continue
                 saw_any = True
                 record = json.loads(line)
+                if record.get("case_id") != case_id:
+                    return False, f"entry at seq={record.get('seq')} belongs to case {record.get('case_id')!r}, not {case_id!r} — chain grafted"
+                if record.get("action") not in _ACTIONS:
+                    return False, f"entry at seq={record['seq']} has unknown action {record.get('action')!r}"
+                if not isinstance(record.get("reason"), str) or not record["reason"].strip():
+                    return False, f"entry at seq={record['seq']} has no reason — unreasoned audit event"
                 if record["prev_hash"] != prev_hash:
                     return False, f"chain break before seq={record['seq']}"
                 body = {
                     "seq": record["seq"],
+                    "case_id": record["case_id"],
                     "action": record["action"],
                     "detail": record["detail"],
+                    "reason": record["reason"],
                     "prev_hash": record["prev_hash"],
                 }
                 expected_hash = hashlib.sha256(

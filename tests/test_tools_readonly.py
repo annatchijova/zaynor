@@ -19,7 +19,7 @@ def registry(tmp_path):
     )
 
     guard = PathGuard(allowed_base_paths=[evidence_dir])
-    audit_log = AuditLog(tmp_path / "audit.jsonl")
+    audit_log = AuditLog(tmp_path / "audit.jsonl", case_id="CASE-1")
     return ReadOnlyToolRegistry(guard, audit_log), evidence_dir, tmp_path
 
 
@@ -108,7 +108,7 @@ def test_audit_log_records_every_call_and_verifies(registry):
     reg.read_evidence(str(evidence_dir / "auth.jsonl"))
 
     audit_path = tmp_path / "audit.jsonl"
-    assert AuditLog.verify(audit_path)
+    assert AuditLog.verify(audit_path, case_id="CASE-1")
     lines = audit_path.read_text().strip().splitlines()
     # Two tool calls, each logging TOOL_INVOKED + TOOL_SUCCEEDED.
     assert len(lines) == 4
@@ -127,7 +127,7 @@ def test_audit_log_detects_tail_truncation(registry, tmp_path):
     lines = audit_path.read_text().strip().splitlines()
     audit_path.write_text("\n".join(lines[:-1]) + "\n")
 
-    assert not AuditLog.verify(audit_path)
+    assert not AuditLog.verify(audit_path, case_id="CASE-1")
 
 
 def test_audit_log_detects_tampering(registry, tmp_path):
@@ -136,16 +136,16 @@ def test_audit_log_detects_tampering(registry, tmp_path):
 
     audit_path = tmp_path / "audit.jsonl"
     lines = audit_path.read_text().splitlines()
-    assert AuditLog.verify(audit_path)
+    assert AuditLog.verify(audit_path, case_id="CASE-1")
 
     tampered = lines[0].replace("TOOL_INVOKED", "TOOL_INVOKED_TAMPERED")
     audit_path.write_text(tampered + "\n" + "\n".join(lines[1:]) + "\n")
-    assert not AuditLog.verify(audit_path)
+    assert not AuditLog.verify(audit_path, case_id="CASE-1")
 
 
 def test_generate_forensic_hash_matches_real_sha256(registry):
     reg, evidence_dir, tmp_path = registry
-    audit_log = AuditLog(tmp_path / "hash-audit.jsonl")
+    audit_log = AuditLog(tmp_path / "hash-audit.jsonl", case_id="CASE-1")
     guard = PathGuard(allowed_base_paths=[evidence_dir])
     target = evidence_dir / "auth.jsonl"
 
@@ -163,7 +163,7 @@ def test_generate_forensic_hash_rejects_symlink_escape(registry, tmp_path):
     same module. A symlink swapped in between would have been followed.
     """
     reg, evidence_dir, _ = registry
-    audit_log = AuditLog(tmp_path / "hash-audit-2.jsonl")
+    audit_log = AuditLog(tmp_path / "hash-audit-2.jsonl", case_id="CASE-1")
     guard = PathGuard(allowed_base_paths=[evidence_dir])
 
     secret = tmp_path / "secret.txt"
