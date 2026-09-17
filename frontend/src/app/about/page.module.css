@@ -1,0 +1,152 @@
+.workspace {
+  width: min(100% - 2rem, 76rem);
+  margin-inline: auto;
+  padding-block: var(--space-8) var(--space-12);
+}
+
+.header {
+  padding-block-end: var(--space-6);
+  border-block-end: 1px solid var(--color-border);
+}
+
+.eyebrow {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.header h1,
+.sectionHeading h2 {
+  margin: var(--space-2) 0 0;
+  line-height: 1.08;
+  letter-spacing: -0.03em;
+}
+
+.header h1 {
+  max-inline-size: 26ch;
+  font-size: clamp(2rem, 5vw, 3.5rem);
+}
+
+.header > p:not(.eyebrow) {
+  max-inline-size: 70ch;
+  margin: var(--space-4) 0 0;
+  color: var(--color-text-muted);
+}
+
+.githubLink {
+  min-block-size: 2.75rem;
+  display: inline-flex;
+  align-items: center;
+  margin-block-start: var(--space-5);
+  padding-inline: var(--space-4);
+  border: 1px solid var(--color-interactive);
+  border-radius: var(--radius-sm);
+  color: var(--color-interactive);
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.githubLink:hover {
+  background: var(--color-integrity-soft);
+}
+
+.section {
+  margin-block-start: var(--space-10);
+}
+
+.sectionHeading {
+  margin-block-end: var(--space-5);
+}
+
+.sectionHeading h2 {
+  font-size: 1.5rem;
+}
+
+.hybridGrid,
+.branchGrid,
+.guaranteeGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.guaranteeGrid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.hybridCard,
+.branchGrid article,
+.guaranteeCard {
+  padding: var(--space-5);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-surface);
+}
+
+.hybridCard {
+  border-inline-start: 0.25rem solid var(--color-border-strong) !important;
+}
+
+.hybridCardActive {
+  border-inline-start: 0.25rem solid var(--color-integrity) !important;
+}
+
+.hybridLabel,
+.guaranteeLabel {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.hybridCard h3,
+.branchGrid h3 {
+  margin: var(--space-2) 0 0;
+  font-size: 1.125rem;
+}
+
+.hybridCard p:not(.hybridLabel),
+.branchGrid p,
+.guaranteeCard p:not(.guaranteeLabel) {
+  margin: var(--space-3) 0 0;
+  color: var(--color-text-muted);
+  font-size: 0.9375rem;
+}
+
+.branchGrid code {
+  font-family: var(--font-mono);
+  font-size: 0.875rem;
+  color: var(--color-text);
+}
+
+.seniorBranch {
+  border-inline-start: 0.25rem solid var(--color-interactive) !important;
+}
+
+.juniorBranch {
+  border-inline-start: 0.25rem solid var(--color-suspicion) !important;
+}
+
+.guaranteeLabel {
+  margin-block-end: var(--space-1);
+}
+
+@media (max-width: 64rem) {
+  .guaranteeGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 48rem) {
+  .hybridGrid,
+  .branchGrid,
+  .guaranteeGrid {
+    grid-template-columns: 1fr;
+  }
+}

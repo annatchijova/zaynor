@@ -7,6 +7,7 @@ const caseId = "CASE-001";
 
 const navigation = [
   { href: "/", label: "Inicio" },
+  { href: "/about", label: "Acerca de" },
   { href: `/cases/${caseId}`, label: "Caso" },
   { href: `/cases/${caseId}/evidence`, label: "Evidencia" },
   { href: `/cases/${caseId}/audit`, label: "Auditoría" },
