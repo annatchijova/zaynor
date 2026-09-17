@@ -246,11 +246,14 @@ same correlation store.
 - **`NOISE` becomes `UNKNOWN`, never "benign".** When the engine cannot
   establish a meaningful signal, the sealed verdict says so.
 - **The demo rule tables are intentionally small.** Their constants are
-  demo-only calibration. In the lab they produced `SUSPICION` (DFIR mock +
-  live) and `SUSPICION`/`MALICE` (AIOps, depending on which telemetry the
-  backends return). An unexpected label is a finding about the rule table,
-  not about the engine: the engine's verdict is always an honest read of
-  whatever the frozen evidence table says.
+  demo-only calibration — static, deterministic-side-owned, PR-reviewed,
+  and pinned by the authoritative-verdict regression fixture (ADR 0003:
+  `docs/adr/0003-aiops-evidence-profile-calibration.md`). In the lab they
+  produced `SUSPICION` (DFIR mock + live) and `SUSPICION`/`MALICE` (AIOps,
+  depending on which telemetry the backends return). An unexpected label is
+  a finding about the rule table, not about the engine: the engine's
+  verdict is always an honest read of whatever the frozen evidence table
+  says.
 - **`DatasourceNoData` rows are evidence.** Grafana's own no-data
   evaluations arrive through the ingestion paths and are kept as evidence
   observations; they never alter the engine's authority.

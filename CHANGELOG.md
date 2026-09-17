@@ -27,10 +27,14 @@ the git log; this file curates it.
   with `hybrid_integrations`, collection manifest and custody, the
   `INC-2026-DEMO-001` lab under `scenarios/`, and `scripts/demo_dfir.py`
   (offline replay + live transport). AIOps path: docker-compose
-  observability stack (OTel Collector, Prometheus, Loki, Tempo, Grafana),
+  observability stack (OTel Collector, Prometheus, Loki, Tempo, Grafana)
+  with every host-published port loopback-bound (lab-only exposure),
   a synthetic service with fault injection, and an incident aggregator
-  (`tools/aiops/`) that correlates alert clusters into evidence bundles
-  (`tools/aiops/aggregator/`, `scripts/demo_aiops.py`).
+  (`tools/aiops/`) that correlates alert clusters by service,
+  environment, and time window into evidence bundles
+  (`tools/aiops/aggregator/`, `scripts/demo_aiops.py`); AIOps evidence
+  calibration is documented in ADR 0003
+  (`docs/adr/0003-aiops-evidence-profile-calibration.md`).
 - Demo-lab tests (`tests/test_velociraptor_adapter.py`,
   `tests/test_aiops_aggregator.py`) and `scripts/run_lab_tests.py`, a
   dependency-free runner (pytest when installed, stdlib fallback) shared
