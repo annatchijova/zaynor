@@ -51,6 +51,74 @@ El principio arquitectónico es:
 > **La IA decide qué investigar. El motor matemático determinista decide qué
 > sostiene la evidencia.**
 
+## Una herramienta para investigar mejor
+
+Zaynor está pensado tanto para quien está empezando en DFIR como para quien
+necesita revisar un caso con profundidad técnica. El chat local permite que un
+perito junior pregunte en lenguaje natural qué significa un hallazgo, qué
+evidencia lo respalda y qué sigue siendo desconocido. Para un analista senior,
+la misma respuesta conserva los identificadores del caso, las referencias de
+evidencia, el estado del sello, las hipótesis alternativas y el rastro de
+auditoría que permite revisar cada paso.
+
+El chat no sustituye el criterio profesional ni inventa una conclusión: hace
+visible el razonamiento respaldado por artefactos que ya fueron congelados y
+verificados. Todo modelo generativo utilizado por Zaynor corre localmente a
+través de Ollama. No hay fallback a un proveedor cloud ni envío de evidencia a
+servicios externos.
+
+El veredicto nace antes del chat. El motor matemático determinista procesa la
+evidencia y produce `result.json` junto con `result.seal.json`; esos artefactos
+son la autoridad. El LLM sólo puede narrar, proponer preguntas o preparar
+trabajo posterior dentro de los permisos de su rol. Si el modelo contradice el
+resultado sellado, el guard de alucinaciones elimina o rechaza esa afirmación.
+
+## MCP locales
+
+Zaynor puede trabajar con tres integraciones MCP locales, además de su propio
+servidor MCP. Todas usan procesos locales y listas de herramientas acotadas:
+
+| MCP | Propósito | Puede cambiar el veredicto |
+| --- | --- | --- |
+| VIGÍA | Leer, consultar y analizar evidencia autorizada | No |
+| CRONOS | Memoria operativa, hipótesis y trazas hash-chained | No |
+| MNEME | Custodia y verificación de bundles de memoria | No |
+| ZAYNOR MCP | Memoria y preguntas de una investigación case-bound | No |
+
+Los MCP aportan observaciones, memoria o integridad auxiliar. No reemplazan la
+verificación criptográfica de `result.json` y `result.seal.json`, no ejecutan
+VIGÍA nuevamente desde el chat y no convierten la existencia de un archivo en
+un caso verificado. El detalle de herramientas, allowlists y contratos está en
+[`docs/mcp-locales.md`](./docs/mcp-locales.md).
+
+## Flujo de trabajo
+
+```text
+evidencia autorizada
+        ↓
+freeze: caso inmutable + manifest + hashes
+        ↓
+analyze: motor matemático determinista de VIGÍA
+        ↓
+result.json + result.seal.json
+        ↓
+audit: verificación independiente de integridad y trazabilidad
+        ↓
+chat/API/CLI: explicación segura con Ollama local
+        ↓
+preguntas, contexto y propuestas read-only
+```
+
+El camino autoritativo termina en el resultado sellado. Activar el chat,
+cambiar la audiencia o pedir una explicación más sencilla no modifica el
+resultado. Si aparece nueva evidencia, se crea un flujo explícito de análisis;
+el chat no recalcula ni reemplaza el veredicto por su cuenta.
+
+La descripción de contratos, artefactos y fórmulas vive separada del README en
+[`docs/technical-details.md`](./docs/technical-details.md), para que la
+documentación de producto siga siendo legible y el detalle matemático pueda
+actualizarse cuando se publique la especificación exacta.
+
 El motor cuadripartito de la línea VIGÍA existe como capacidad técnica. Su
 explicación detallada, score y semántica interna forman parte de la
 profundización posterior; este README prioriza la frontera de autoridad que el
@@ -291,6 +359,11 @@ integrando.
   verificadas para modo offline y en vivo.
 - [`docs/extra_arenaai.md`](./docs/extra_arenaai.md) — posición formal del
   producto, usuarios, demo, alcance y criterios de aceptación.
+- [`docs/technical-details.md`](./docs/technical-details.md) — contratos de
+  autoridad, flujo técnico, aritmética exacta y espacio reservado para las
+  fórmulas canónicas.
+- [`docs/mcp-locales.md`](./docs/mcp-locales.md) — descripción de los MCP
+  locales, herramientas, allowlists y límites de autoridad.
 - [`AGENTS.md`](./AGENTS.md) — contratos de integración con VIGÍA y límites de
   autoridad entre evidencia, motor determinista y LLM.
 - [`docs/proposal.en.md`](./docs/proposal.en.md) — propuesta de arquitectura.
