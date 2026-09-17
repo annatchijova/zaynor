@@ -19,10 +19,16 @@ test("keeps the primary mock journey within the authority boundary", async ({ pa
 
   await caseNavigation.getByRole("link", { name: "Investigación" }).click();
   await expect(page.getByText("AUTHORITATIVE_RESULT_UNCHANGED")).toBeVisible();
+
+  await page.getByLabel("Pregunta para el investigador local").fill("¿Qué evidencia adicional debería revisarse?");
+  await page.getByRole("button", { name: "Solicitar investigación" }).click();
+  await expect(page.getByRole("heading", { name: "P002" })).toBeVisible();
+  await expect(page.getByText("La secuencia de investigación se actualizó desde el servicio local.")).toBeVisible();
+  await expect(page.getByText("AUTHORITATIVE_RESULT_UNCHANGED")).toBeVisible();
 });
 
 test("has no automatically detectable accessibility violations on core screens", async ({ page }) => {
-  for (const path of ["/", "/cases/CASE-001", "/cases/CASE-001/evidence", "/cases/CASE-001/chat"]) {
+  for (const path of ["/", "/cases/CASE-001", "/cases/CASE-001/evidence", "/cases/CASE-001/chat", "/cases/CASE-001/investigation"]) {
     await page.goto(path);
     const results = await new AxeBuilder({ page }).analyze();
     expect(results.violations).toEqual([]);

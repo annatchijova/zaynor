@@ -117,6 +117,82 @@
   font-size: 1.5rem;
 }
 
+.proposalComposer {
+  width: min(100% - 2rem, 76rem);
+  margin: var(--space-8) auto 0;
+  padding: var(--space-5);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-raised);
+}
+
+.proposalComposer .sectionHeading {
+  margin-block-end: var(--space-4);
+}
+
+.proposalComposer form {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.proposalComposer label {
+  font-weight: 700;
+}
+
+.proposalComposer textarea {
+  box-sizing: border-box;
+  inline-size: 100%;
+  min-block-size: 7rem;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border-strong);
+  background: var(--color-surface);
+  color: var(--color-text);
+  font: inherit;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.proposalComposer textarea:focus-visible,
+.proposalComposer button:focus-visible {
+  outline: 0.1875rem solid var(--color-integrity);
+  outline-offset: 0.125rem;
+}
+
+.proposalComposer form > p {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+}
+
+.proposalComposer button {
+  justify-self: start;
+  min-block-size: 3rem;
+  padding-inline: var(--space-4);
+  border: 1px solid var(--color-integrity);
+  background: var(--color-integrity);
+  color: var(--color-surface);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.proposalComposer button:disabled {
+  cursor: wait;
+  opacity: 0.7;
+}
+
+.submissionNotice,
+.submissionError {
+  margin: var(--space-4) 0 0;
+  padding: var(--space-3);
+  border-inline-start: 0.1875rem solid var(--color-integrity);
+  background: var(--color-integrity-soft);
+}
+
+.submissionError {
+  border-color: var(--color-suspicion);
+  background: var(--color-suspicion-soft);
+}
+
 @media (max-width: 48rem) {
   .header,
   .resultState {

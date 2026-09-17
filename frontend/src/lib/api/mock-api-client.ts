@@ -164,7 +164,7 @@ export class MockApiClient implements ZaynorApiClient {
     const caseOverview = this.#requireCase(caseId);
     const question = request.question.trim();
 
-    if (!question || !request.requested_tool.trim()) {
+    if (!question) {
       throw fixtureError("invalid_request");
     }
 
@@ -173,7 +173,7 @@ export class MockApiClient implements ZaynorApiClient {
       case_id: caseId,
       question,
       rationale: "Propuesta registrada por la API mock. No tiene efecto autoritativo.",
-      requested_tool: request.requested_tool,
+      requested_tool: "verify_custody",
       capability: "pending_policy_evaluation",
       arguments_digest: "mock-request-digest",
       information_sought: "Pendiente de evaluación de política.",

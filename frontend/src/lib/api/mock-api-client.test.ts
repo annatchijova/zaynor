@@ -25,8 +25,6 @@ test("keeps the authoritative result unchanged when a proposal is recorded", asy
 
   const proposal = await api.proposeInvestigation("CASE-001", {
     question: "¿Hay telemetría retenida para el proceso?",
-    requested_tool: "query_endpoint_retention",
-    arguments: { host: "srv-files-01" },
   });
   const investigation = await api.getInvestigationSession("CASE-001");
   const result = await api.getAuthoritativeResult("CASE-001");

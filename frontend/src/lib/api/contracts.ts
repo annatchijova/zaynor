@@ -178,8 +178,6 @@ export interface InvestigationSummary {
 
 export interface InvestigationRequest {
   readonly question: string;
-  readonly requested_tool: string;
-  readonly arguments: Readonly<Record<string, JsonValue>>;
 }
 
 export interface NarrativeAnswer {

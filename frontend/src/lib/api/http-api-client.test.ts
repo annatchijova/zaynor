@@ -163,8 +163,6 @@ test("sends investigation proposals only to the dedicated policy-gated endpoint"
 
   const result = await client.proposeInvestigation("CASE-001", {
     question: "¿Existe una aprobación de cambio?",
-    requested_tool: "query_change_records",
-    arguments: { host: "srv-files-01" },
   });
 
   assert.equal(result.proposal_id, proposal.proposal_id);
@@ -172,7 +170,5 @@ test("sends investigation proposals only to the dedicated policy-gated endpoint"
   assert.equal(requestInit?.method, "POST");
   assert.deepEqual(JSON.parse(String(requestInit?.body)), {
     question: "¿Existe una aprobación de cambio?",
-    requested_tool: "query_change_records",
-    arguments: { host: "srv-files-01" },
   });
 });
