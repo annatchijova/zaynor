@@ -279,6 +279,13 @@ releases con [SemVer](https://semver.org/spec/v2.0.0.html) y
 informativos hasta que el árbol converja: ver [`CONTRIBUYENDO.md`](./CONTRIBUYENDO.md)).
 Ver [`CONTRIBUYENDO.md`](./CONTRIBUYENDO.md) para el flujo completo.
 
+Compuerta de sincronización de docs (`scripts/docs_check.py`): un cambio de
+código que un documento contrata (CLI, API, agentes, adaptador de VIGÍA,
+sello, MCP, frontend, SDLC — el mapa es `DOCS_MAP` del script) debe
+actualizar ese documento en la misma rama. Lo aplica mecánicamente el hook
+`pre-push` y el job `docs-sync` de CI; exenciones deliberadas por regla con
+el trailer de commit `Docs-Waiver: <rule-id> <razón>`.
+
 ## Requisitos y soberanía
 
 - Todo el procesamiento ocurre localmente.

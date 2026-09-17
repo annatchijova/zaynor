@@ -1,13 +1,23 @@
 #!/usr/bin/env bash
-# pre-push: refuse non-fast-forward (forced) updates to a remote branch.
-# git feeds "<local_ref> <local_sha> <remote_ref> <remote_sha>" lines on stdin.
-# Installed by scripts/install-hooks.sh (or equivalently by
+# pre-push: two mechanical gates before anything leaves this machine.
+#
+# Gate 1 — force-push guard: refuse non-fast-forward (forced) updates to a
+# remote branch.
+# Gate 2 — docs-sync: the range being pushed must keep code and docs in
+# sync (scripts/docs_check.py). CI enforces the same gate on PRs; this hook
+# enforces it before the push even happens.
+#
+# git feeds "<local_ref> <local_sha> <remote_ref> <remote_sha>" lines on
+# stdin. Installed by scripts/install-hooks.sh (or equivalently by
 # docs/skills/git-discipline/scripts/install_guard_hooks.sh, which copies
-# this same file). Bypass (human, deliberate):
+# this same file). Human bypass (deliberate, disables BOTH gates below):
 #   git push --no-verify ...
 set -euo pipefail
 ZERO="0000000000000000000000000000000000000000"
 status=0
+input="$(cat)"
+
+# Gate 1: refuse history rewrites.
 while read -r local_ref local_sha remote_ref remote_sha; do
     # New branch (remote_sha all zeros) or deletion (local_sha all zeros): allow.
     [ "$remote_sha" = "$ZERO" ] && continue
@@ -20,5 +30,47 @@ while read -r local_ref local_sha remote_ref remote_sha; do
         echo "           git push --no-verify ...   (bypasses this hook on purpose)" >&2
         status=1
     fi
-done
-exit $status
+done <<<"$input"
+
+# Gate 2: docs-sync over the range(s) being pushed.
+docs_status=0
+if [ ! -f scripts/docs_check.py ]; then
+    echo "BLOCKED: scripts/docs_check.py not found (run from the repo top level; reinstall with scripts/install-hooks.sh)." >&2
+    exit 1
+fi
+seen=" "
+while read -r local_ref local_sha remote_ref remote_sha; do
+    [ "$local_sha" = "$ZERO" ] && continue
+    base="$remote_sha"
+    if [ "$base" = "$ZERO" ]; then
+        # New remote branch: diff against the fork point from origin/main
+        # (the same diff CI reviews for a PR). Without an origin/main there
+        # is no base to diff against — skip here; CI still gates the PR.
+        base="$(git merge-base origin/main "$local_sha" 2>/dev/null || true)"
+        if [ -z "$base" ]; then
+            echo "docs-check: skipped for $remote_ref (new branch, no origin/main base); CI enforces this gate." >&2
+            continue
+        fi
+    fi
+    range="$base..$local_sha"
+    case "$seen" in
+        *" $range "*) continue ;;
+    esac
+    seen="$seen$range "
+    if ! python3 scripts/docs_check.py --git-range "$range"; then
+        docs_status=1
+    fi
+done <<<"$input"
+
+if [ "$status" -ne 0 ] || [ "$docs_status" -ne 0 ]; then
+    if [ "$docs_status" -ne 0 ]; then
+        echo "docs-check: fix by updating the docs above in this branch, or — when" >&2
+        echo "            the docs genuinely need no change — record that decision with" >&2
+        echo "            a 'Docs-Waiver: <rule-id> <reason>' trailer in the final" >&2
+        echo "            paragraph of the commit message. Prefer the trailer over" >&2
+        echo "            'git push --no-verify', which also disables the force-push" >&2
+        echo "            guard above for this push." >&2
+    fi
+    exit 1
+fi
+exit 0
