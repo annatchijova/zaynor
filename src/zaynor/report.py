@@ -187,10 +187,10 @@ def _finding_card(finding: AuthoritativeFinding) -> str:
 # waiting on a CLI/API entry point that does not exist yet.
 _AGENTS = (
     ("MENTOR", "conectado", "The only role a normal zaynor chat/serve run actually invokes; explains an already-sealed result, never re-invokes the engine."),
-    ("INVESTIGATOR", "implementado, sin invocación automática", "collect_window/verify_custody are real and tested (agents/investigator_tools.py) but no CLI/API command calls them yet."),
-    ("FLEET_COMMANDER", "implementado, sin invocación automática", "Writes to the investigation log; real code (agents/fleet_commander_tools.py), no caller in cli.py/api.py yet."),
-    ("DETECTION_ENGINEER", "implementado, sin invocación automática", "draft_sigma_rule anchors candidates to a real sealed finding (agents/detection_engineer_tools.py), not wired to a command yet."),
-    ("DISPATCHER", "implementado, sin invocación automática", "Catalog of evidence types Mode 1 can actually analyze (agents/dispatcher_tools.py), not wired to a command yet."),
+    ("INVESTIGATOR", "implementado, sin invocación automática", "Collects a bounded evidence window and re-verifies custody hashes; real and tested, no CLI/API command calls it yet."),
+    ("FLEET_COMMANDER", "implementado, sin invocación automática", "Writes to the investigation log; real and tested, no caller wired yet."),
+    ("DETECTION_ENGINEER", "implementado, sin invocación automática", "Drafts a candidate detection rule anchored to a real sealed finding; real and tested, not wired to a command yet."),
+    ("DISPATCHER", "implementado, sin invocación automática", "Catalog of evidence types the engine can actually analyze; real and tested, not wired to a command yet."),
     ("ENDPOINT_HUNTER / PERSISTENCE_HUNTER", "out of scope", "Would need a live EDR collection backend this project does not have."),
     ("THREAT_INTEL", "out of scope, for now", "A portable VirusTotal/GTI enrichment exists but is not wired in — external network dependency, pending decision."),
 )
