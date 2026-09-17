@@ -1,4 +1,20 @@
-import type { Confidence, EvidenceRef } from "@/lib/api/contracts";
+import type { AuthoritativeResult, Confidence, EvidenceRef } from "@/lib/api/contracts";
+
+const ENGINE_DISPLAY_NAME = "ZAYNOR deterministic engine (Mode 1)";
+
+/**
+ * A case-facing screen names ZAYNOR, not its vendored internals.
+ *
+ * `result.engine.name` is real, correct provenance metadata for an audit
+ * trail (the backend's actual engine identifier), but this function's
+ * output is what a perito or a senior/junior analyst reads on the case
+ * screens. Mirrors the same fix already applied on the report-rendering
+ * side (`src/zaynor/report.py::_engine_display`) -- ZAYNOR is its own
+ * product, the vendored engine's raw name does not belong in the UI.
+ */
+export function formatEngineDisplay(engine: AuthoritativeResult["engine"]): string {
+  return engine.version ? `${ENGINE_DISPLAY_NAME} ${engine.version}` : ENGINE_DISPLAY_NAME;
+}
 
 const confidenceLabels: Record<Confidence, string> = {
   HIGH: "Alta",

@@ -1,5 +1,5 @@
 import type { CaseOverview, EvidenceArtifact, Finding, JsonValue } from "@/lib/api";
-import { formatDateTime, formatEvidenceRefs, formatHash } from "@/lib/presentation/formatters";
+import { formatDateTime, formatEngineDisplay, formatEvidenceRefs, formatHash } from "@/lib/presentation/formatters";
 
 import { CaseNavigation } from "@/components/case/case-navigation";
 import { FindingStateBadge } from "@/components/case/finding-state-badge";
@@ -69,7 +69,7 @@ export function SeniorConsole({ caseOverview, evidence }: SeniorConsoleProps) {
           </div>
           <div>
             <dt>Engine</dt>
-            <dd>{result.engine.name} {result.engine.version}</dd>
+            <dd>{formatEngineDisplay(result.engine)}</dd>
           </div>
           <div>
             <dt>Configuration hash</dt>

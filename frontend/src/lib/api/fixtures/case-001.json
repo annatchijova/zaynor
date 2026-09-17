@@ -115,7 +115,7 @@
     ],
     "result_sha256": "9ccdc8e2843eac95c35de5c70ece54c7d124acd2226f1d98106aa2237a5a2dc1",
     "engine": {
-      "name": "VIGIA",
+      "name": "vigia_agent",
       "version": "adapter-demo-1",
       "configuration_hash": "120ab81ff448f2e2fec4c3f562d9d10ff9b0a02b5b7c15331471f4f91b9b3c60"
     },

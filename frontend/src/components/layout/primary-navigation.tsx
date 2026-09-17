@@ -40,16 +40,6 @@ function NavigationLinks({ pathname }: NavigationLinksProps) {
             </li>
           );
         })}
-        <li>
-          <a
-            href="https://annatchijova.github.io/vigia/vigia_diagrams.html"
-            rel="noopener noreferrer"
-            target="_blank"
-          >
-            VIGÍA
-            <span aria-hidden="true"> ↗</span>
-          </a>
-        </li>
       </ul>
     </nav>
   );

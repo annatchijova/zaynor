@@ -1,7 +1,13 @@
 import Link from "next/link";
 
 import type { CaseOverview } from "@/lib/api/contracts";
-import { formatConfidence, formatDateTime, formatEvidenceRefs, formatHash } from "@/lib/presentation/formatters";
+import {
+  formatConfidence,
+  formatDateTime,
+  formatEngineDisplay,
+  formatEvidenceRefs,
+  formatHash,
+} from "@/lib/presentation/formatters";
 
 import { IntegrityBadge } from "../ui/integrity-badge";
 import { SectionCard } from "../ui/section-card";
@@ -58,7 +64,7 @@ export function CaseOverviewView({ caseOverview }: CaseOverviewProps) {
             </div>
             <div>
               <dt>Motor</dt>
-              <dd>{result.engine.name}</dd>
+              <dd>{formatEngineDisplay(result.engine)}</dd>
             </div>
           </dl>
         </SectionCard>
