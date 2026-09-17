@@ -84,6 +84,33 @@ This is mandatory per the skill (Part 3). No finding is CONFIRMED in the abstrac
 
 ---
 
+## Remediation status on `main`
+
+This report was written against the pre-remediation state. The confirmed
+implementation findings were rechecked against the live code and remediated
+in commit `710578c`:
+
+| Finding | Current status | Evidence |
+|---------|----------------|----------|
+| F02 / F06 — partial authority projection | **FIXED** | `check_structured_output` now requires and compares every authoritative projection field, including unknowns, scores, confidence, fractures, hypotheses, and ATT&CK techniques. |
+| F04 — `NOISE` mapped to `BENIGN` | **FIXED** | `NOISE` now maps to `UNKNOWN`; no-signal analysis cannot present a clean verdict. |
+| F07 — mixed HMAC/non-HMAC entries accepted | **FIXED** | Verification fails closed when a key is supplied and any entry lacks an HMAC; comparisons use constant-time equality. |
+| F08 — cross-case observation binding | **FIXED** | `ObservationEnvelope.from_payload` rejects a proposal whose case differs from the observation case. |
+| F10 — writable frozen evidence directory | **FIXED** | The frozen evidence directory is made non-writable after copying. |
+| F11 — unchecked HMAC key-file permissions | **FIXED** | Group/world-readable key files are rejected. |
+| F12 — unrestricted model-name input | **HARDENED** | Ollama model names are bounded to a transport-safe allowlist grammar. This is input validation, not a catalog of required models. |
+| F14 — unbounded MCP dependency | **FIXED** | The dependency is bounded to the supported major version: `mcp>=1.27,<2`. |
+| F15 — mutable GitHub Action references | **FIXED** | Pages workflow actions are pinned to immutable commit SHAs with version comments. |
+
+The following report items remain deliberately qualified: F01 is a residual
+LLM prompt-injection risk that deterministic XML delimiters cannot mathematically
+eliminate; F03 and F09 depend on same-user/root capabilities; F05 was falsified
+by the report itself; F13, F16, and F17 are hardening or packaging concerns and
+were not promoted to confirmed vulnerabilities. The remediation does not claim
+that a seal proves semantic truth or that an LLM is a security boundary.
+
+---
+
 ## Round 1 — Local defects
 
 ### F01 — Prompt injection multi-vector
