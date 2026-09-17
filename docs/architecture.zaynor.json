@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "ZAYNOR — Deterministic DFIR / DFIR determinista",
+    "output": "architecture.html",
+    "quality_profile": "showcase",
+    "repository": {
+      "url": "https://github.com/annatchijova/zaynor",
+      "revision": "713a047f0d55f510df359e1730dc96ea8a048a3f"
+    },
+    "views": [
+      { "id": "authority-path", "label": "Authority path / Camino de autoridad", "focus": ["incident", "freeze", "engine", "result", "seal", "report"], "note": "Follow evidence from case freeze to the sealed authoritative result / Seguí la evidencia desde el congelamiento hasta el resultado sellado." },
+      { "id": "investigation-loop", "label": "Bounded investigation / Investigación acotada", "focus": ["result", "ollama", "policy", "mcp", "observation", "reanalyze"], "note": "Model proposes; policy gates; tools observe; engine re-analyzes / El modelo propone; la política autoriza; las herramientas observan." },
+      { "id": "audiences", "label": "Analyst audiences / Audiencias analistas", "focus": ["result", "junior", "senior", "report"], "note": "Narrative views consume sealed facts / Las vistas narrativas consumen hechos sellados." }
+    ]
+  },
+  "components": [
+    { "id": "incident", "type": "external", "label": "Declared incident", "pos": [40, 320], "size": [165, 76], "tag": "Input boundary" },
+    { "id": "freeze", "type": "security", "label": "Case freezer", "pos": [275, 320], "size": [165, 76], "tag": "Immutable snapshot", "sources": [{ "path": "src/zaynor/case_freezer.py", "label": "case freezer" }] },
+    { "id": "engine", "type": "backend", "label": "Deterministic engine", "pos": [510, 320], "size": [180, 76], "tag": "No LLM authority", "sources": [{ "path": "src/zaynor/adapter.py", "label": "adapter" }] },
+    { "id": "result", "type": "security", "label": "Authoritative result", "pos": [760, 320], "size": [190, 76], "tag": "Sealed state", "sources": [{ "path": "src/zaynor/schemas.py", "label": "typed result" }] },
+    { "id": "seal", "type": "security", "label": "Seal and audit", "pos": [1010, 320], "size": [170, 76], "tag": "Fail closed", "sources": [{ "path": "src/zaynor/authority_seal.py", "label": "seal" }] },
+    { "id": "ollama", "type": "backend", "label": "Local Ollama", "pos": [760, 110], "size": [180, 76], "tag": "Untrusted proposer", "sources": [{ "path": "src/zaynor/agents/ollama_client.py", "label": "Ollama client" }] },
+    { "id": "policy", "type": "security", "label": "Capability policy", "pos": [1010, 110], "size": [170, 76], "tag": "Allowlist gate", "sources": [{ "path": "src/zaynor/agents/policy.py", "label": "policy" }] },
+    { "id": "mcp", "type": "backend", "label": "Typed MCP adapter", "pos": [1260, 110], "size": [180, 76], "tag": "No authority", "sources": [{ "path": "src/zaynor/zaynor_mcp_client.py", "label": "MCP client" }] },
+    { "id": "observation", "type": "external", "label": "Observation / evidence", "pos": [1260, 320], "size": [180, 76], "tag": "Bound to proposal" },
+    { "id": "reanalyze", "type": "backend", "label": "Freeze + re-analysis", "pos": [1260, 510], "size": [190, 76], "tag": "Deterministic loop" },
+    { "id": "junior", "type": "frontend", "label": "Junior analyst chat", "pos": [760, 610], "size": [180, 76] },
+    { "id": "senior", "type": "frontend", "label": "Senior console", "pos": [1010, 610], "size": [170, 76] },
+    { "id": "report", "type": "frontend", "label": "Reports", "pos": [1260, 610], "size": [180, 76] }
+  ],
+  "boundaries": [
+    { "kind": "security-group", "label": "Authoritative boundary", "wraps": ["freeze", "engine", "result", "seal", "reanalyze"] },
+    { "kind": "region", "label": "Local agentic boundary", "wraps": ["ollama", "policy", "mcp", "observation"] }
+  ],
+  "connections": [
+    { "id": "incident-freeze", "from": "incident", "to": "freeze", "label": "freeze", "variant": "emphasis" },
+    { "id": "freeze-engine", "from": "freeze", "to": "engine" },
+    { "id": "engine-result", "from": "engine", "to": "result", "variant": "emphasis" },
+    { "id": "result-seal", "from": "result", "to": "seal" },
+    { "id": "result-ollama", "from": "result", "to": "ollama", "label": "authorized facts", "variant": "dashed", "fromSide": "top", "toSide": "bottom" },
+    { "id": "ollama-policy", "from": "ollama", "to": "policy", "label": "proposal", "variant": "security" },
+    { "id": "policy-mcp", "from": "policy", "to": "mcp", "variant": "security" },
+    { "id": "mcp-observation", "from": "mcp", "to": "observation", "variant": "dashed" },
+    { "id": "reanalyze-engine", "from": "reanalyze", "to": "engine", "variant": "emphasis" }
+  ],
+  "cards": [
+    { "dot": "emerald", "title": "Authority", "items": ["Evidence is frozen before analysis", "Only the deterministic engine creates authoritative state", "Every result is sealed and auditable"] },
+    { "dot": "cyan", "title": "Agentic control", "items": ["Ollama proposes questions, never findings", "Policy gates capabilities before MCP calls", "Observations remain untrusted until re-analysis"] },
+    { "dot": "rose", "title": "Analyst experience", "items": ["Junior chat explains cited facts", "Senior view exposes provenance and fractures", "Reports are projections of sealed state"] }
+  ]
+}
