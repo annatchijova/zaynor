@@ -25,10 +25,9 @@ What was changed for ZAYNOR:
 
 from __future__ import annotations
 
-import hashlib
 import base64
+import hashlib
 import json
-import re
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
@@ -162,7 +161,7 @@ class MockTransport:
                     raise VelociraptorAdapterError(
                         f"capture row/column mismatch for artifact {artifact_id!r}"
                     )
-                yield dict(zip(columns, values))
+                yield dict(zip(columns, values, strict=True))
 
 
 class RestTransport:
