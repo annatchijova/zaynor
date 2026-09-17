@@ -12,7 +12,7 @@ function in this directory (2026-09-17) — not assumed from file names.
 | `fleet_commander_tools.py` | FLEET_COMMANDER | implemented, tested, no caller | none |
 | `detection_engineer_tools.py` | DETECTION_ENGINEER | implemented, tested, no caller | none |
 | `dispatcher_tools.py` | DISPATCHER | implemented, tested, **wired** | `zaynor hunts` |
-| `consult_tools.py` | (cross-role, package-sealed) | implemented, tested, no caller | none — see the `analyze`/package-seal mismatch note below |
+| `consult_tools.py` | CONSULT | implemented, tested, **wired** | `zaynor consult` (via `framework_context.build_consult_package`) |
 
 Do not re-derive this table from scratch — update it here the moment a
 role gets a real caller, so the next person (human or agent) does not
@@ -53,20 +53,26 @@ repeat the same investigation.
   tripwire against prompt injection) folded into `Mentor.chat_checked`.
 - **`model_catalog.py`, `ollama_client.py`** — infrastructure, not agents.
 
-## A real architectural mismatch, not yet resolved
+## The package-seal mismatch — resolved, not by changing what `analyze` seals
 
 `consult_tools.py::ConsultTools` requires a seal computed over an
 `AuthoritativePackage` wrapper (`framework_context.py`), but `zaynor
 analyze` seals the bare `ZaynorAuthoritativeResult` directly. These are
-two different sealed objects with different canonical bytes —
-`ConsultTools` cannot be constructed from `zaynor analyze`'s stored
-`result.json`/`result.seal.json` without either re-sealing (vacuous) or
-extending `_run_analyze` to also produce a package-level seal. Deferred
-deliberately: extending the seal shape is exactly the kind of change that
-needs a documented decision (`CLAUDE.md` §1.3), not a quiet fix, and it
-also depends on how `framework_context.py`'s MITRE/NIST/OWASP annotations
-end up getting populated (in progress elsewhere in this repo as of this
-writing).
+two different sealed objects with different canonical bytes. Rather than
+extending `_run_analyze`'s seal shape (a change to the sealed decision
+path, which needs a documented decision per `CLAUDE.md` §1.3, not a quiet
+fix), `framework_context.build_consult_package(result, seal)` bridges the
+two: it verifies the already-sealed result first, then wraps and reseals
+it as a package, entirely downstream of `analyze`. `zaynor consult`
+(read-only, no LLM, no engine re-invocation) is the real caller.
+
+`FrameworkContext` defaults to empty when built this way: no MITRE/NIST/
+OWASP mapper exists yet — `Finding.mitre`/`Finding.nist` are passed
+through verbatim from whatever the engine emitted (`adapter.py:73-74`),
+unpopulated by every case in the current corpus (`casos/*.json`). This is
+the honest state, not a placeholder pretending to be a mapping. Building
+that mapper is a real, separate, not-yet-scoped piece of work — do not
+infer one exists because `OwaspAnnotation` now has a dataclass shape.
 
 ## Before wiring a new role
 

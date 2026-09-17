@@ -399,3 +399,32 @@ def test_hunts_lists_the_real_dispatcher_catalog(capsys):
     ids = {hunt["id"] for hunt in payload["hunts"]}
     assert {"registry", "prefetch", "browser", "event_log", "memory", "mft", "ebs_json"} == ids
 
+
+def test_consult_exposes_a_sealed_case_without_touching_the_original_seal(tmp_path, capsys):
+    _, _, output_root = _analyzed_case(tmp_path, capsys)
+    stored_seal = json.loads((output_root / "INC-CLI-AUDIT" / "result.seal.json").read_text())
+
+    assert main(["consult", "--case-id", "INC-CLI-AUDIT", "--output-root", str(output_root), "--json"]) == 0
+    payload = json.loads(capsys.readouterr().out)
+
+    assert payload["result"]["found"] is True
+    assert payload["result"]["case_id"] == "INC-CLI-AUDIT"
+    assert payload["result"]["verdict"] == "ABSTAIN"
+    # The consult surface reports its OWN (package-level) seal, not the
+    # original result seal -- two different sealed objects, per design.
+    assert payload["result"]["result_sha256"] != stored_seal["sha256"]
+    assert payload["framework"]["changes_verdict"] is False
+    assert payload["framework"]["mitre"] == []
+    assert {hunt["id"] for hunt in payload["hunts"]["hunts"]} == {
+        "registry", "prefetch", "browser", "event_log", "memory", "mft", "ebs_json",
+    }
+
+    # The original stored seal is untouched by building a consult package.
+    assert json.loads((output_root / "INC-CLI-AUDIT" / "result.seal.json").read_text()) == stored_seal
+
+
+def test_consult_rejects_a_case_id_that_was_never_analyzed(tmp_path):
+    output_root = tmp_path / "outputs"
+    output_root.mkdir()
+    assert main(["consult", "--case-id", "NEVER-ANALYZED", "--output-root", str(output_root), "--json"]) == 2
+

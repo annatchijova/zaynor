@@ -578,6 +578,36 @@ def _run_hunts(args: argparse.Namespace) -> int:
     return 0
 
 
+def _run_consult(args: argparse.Namespace) -> int:
+    """CONSULT, wired for real: read-only, sealed-package view of an already
+    analyzed case -- the shape an external agent (a future MCP consumer
+    included) is allowed to see. Never re-invokes the engine and never
+    grants tool execution rights (see agents/README.md's package-seal
+    mismatch note; this closes it by building the package from the
+    already-verified stored result, not by changing what `analyze` seals).
+    """
+    from zaynor.agents.consult_tools import ConsultTools
+    from zaynor.agents.dispatcher_tools import DEFAULT_HUNT_CATALOG
+    from zaynor.framework_context import build_consult_package
+
+    if not _SAFE_CASE_ID.fullmatch(args.case_id):
+        raise CliInputError("case-id must be a bounded path-safe identifier")
+    output_root = _directory_path(args.output_root)
+    output_case_dir = output_root / args.case_id
+    result, seal = load_verified_stored_case(
+        args.case_id, output_case_dir / "result.json", output_case_dir / "result.seal.json"
+    )
+    package, package_seal = build_consult_package(result, seal)
+    tools = ConsultTools(package, package_seal, hunts=DEFAULT_HUNT_CATALOG)
+    payload = {
+        "result": tools.explain_result(args.case_id),
+        "framework": tools.explain_framework(),
+        "hunts": tools.list_hunts(),
+    }
+    _emit(payload, as_json=args.json)
+    return 0
+
+
 def _run_models(args: argparse.Namespace) -> int:
     from zaynor.agents.model_catalog import SUGGESTED_MODELS
     from zaynor.agents.ollama_client import OllamaError, list_available_models
@@ -701,6 +731,15 @@ def build_parser() -> argparse.ArgumentParser:
     )
     hunts_parser.add_argument("--json", action="store_true", help="emitir JSON estable")
     hunts_parser.set_defaults(handler=_run_hunts)
+
+    consult_parser = subparsers.add_parser(
+        "consult",
+        help="vista de solo lectura sobre un caso ya sellado -- resultado, contexto MITRE/NIST/OWASP y catálogo de hunts (rol CONSULT)",
+    )
+    consult_parser.add_argument("--case-id", required=True)
+    consult_parser.add_argument("--output-root", required=True)
+    consult_parser.add_argument("--json", action="store_true", help="emitir JSON estable")
+    consult_parser.set_defaults(handler=_run_consult)
 
     models_parser = subparsers.add_parser(
         "models", help="mostrar modelos de Ollama instalados y sugeridos por tamaño de hardware"
