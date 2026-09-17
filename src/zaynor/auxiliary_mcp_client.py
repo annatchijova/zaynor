@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import asyncio
+import sys
 from contextlib import AsyncExitStack
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -44,7 +45,7 @@ class AuxiliaryMCPConfig:
     server_script: Path
     allowed_tools: frozenset[str]
     database_path: Path
-    python_executable: str = "python3"
+    python_executable: str = field(default_factory=lambda: sys.executable)
     timeout_seconds: float = 30.0
     extra_env: dict[str, str] = field(default_factory=dict)
 
