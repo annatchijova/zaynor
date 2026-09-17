@@ -33,6 +33,7 @@ module.
 from __future__ import annotations
 
 import os
+import sys
 import urllib.parse
 from contextlib import AsyncExitStack
 from dataclasses import dataclass, field
@@ -98,6 +99,12 @@ def _default_vendored_vigia_path() -> Path:
     return Path(zaynor.__file__).resolve().parent.parent.parent / "vendor" / "vigia_engine"
 
 
+def _zaynor_mcp_runner_path() -> Path:
+    import zaynor
+
+    return Path(zaynor.__file__).resolve().parent / "vigia_mcp_runner.py"
+
+
 _DEFAULT_BRIDGE_RELATIVE_PATH = "vigia/vigia_sift_bridge_min.py"
 
 
@@ -118,7 +125,7 @@ class VigiaMCPConfig:
     evidence_dir: Path
     vigia_repo_path: Path = field(default_factory=_default_vendored_vigia_path)
     bridge_relative_path: str = _DEFAULT_BRIDGE_RELATIVE_PATH
-    python_executable: str = "python3"
+    python_executable: str = field(default_factory=lambda: sys.executable)
     ollama_host: str = "http://127.0.0.1:11434"
     ollama_model: str = "deepseek-r1:8b"
     extra_env: dict[str, str] = field(default_factory=dict)
@@ -159,7 +166,7 @@ class VigiaMCPConfig:
 
         return StdioServerParameters(
             command=self.python_executable,
-            args=[str(bridge_path)],
+            args=[str(_zaynor_mcp_runner_path()), str(bridge_path)],
             env=env,
             cwd=str(self.vigia_repo_path),
         )

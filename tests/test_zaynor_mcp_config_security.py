@@ -7,6 +7,7 @@ checkout).
 from __future__ import annotations
 
 from pathlib import Path
+import sys
 
 import pytest
 
@@ -58,3 +59,14 @@ def test_extra_env_cannot_override_the_local_only_backend():
 def test_extra_env_accepts_unrelated_keys():
     config = _config(extra_env={"SOME_UNRELATED_TOOL_FLAG": "1"})
     assert config.extra_env == {"SOME_UNRELATED_TOOL_FLAG": "1"}
+
+
+def test_bridge_runs_through_zaynor_trio_runner(tmp_path):
+    config = _config(
+        vigia_repo_path=Path(__file__).parents[1] / "vendor" / "vigia_engine",
+        evidence_dir=tmp_path,
+    )
+    params = config.server_params()
+    assert params.command == sys.executable
+    assert params.args[0].endswith("zaynor/vigia_mcp_runner.py")
+    assert params.args[1].endswith("vigia/vigia_sift_bridge_min.py")

@@ -44,18 +44,26 @@ The bridge entrypoint currently uses the SDK default `mcp.run()` path. The
 ZAYNOR-owned MCP server uses the explicitly selected Trio stdio backend due
 to the same MCP SDK startup behavior observed during its handshake testing.
 
-## Diagnosis
+## Diagnosis and step-2 result
 
-The full-suite timeout is isolated to the VIGÍA MCP bridge startup/handshake
-path used by `investigator_tools`; it is not caused by the ZAYNOR MCP server,
-the authority tests, or the ordinary API tests. The next step is to add a
-bounded client/bridge startup test and make the smallest ZAYNOR-side change
-needed to select a working local stdio runtime, without changing VIGÍA
-scoring or analysis behavior.
+The full-suite timeout was isolated to the VIGÍA MCP bridge startup/handshake
+path used by `investigator_tools`; it was not caused by the ZAYNOR MCP server,
+the authority tests, or the ordinary API tests. The smallest working fix is a
+ZAYNOR-owned runner that imports the existing bridge and starts its stdio
+transport on the asyncio backend. Trio is unsuitable for this bridge because
+its tools use `asyncio.get_event_loop()` and `run_in_executor()`.
+
+The runner also makes the client use `sys.executable` by default, so the
+bridge sees the same installed dependencies as ZAYNOR. The focused real
+bridge regression now passes:
+
+```text
+16 passed in 3.68s
+```
 
 ## Not changed
 
 - No scorer or authoritative schema changes.
-- No VIGÍA re-analysis changes.
+- No VIGÍA bridge, scorer, or re-analysis changes.
 - No test was skipped or weakened.
 - No frontend or external repository changes.
