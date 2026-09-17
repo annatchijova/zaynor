@@ -5,7 +5,7 @@ import { type FormEvent, type KeyboardEvent, useEffect, useRef, useState } from 
 
 import { IntegrityBadge } from "@/components/ui/integrity-badge";
 import { VerdictPill } from "@/components/ui/verdict-pill";
-import { api } from "@/lib/api";
+import { browserApi } from "@/lib/api/browser-api";
 import type { EvidenceRef, NarrativeAnswer, Verdict, VerificationStatus } from "@/lib/api";
 
 import { presentNarrationError, type NarrationErrorPresentation } from "./narration-error";
@@ -132,7 +132,7 @@ export function JuniorChat({ caseId, sealStatus, verdict }: JuniorChatProps) {
     ]);
 
     try {
-      const answer = await api.explain(caseId, submittedQuestion);
+      const answer = await browserApi.explain(caseId, submittedQuestion);
       setMessages((currentMessages) => [
         ...currentMessages,
         { id: `answer-${crypto.randomUUID()}`, kind: "answer", value: answer },

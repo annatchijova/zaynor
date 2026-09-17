@@ -458,6 +458,30 @@ function assertCaseId(caseId: string): void {
   }
 }
 
+function normalizeBaseUrl(baseUrl: string): string {
+  if (baseUrl.startsWith("/") && !baseUrl.startsWith("//")) {
+    const relativeUrl = new URL(baseUrl, "http://zaynor.invalid");
+
+    if (relativeUrl.search || relativeUrl.hash) {
+      throw new TypeError("The relative API base URL must not include a query string or fragment.");
+    }
+
+    return relativeUrl.pathname.replace(/\/$/, "");
+  }
+
+  const parsedBaseUrl = new URL(baseUrl);
+
+  if (parsedBaseUrl.protocol !== "http:" && parsedBaseUrl.protocol !== "https:") {
+    throw new TypeError("The API base URL must use HTTP, HTTPS, or a same-origin path.");
+  }
+
+  if (parsedBaseUrl.search || parsedBaseUrl.hash) {
+    throw new TypeError("The API base URL must not include a query string or fragment.");
+  }
+
+  return parsedBaseUrl.toString().replace(/\/$/, "");
+}
+
 export interface HttpApiClientOptions {
   readonly baseUrl: string;
   readonly fetchImplementation?: FetchImplementation;
@@ -468,13 +492,7 @@ export class HttpApiClient implements ZaynorApiClient {
   readonly #fetch: FetchImplementation;
 
   constructor({ baseUrl, fetchImplementation = globalThis.fetch.bind(globalThis) }: HttpApiClientOptions) {
-    const parsedBaseUrl = new URL(baseUrl);
-
-    if (parsedBaseUrl.protocol !== "http:" && parsedBaseUrl.protocol !== "https:") {
-      throw new TypeError("The API base URL must use HTTP or HTTPS.");
-    }
-
-    this.#baseUrl = parsedBaseUrl.toString().replace(/\/$/, "");
+    this.#baseUrl = normalizeBaseUrl(baseUrl);
     this.#fetch = fetchImplementation;
   }
 

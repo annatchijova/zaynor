@@ -25,7 +25,7 @@ export function resolveApiClientConfiguration({
   }
 
   if (!baseUrl?.trim()) {
-    throw new TypeError("NEXT_PUBLIC_ZAYNOR_API_BASE_URL is required when HTTP mode is enabled.");
+    throw new TypeError("An API base URL is required when HTTP mode is enabled.");
   }
 
   return { mode: "http", baseUrl };

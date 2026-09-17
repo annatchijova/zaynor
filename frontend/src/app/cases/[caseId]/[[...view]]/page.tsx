@@ -11,7 +11,8 @@ import { ReportsView } from "@/components/reports/reports-view";
 import { SeniorConsole } from "@/components/senior/senior-console";
 import { IntegrityBadge } from "@/components/ui/integrity-badge";
 import { StatePanel } from "@/components/ui/state-panel";
-import { ApiClientError, api } from "@/lib/api";
+import { ApiClientError } from "@/lib/api";
+import { serverApi } from "@/lib/api/server-api";
 import type { CaseOverview, EvidenceArtifact } from "@/lib/api";
 
 import styles from "@/components/case/case-workspace.module.css";
@@ -75,7 +76,7 @@ function ChatView({ caseOverview }: { readonly caseOverview: CaseOverview }) {
 
 async function loadCase(caseId: string): Promise<CaseOverview> {
   try {
-    return await api.getCase(caseId);
+    return await serverApi.getCase(caseId);
   } catch (error) {
     if (error instanceof ApiClientError && error.code === "CASE_NOT_FOUND") {
       notFound();
@@ -87,7 +88,7 @@ async function loadCase(caseId: string): Promise<CaseOverview> {
 
 async function loadEvidence(caseId: string) {
   try {
-    const [caseOverview, evidence] = await Promise.all([api.getCase(caseId), api.getEvidence(caseId)]);
+    const [caseOverview, evidence] = await Promise.all([serverApi.getCase(caseId), serverApi.getEvidence(caseId)]);
     return { caseOverview, evidence };
   } catch (error) {
     if (error instanceof ApiClientError && error.code === "CASE_NOT_FOUND") {
@@ -101,10 +102,10 @@ async function loadEvidence(caseId: string) {
 async function loadReports(caseId: string) {
   try {
     const [caseOverview, ...reports] = await Promise.all([
-      api.getCase(caseId),
-      api.getReport(caseId, "md"),
-      api.getReport(caseId, "html"),
-      api.getReport(caseId, "pdf"),
+      serverApi.getCase(caseId),
+      serverApi.getReport(caseId, "md"),
+      serverApi.getReport(caseId, "html"),
+      serverApi.getReport(caseId, "pdf"),
     ]);
     return { caseOverview, reports };
   } catch (error) {

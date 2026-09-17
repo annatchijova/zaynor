@@ -7,7 +7,7 @@ export default defineConfig([
   ...nextTypeScript,
   {
     files: ["src/**/*.{ts,tsx}"],
-    ignores: ["src/lib/api/http-api-client.ts"],
+    ignores: ["src/lib/api/http-api-client.ts", "src/lib/api/zaynor-bff.ts"],
     rules: {
       "no-restricted-syntax": [
         "error",
@@ -22,5 +22,5 @@ export default defineConfig([
       ],
     },
   },
-  globalIgnores([".next/**", "coverage/**"]),
+  globalIgnores([".next/**", ".next-e2e/**", "coverage/**", "test-results/**"]),
 ]);

@@ -29,6 +29,21 @@ test("requests a case through the target console endpoint and validates its payl
   assert.equal(requests[0]?.init?.method, "GET");
 });
 
+test("accepts the same-origin BFF base path used by browser components", async () => {
+  let requestUrl = "";
+  const client = new HttpApiClient({
+    baseUrl: "/api/zaynor",
+    fetchImplementation: async (url) => {
+      requestUrl = url;
+      return jsonResponse(case001);
+    },
+  });
+
+  await client.getCase("CASE-001");
+
+  assert.equal(requestUrl, "/api/zaynor/cases/CASE-001");
+});
+
 test("maps typed backend errors without converting them into successful payloads", async () => {
   const client = new HttpApiClient({
     baseUrl: "http://127.0.0.1:8000",

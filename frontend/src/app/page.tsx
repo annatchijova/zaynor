@@ -3,13 +3,13 @@ import Link from "next/link";
 import { IntegrityBadge } from "@/components/ui/integrity-badge";
 import { SectionCard } from "@/components/ui/section-card";
 import { VerdictPill } from "@/components/ui/verdict-pill";
-import { api } from "@/lib/api";
+import { serverApi } from "@/lib/api/server-api";
 import { formatDateTime } from "@/lib/presentation/formatters";
 
 import styles from "./page.module.css";
 
 export default async function OverviewPage() {
-  const [health, cases] = await Promise.all([api.getHealth(), api.listCases()]);
+  const [health, cases] = await Promise.all([serverApi.getHealth(), serverApi.listCases()]);
 
   return (
     <div className={styles.page}>

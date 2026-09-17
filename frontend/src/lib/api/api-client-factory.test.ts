@@ -15,7 +15,7 @@ test("uses the fixture client unless HTTP mode is explicitly enabled", () => {
 test("requires an explicit base URL before enabling the HTTP client", () => {
   assert.throws(
     () => resolveApiClientConfiguration({ mode: "http", baseUrl: undefined }),
-    /BASE_URL is required/i,
+    /API base URL is required/i,
   );
 });
 
