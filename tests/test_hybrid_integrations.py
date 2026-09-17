@@ -22,7 +22,7 @@ def _window():
         "artifacts": [{"artifact_id": "pslist-a1", "evidence_type": "process"}],
     }
     body["window_hash"] = hashlib.sha256(
-        json.dumps(_canonicalize(body), sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode()
+        json.dumps(_canonicalize(body), sort_keys=True, ensure_ascii=True).encode()
     ).hexdigest()
     return body
 
@@ -42,6 +42,23 @@ def test_tampered_window_fails_before_any_sink_or_write(tmp_path):
     with pytest.raises(HybridIntegrationError, match="hash"):
         materialize_window(window, tmp_path / "stage")
     assert not (tmp_path / "stage").exists()
+
+
+def test_artifact_id_cannot_escape_staging_root(tmp_path):
+    window = _window()
+    window["artifacts"][0]["artifact_id"] = "x/../../../escaped"
+    body = {key: value for key, value in window.items() if key != "window_hash"}
+    window["window_hash"] = hashlib.sha256(
+        json.dumps(_canonicalize(body), sort_keys=True, ensure_ascii=True).encode()
+    ).hexdigest()
+    with pytest.raises(HybridIntegrationError, match="escapes"):
+        materialize_window(window, tmp_path / "stage")
+    assert not (tmp_path / "escaped.json").exists()
+
+
+def test_window_can_be_bound_to_the_requested_case(tmp_path):
+    with pytest.raises(HybridIntegrationError, match="case_id"):
+        materialize_window(_window(), tmp_path / "stage", expected_case_id="OTHER")
 
 
 class Sink:

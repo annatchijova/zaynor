@@ -22,11 +22,27 @@ class HybridIntegrationError(ValueError):
 
 
 def _canonical_hash(value: Any) -> bytes:
-    return json.dumps(_canonicalize(value), sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode()
+    # Keep byte-for-byte lockstep with ANNACONDA's _sha256_canonical().
+    return json.dumps(_canonicalize(value), sort_keys=True, ensure_ascii=True).encode()
 
 
 def _json(value: Any) -> bytes:
     return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=True).encode()
+
+
+def _safe_output_path(root: Path, relative: str) -> Path:
+    """Return a confined output path and reject symlink components."""
+    root = root.resolve(strict=True)
+    candidate = root / relative
+    resolved = candidate.resolve(strict=False)
+    if resolved != root and root not in resolved.parents:
+        raise HybridIntegrationError("materialized evidence path escapes staging root")
+    current = root
+    for part in Path(relative).parts:
+        current = current / part
+        if current.is_symlink():
+            raise HybridIntegrationError("materialized evidence path contains a symlink")
+    return candidate
 
 
 def verify_annaconda_window(window: dict[str, Any]) -> None:
@@ -43,7 +59,9 @@ def verify_annaconda_window(window: dict[str, Any]) -> None:
         raise HybridIntegrationError("evidence window artifacts must be a list")
 
 
-def materialize_window(window: dict[str, Any], staging_root: Path) -> tuple[Path, dict[str, list[str]]]:
+def materialize_window(
+    window: dict[str, Any], staging_root: Path, *, expected_case_id: str | None = None
+) -> tuple[Path, dict[str, list[str]]]:
     """Write a verified window as freezeable JSON evidence.
 
     The returned profile map is intended for ``case_freezer.freeze_case``.
@@ -54,6 +72,10 @@ def materialize_window(window: dict[str, Any], staging_root: Path) -> tuple[Path
     verify_annaconda_window(window)
     root = Path(staging_root)
     root.mkdir(parents=True, exist_ok=True)
+    if root.is_symlink():
+        raise HybridIntegrationError("staging root cannot be a symlink")
+    if expected_case_id is not None and window["case_id"] != expected_case_id:
+        raise HybridIntegrationError("evidence window case_id does not match requested case")
     files: list[str] = []
     for index, artifact in enumerate(window["artifacts"]):
         if not isinstance(artifact, dict):
@@ -62,8 +84,10 @@ def materialize_window(window: dict[str, Any], staging_root: Path) -> tuple[Path
         if not isinstance(artifact_id, str) or not artifact_id:
             raise HybridIntegrationError(f"artifact {index} is missing artifact_id")
         filename = f"velociraptor/{index:06d}-{artifact_id}.json"
-        path = root / filename
+        path = _safe_output_path(root, filename)
         path.parent.mkdir(parents=True, exist_ok=True)
+        if path.is_symlink():
+            raise HybridIntegrationError("materialized evidence path cannot be a symlink")
         path.write_bytes(_json(artifact) + b"\n")
         files.append(filename)
     metadata = {
@@ -72,7 +96,11 @@ def materialize_window(window: dict[str, Any], staging_root: Path) -> tuple[Path
         "window_hash": window["window_hash"],
         "artifact_count": len(files),
     }
-    (root / "velociraptor" / "window.json").write_bytes(_json(metadata) + b"\n")
+    (root / "velociraptor").mkdir(parents=True, exist_ok=True)
+    window_path = _safe_output_path(root, "velociraptor/window.json")
+    if window_path.is_symlink():
+        raise HybridIntegrationError("materialized window metadata cannot be a symlink")
+    window_path.write_bytes(_json(metadata) + b"\n")
     files.append("velociraptor/window.json")
     return root, {"annaconda-window": files}
 
