@@ -2,10 +2,6 @@
 
 *[Leer en español](./README.md)*
 
-> Status: active prototype for Hackathon CyberAr 2026. Zaynor is being
-> assembled by migrating capabilities from three existing repositories; the
-> product integration is still advancing in this checkout.
-
 ## The real problem
 
 After an incident, an investigator must reconstruct what happened from
@@ -161,6 +157,45 @@ The recommended jury explanation is:
 
 > **AI investigates. Evidence and the deterministic engine decide.**
 
+## How to run it
+
+Zaynor integrates VIGÍA (the deterministic mathematical engine) instead
+of reimplementing it — an architectural decision, not an oversight (see
+"Design lineage" below). That means **`analyze` and `audit` need the
+VIGÍA repository cloned separately**; `replay`, `detect`, `case`, and
+`freeze` do not.
+
+```bash
+# 1. Clone both repositories (VIGÍA is public, no access restriction).
+git clone https://github.com/annatchijova/zaynor.git
+git clone https://github.com/annatchijova/vigia-intent-analysis.git vigia-repo
+
+# 2. Install Zaynor (requires Python >=3.12).
+cd zaynor
+python3 -m venv .venv && source .venv/bin/activate
+pip install -e .
+
+# 3. Install VIGÍA's dependencies (needed by `analyze`).
+cd ../vigia-repo && pip install -r requirements.txt && cd ../zaynor
+
+# 4. Try it without VIGÍA — Zaynor's own pipeline (replay/detect/case).
+zaynor case --fixture scenarios/inc-2026-demo-001/telemetry.jsonl --json
+
+# 5. Try it with VIGÍA — freeze, analyze, and audit a case.
+zaynor freeze --case-id CASE-001 --evidence-profile admin-session-investigation \
+  --profile-map scenarios/inc-2026-demo-001/evidence_profile.json \
+  --source-root scenarios/inc-2026-demo-001 --cases-root ./cases
+
+zaynor analyze --case-id CASE-001 --cases-root ./cases \
+  --engine-repo ../vigia-repo --output-root ./outputs
+
+zaynor audit --case-id CASE-001 --cases-root ./cases --output-root ./outputs
+```
+
+Any of VIGÍA's own case JSON files (`vigia-repo/cases/*.json`) also work
+as evidence — reference the filename in your own `profile_map.json` with
+`--source-root` pointing at the folder that holds it.
+
 ## Requirements and sovereignty
 
 - All processing runs locally.
@@ -246,23 +281,7 @@ of the product being integrated now.
 
 ## Design lineage
 
-Zaynor is being assembled from three existing repositories and takes concrete
-patterns from related projects. These references do not grant authority to the
-LLM and do not replace the project's local contracts:
-
-- **VIGÍA:** deterministic mathematical engine, verdicts, sealing, and the
-  read-only evidence model.
-- **ANNACONDA:** separation between authorized facts and narrative, plus the
-  bounded investigation loop.
-- **Forge:** report structure and separation between junior explanation and
-  technical analysis.
-- **K8sGPT:** separation between structured findings and generated explanation.
-- **HolmesGPT:** iterative tool-based investigation with a step budget.
-- **Keep:** separation between event identity, alert fingerprint, and incident
-  identity.
-
-Third-party components and adaptations remain subject to their licenses and
-will be documented before final submission.
+See [`docs/design-references.en.md`](./docs/design-references.en.md).
 
 ## License
 

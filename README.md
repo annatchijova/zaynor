@@ -2,10 +2,6 @@
 
 *[Read this in English](./README.en.md)*
 
-> Estado: prototipo activo para Hackathon CyberAr 2026. Zaynor se está
-> ensamblando mediante la migración de capacidades de tres repositorios
-> existentes; la integración del producto continúa en este checkout.
-
 ## El problema real
 
 Después de un incidente, un analista debe reconstruir qué ocurrió a partir de
@@ -161,6 +157,45 @@ La explicación recomendada para el jurado es:
 
 > **La IA investiga. La evidencia y el motor determinista deciden.**
 
+## Cómo correrlo
+
+Zaynor integra a VIGÍA (el motor matemático determinista) en vez de
+reimplementarlo — es una decisión de arquitectura, no un accidente (ver
+"Referencias de diseño" más abajo). Eso significa que **`analyze` y
+`audit` necesitan el repositorio de VIGÍA clonado aparte**; `replay`,
+`detect`, `case` y `freeze` no lo necesitan.
+
+```bash
+# 1. Clonar los dos repositorios (VIGÍA es público, sin restricción de acceso).
+git clone https://github.com/annatchijova/zaynor.git
+git clone https://github.com/annatchijova/vigia-intent-analysis.git vigia-repo
+
+# 2. Instalar Zaynor (requiere Python >=3.12).
+cd zaynor
+python3 -m venv .venv && source .venv/bin/activate
+pip install -e .
+
+# 3. Instalar las dependencias de VIGÍA (las necesita `analyze`).
+cd ../vigia-repo && pip install -r requirements.txt && cd ../zaynor
+
+# 4. Probar sin VIGÍA — el pipeline propio de Zaynor (replay/detect/case).
+zaynor case --fixture scenarios/inc-2026-demo-001/telemetry.jsonl --json
+
+# 5. Probar con VIGÍA — congelar, analizar y auditar un caso.
+zaynor freeze --case-id CASO-001 --evidence-profile admin-session-investigation \
+  --profile-map scenarios/inc-2026-demo-001/evidence_profile.json \
+  --source-root scenarios/inc-2026-demo-001 --cases-root ./cases
+
+zaynor analyze --case-id CASO-001 --cases-root ./cases \
+  --engine-repo ../vigia-repo --output-root ./outputs
+
+zaynor audit --case-id CASO-001 --cases-root ./cases --output-root ./outputs
+```
+
+Cualquier JSON de caso de VIGÍA (`vigia-repo/cases/*.json`) también sirve
+como evidencia — usar su nombre de archivo en un `profile_map.json`
+propio y `--source-root` apuntando a la carpeta que lo contiene.
+
 ## Requisitos y soberanía
 
 - Todo el procesamiento ocurre localmente.
@@ -248,24 +283,7 @@ integrando.
 
 ## Referencias de diseño
 
-Zaynor se está componiendo a partir de tres repositorios existentes y toma
-patrones concretos de proyectos relacionados. Las referencias no otorgan
-autoridad al LLM ni sustituyen el contrato local del proyecto:
-
-- **VIGÍA:** motor matemático determinista, veredictos, sellado y modelo de
-  evidencia read-only.
-- **ANNACONDA:** separación entre hechos autorizados y narrativa, además del
-  loop acotado de investigación.
-- **Forge:** estructura de reporte y separación entre explicación para junior
-  y análisis técnico.
-- **K8sGPT:** separación entre hallazgo estructurado y explicación generada.
-- **HolmesGPT:** investigación iterativa con herramientas y presupuesto de
-  pasos.
-- **Keep:** separación entre identidad de evento, fingerprint de alerta e
-  identidad de incidente.
-
-Los componentes de terceros y las adaptaciones se mantienen sujetos a sus
-licencias y se documentan antes de la entrega final.
+Ver [`docs/design-references.md`](./docs/design-references.md).
 
 ## Licencia
 
