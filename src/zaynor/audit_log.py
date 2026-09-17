@@ -30,6 +30,7 @@ silent "verified."
 from __future__ import annotations
 
 import hashlib
+import hmac
 import json
 from dataclasses import dataclass
 from pathlib import Path
@@ -169,10 +170,14 @@ class AuditLog:
                 entry_hmac = record.get("entry_hmac")
                 if entry_hmac is not None:
                     saw_any_hmac = True
-                    if key is not None and compute_entry_hmac(key, expected_hash) != entry_hmac:
+                    if key is not None and not hmac.compare_digest(
+                        compute_entry_hmac(key, expected_hash), entry_hmac
+                    ):
                         return False, f"entry_hmac mismatch at seq={record['seq']} (wrong key or forged chain)"
                 else:
                     saw_any_missing_hmac = True
+                    if key is not None and saw_any_hmac:
+                        return False, f"missing entry_hmac at seq={record['seq']}"
                 prev_hash = record["entry_hash"]
                 last_seq = record["seq"]
                 last_hash = record["entry_hash"]
@@ -188,17 +193,19 @@ class AuditLog:
             return False, "tail anchor does not match the log's actual last entry (truncation)"
         tail_hmac = tail.get("chain_tip_hmac")
         if tail_hmac is not None and key is not None:
-            if compute_entry_hmac(key, last_hash) != tail_hmac:
+            if not hmac.compare_digest(compute_entry_hmac(key, last_hash), tail_hmac):
                 return False, "tail anchor entry_hmac mismatch (wrong key or forged tail)"
 
         caveats = []
         if not saw_any_hmac:
+            if key is not None and saw_any:
+                return False, "HMAC key supplied but chain has no entry_hmac values"
             caveats.append("hash-only mode: no HMAC anchor on this chain")
         else:
             if key is None:
                 caveats.append("entry_hmac present but not verified (no key supplied)")
             if saw_any_missing_hmac:
-                caveats.append("some entries predate HMAC key configuration and lack entry_hmac")
+                return False, "chain mixes HMAC and non-HMAC entries"
 
         message = "chain valid; tail anchor matches"
         if caveats:

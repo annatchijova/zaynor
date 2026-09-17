@@ -7,7 +7,7 @@ dependencies = [
     # stdio. Already used to build src/zaynor/vigia_mcp_client.py; no
     # ZAYNOR-local reimplementation of the MCP protocol was considered a
     # reasonable alternative.
-    "mcp>=1.27",
+    "mcp>=1.27,<2",
 ]
 
 [project.optional-dependencies]

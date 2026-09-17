@@ -8,8 +8,10 @@ are specific to the entry_hmac/chain_tip_hmac addition.
 from __future__ import annotations
 
 import json
+import pytest
 
 from zaynor.audit_log import AuditLog
+from zaynor.hmac_chain import resolve_hmac_key
 
 KEY_A = bytes.fromhex("aa" * 32)
 KEY_B = bytes.fromhex("bb" * 32)
@@ -69,18 +71,15 @@ def test_entry_hmac_detects_a_wholesale_forged_chain(tmp_path):
     assert "entry_hmac mismatch" in message
 
 
-def test_entries_without_hmac_are_reported_as_a_caveat_not_a_failure(tmp_path):
-    """A log started without a key, then resumed with one configured, must
-    not fail verification for its earlier, honestly-unkeyed entries —
-    but the gap must be visible, not silently swallowed.
-    """
+def test_entries_without_hmac_fail_when_a_key_is_supplied(tmp_path):
+    """A verifier with a key must not accept a mixed protected/unprotected log."""
     path = tmp_path / "audit.jsonl"
     AuditLog(path).append("ACTION_1", {"x": 1})
     AuditLog(path, hmac_key=KEY_A).append("ACTION_2", {"x": 2})
 
     ok, message = AuditLog.verify_with_report(path, hmac_key=KEY_A)
-    assert ok
-    assert "predate HMAC key configuration" in message
+    assert not ok
+    assert "HMAC" in message
 
 
 def test_missing_key_at_verification_is_a_caveat_not_a_failure(tmp_path):
@@ -104,3 +103,13 @@ def test_chain_tip_hmac_forged_tail_is_rejected(tmp_path):
     ok, message = AuditLog.verify_with_report(tmp_path / "audit.jsonl", hmac_key=KEY_A)
     assert not ok
     assert "tail anchor entry_hmac mismatch" in message
+
+
+def test_hmac_key_file_must_not_be_group_or_world_readable(tmp_path, monkeypatch):
+    key_path = tmp_path / "hmac.key"
+    key_path.write_bytes(KEY_A)
+    key_path.chmod(0o640)
+    monkeypatch.setenv("ZAYNOR_HMAC_KEY_FILE", str(key_path))
+    monkeypatch.delenv("ZAYNOR_HMAC_KEY", raising=False)
+    with pytest.raises(ValueError, match="group or other"):
+        resolve_hmac_key()

@@ -29,6 +29,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import os
+import stat
 from pathlib import Path
 
 _HMAC_KEY_ENV = "ZAYNOR_HMAC_KEY"
@@ -51,6 +52,9 @@ def resolve_hmac_key() -> bytes | None:
     if key_file:
         path = Path(key_file)
         if path.is_file():
+            mode = stat.S_IMODE(path.stat().st_mode)
+            if mode & 0o077:
+                raise ValueError("HMAC key file must not be readable by group or other users")
             return path.read_bytes().strip()
     return None
 

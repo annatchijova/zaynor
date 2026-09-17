@@ -254,6 +254,8 @@ class ObservationEnvelope:
         truncated: bool = False,
         status: ObservationStatus = ObservationStatus.OBSERVED,
     ) -> "ObservationEnvelope":
+        if proposal.case_id != case_id:
+            raise InvestigationContractError("proposal case_id does not match observation case_id")
         payload_sha256 = hashlib.sha256(_canonical_json(payload, "payload")).hexdigest()
         return cls(
             observation_id=observation_id,

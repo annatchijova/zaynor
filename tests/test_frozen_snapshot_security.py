@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 
 from zaynor.adapter import AdapterError, ZaynorMode1Adapter
-from zaynor.case_freezer import _content_sha256, _sealed_at_sha256
+from zaynor.case_freezer import _content_sha256, _sealed_at_sha256, freeze_case
 from zaynor.frozen_snapshot import FrozenSnapshotError, materialize_frozen_snapshot
 from zaynor.hash_utils import sha256_file
 from zaynor.schemas import CaseManifest, ManifestEntry
@@ -141,3 +141,14 @@ def test_snapshot_directory_is_cleaned_up_after_use(tmp_path):
         snapshot_dir = snapshot.path.parent
         assert snapshot_dir.is_dir()
     assert not snapshot_dir.exists()
+
+
+def test_snapshot_materialization_does_not_make_case_evidence_writable(tmp_path):
+    source = tmp_path / "source"
+    source.mkdir()
+    event = source / "event.log"
+    event.write_text("evidence bytes")
+    _, evidence = freeze_case(
+        "CASE-PERMISSIONS", "profile", {"profile": ["event.log"]}, source, tmp_path / "cases"
+    )
+    assert evidence.stat().st_mode & 0o222 == 0

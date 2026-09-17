@@ -71,6 +71,16 @@ def test_observation_payload_hash_mismatch_is_rejected():
         )
 
 
+def test_observation_rejects_proposal_from_another_case():
+    proposal = _proposal(case_id="CASE-1")
+    with pytest.raises(InvestigationContractError, match="case_id"):
+        ObservationEnvelope.from_payload(
+            observation_id="O-1", case_id="CASE-2", proposal=proposal,
+            capability_effect=CapabilityEffect.READ, resource="custody",
+            provider="test", payload={},
+        )
+
+
 def test_session_is_case_bound_and_immutable():
     session = InvestigationSession("S-1", "CASE-1", "a" * 64)
     proposal = _proposal()

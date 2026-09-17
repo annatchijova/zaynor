@@ -63,7 +63,9 @@ _CANONICAL_VERDICT = {
     "MALICE": "MALICE",
     "INTENT": "SUSPICION",
     "ABSTAIN": "ABSTAIN",
-    "NOISE": "BENIGN",
+    # NOISE means the engine did not establish a meaningful signal. It is
+    # not evidence that the case is benign; preserve that uncertainty.
+    "NOISE": "UNKNOWN",
     "SUSPICION": "SUSPICION",
 }
 

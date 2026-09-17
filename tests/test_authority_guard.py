@@ -37,6 +37,10 @@ def _presented(result, seal):
             "evidence_refs": [{"artifact": "auth:E1", "lineage_id": "lineage:E1"}],
         }],
         "unknowns": ["credential origin"],
+        "scores": None,
+        "confidence": "1/2",
+        "fractures": [],
+        "hypotheses": [],
         "mitre_techniques": ["T1070.006"],
     }
 

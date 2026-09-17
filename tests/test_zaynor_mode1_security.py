@@ -114,7 +114,7 @@ def test_normalizes_verdict_and_excludes_volatile_timestamp(tmp_path):
     bundle["analysis_timestamp"] = "different"
     second = translate_mode1_bundle("CASE", bundle)
     assert first == second
-    assert first.verdict == "BENIGN"
+    assert first.verdict == "UNKNOWN"
 
 
 def test_rejects_unbounded_subprocess_output_and_timeout(tmp_path):

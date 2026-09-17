@@ -149,5 +149,6 @@ def freeze_case(
     # tools.py is a second, independent enforcement of the same invariant.
     for entry in entries:
         (evidence_dir / entry.relative_path).chmod(0o400)
+    evidence_dir.chmod(0o500)
 
     return manifest, evidence_dir

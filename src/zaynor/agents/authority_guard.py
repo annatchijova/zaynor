@@ -19,6 +19,22 @@ class AuthorityGuardError(ValueError):
     """Structured agent output does not match authorized state."""
 
 
+_REQUIRED_PROJECTION_FIELDS = frozenset(
+    {
+        "case_id",
+        "result_sha256",
+        "verdict",
+        "findings",
+        "unknowns",
+        "scores",
+        "confidence",
+        "fractures",
+        "hypotheses",
+        "mitre_techniques",
+    }
+)
+
+
 def _reject_floats(value: Any) -> None:
     if isinstance(value, float):
         raise AuthorityGuardError("float is not allowed in structured authority claims")
@@ -77,6 +93,9 @@ def check_structured_output(
     """
     if not isinstance(presented, Mapping):
         raise AuthorityGuardError("structured output must be an object")
+    missing = _REQUIRED_PROJECTION_FIELDS - set(presented)
+    if missing:
+        raise AuthorityGuardError(f"structured output is missing authoritative fields: {sorted(missing)}")
     _reject_floats(presented)
     verify_authoritative_result(result, seal)
     data = _as_result_dict(result)
@@ -85,46 +104,57 @@ def check_structured_output(
     if presented.get("result_sha256") != seal.sha256:
         raise AuthorityGuardError("presented result hash does not match seal")
 
-    presented_verdict = presented.get("verdict")
+    presented_verdict = presented["verdict"]
     authorized_verdict = result.verdict
-    if presented_verdict is not None and presented_verdict != authorized_verdict:
+    if presented_verdict != authorized_verdict:
         raise AuthorityGuardError("presented verdict does not match authority")
 
     presented_findings = presented.get("findings")
     if not isinstance(presented_findings, list):
         raise AuthorityGuardError("structured output requires findings list")
     authorized_findings = {finding.finding_id: finding for finding in result.findings}
+    presented_finding_ids = set()
     for finding in presented_findings:
         if not isinstance(finding, Mapping) or finding.get("finding_id") not in authorized_findings:
             raise AuthorityGuardError("presented finding_id is not authorized")
+        presented_finding_ids.add(finding["finding_id"])
         authorized = authorized_findings[finding["finding_id"]]
         if finding.get("state") != authorized.state:
             raise AuthorityGuardError("presented finding state does not match authority")
-        refs = finding.get("evidence_refs", [])
+        refs = finding.get("evidence_refs")
         allowed_refs = {(ref.artifact, ref.lineage_id) for ref in authorized.evidence_refs}
-        if not isinstance(refs, list) or any(
+        if not isinstance(refs, list) or {
+            (ref.get("artifact"), ref.get("lineage_id"))
+            for ref in refs
+            if isinstance(ref, Mapping)
+        } != allowed_refs or any(
             not isinstance(ref, Mapping)
             or (ref.get("artifact"), ref.get("lineage_id")) not in allowed_refs
             for ref in refs
         ):
             raise AuthorityGuardError("presented evidence reference is not authorized")
 
-    if "unknowns" in presented and set(presented["unknowns"]) != set(result.unknowns):
+    if presented_finding_ids != set(authorized_findings):
+        raise AuthorityGuardError("structured output dropped or duplicated an authoritative finding")
+
+    if not isinstance(presented["unknowns"], list) or presented["unknowns"] != list(result.unknowns):
         raise AuthorityGuardError("structured output dropped or altered UNKNOWN state")
     for key in ("scores", "confidence"):
-        if key in presented:
-            authorized = result.integrity.get(key)
-            if str(presented[key]) != str(authorized):
-                raise AuthorityGuardError(f"presented {key} does not match authority")
+        authorized = result.integrity.get(key)
+        if str(presented[key]) != str(authorized):
+            raise AuthorityGuardError(f"presented {key} does not match authority")
     authorized_ids = _ids(data["fractures"]) | _ids(data["hypotheses"])
     for key in ("fractures", "hypotheses"):
-        if key in presented:
-            if not isinstance(presented[key], list) or not set(presented[key]).issubset(authorized_ids):
-                raise AuthorityGuardError(f"presented {key} contains an unauthorized id")
-    if "mitre_techniques" in presented:
-        allowed = _techniques(data)
-        if not isinstance(presented["mitre_techniques"], list) or not set(presented["mitre_techniques"]).issubset(allowed):
-            raise AuthorityGuardError("presented ATT&CK technique is not authorized")
+        if not isinstance(presented[key], list) or not all(isinstance(item, str) for item in presented[key]):
+            raise AuthorityGuardError(f"presented {key} must be a list of ids")
+        authorized_for_key = _ids(data[key])
+        if set(presented[key]) != authorized_for_key:
+            raise AuthorityGuardError(f"presented {key} is not authorized")
+    allowed = _techniques(data)
+    if not isinstance(presented["mitre_techniques"], list) or not all(
+        isinstance(item, str) for item in presented["mitre_techniques"]
+    ) or set(presented["mitre_techniques"]) != allowed:
+        raise AuthorityGuardError("presented ATT&CK technique is not authorized")
 
 
 def check_narrative(result: ZaynorAuthoritativeResult, narration: str):

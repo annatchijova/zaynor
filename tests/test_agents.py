@@ -43,6 +43,14 @@ def test_ollama_endpoint_is_local_only():
         OllamaClient(host="http://10.0.0.4:11434")
 
 
+def test_ollama_model_name_is_bounded_and_transport_safe():
+    OllamaClient(model="qwen2.5:7b")
+    with pytest.raises(OllamaError, match="model"):
+        OllamaClient(model="model name with spaces")
+    with pytest.raises(OllamaError, match="model"):
+        OllamaClient(model="../escape")
+
+
 class _FakeOllama:
     def __init__(self, responses):
         self.responses = iter(responses)
