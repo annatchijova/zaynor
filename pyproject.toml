@@ -16,6 +16,9 @@ dependencies = [
 api = ["fastapi>=0.110", "uvicorn>=0.27", "pydantic>=2"]
 # `zaynor report --format pdf`. `md`/`html` need no extra dependency.
 report = ["reportlab>=4"]
+# OTel spans over freeze/analyze/tool-call steps (src/zaynor/telemetry.py).
+# Optional: every command runs identically without it, hash chain untouched.
+telemetry = ["opentelemetry-sdk>=1.20,<2"]
 
 [project.scripts]
 zaynor = "zaynor.cli:main"

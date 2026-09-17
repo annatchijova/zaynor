@@ -41,6 +41,7 @@ from typing import Any, Callable
 
 from zaynor.audit_log import AuditLog
 from zaynor.path_guard import PathGuard
+from zaynor.telemetry import annotate_with_audit_entry, postmortem_span
 
 _ARGUMENT_HASH_PREFIX_BYTES = 4096
 MAX_GREP_PATTERN_LENGTH = 200
@@ -87,24 +88,28 @@ def audited_tool(audit_log: AuditLog) -> Callable[[Callable], Callable]:
     def decorator(func: Callable) -> Callable:
         @wraps(func)
         def wrapped(*args, **kwargs):
-            audit_log.append(
-                "TOOL_INVOKED",
-                {"tool": func.__name__, "arguments": _audit_argument_summary(func, args, kwargs)},
-                reason=f"invoking read-only tool {func.__name__}",
-            )
-            try:
-                result = func(*args, **kwargs)
-            except Exception as exc:  # noqa: BLE001 - audited then re-raised
-                audit_log.append(
-                    "TOOL_FAILED", {"tool": func.__name__, "error": type(exc).__name__},
-                    reason=f"tool {func.__name__} raised {type(exc).__name__}",
+            with postmortem_span(audit_log.case_id, f"zaynor.tool.{func.__name__}") as span:
+                invoked_entry = audit_log.append(
+                    "TOOL_INVOKED",
+                    {"tool": func.__name__, "arguments": _audit_argument_summary(func, args, kwargs)},
+                    reason=f"invoking read-only tool {func.__name__}",
                 )
-                raise
-            audit_log.append(
-                "TOOL_SUCCEEDED", {"tool": func.__name__},
-                reason=f"tool {func.__name__} completed without error",
-            )
-            return result
+                annotate_with_audit_entry(span, invoked_entry)
+                try:
+                    result = func(*args, **kwargs)
+                except Exception as exc:  # noqa: BLE001 - audited then re-raised
+                    failed_entry = audit_log.append(
+                        "TOOL_FAILED", {"tool": func.__name__, "error": type(exc).__name__},
+                        reason=f"tool {func.__name__} raised {type(exc).__name__}",
+                    )
+                    annotate_with_audit_entry(span, failed_entry)
+                    raise
+                succeeded_entry = audit_log.append(
+                    "TOOL_SUCCEEDED", {"tool": func.__name__},
+                    reason=f"tool {func.__name__} completed without error",
+                )
+                annotate_with_audit_entry(span, succeeded_entry)
+                return result
 
         return wrapped
 

@@ -120,6 +120,15 @@ class AuditLog:
         self._hmac_key = hmac_key if hmac_key is not None else resolve_hmac_key()
         self._seq, self._prev_hash = self._resume()
 
+    @property
+    def case_id(self) -> str:
+        """The case this log is bound to — same value `genesis_hash` was
+        computed from. Exposed read-only so a caller (telemetry, a future
+        MCP consumer) can key off it without threading `case_id` through a
+        second parameter everywhere an `AuditLog` is already in scope.
+        """
+        return self._case_id
+
     def _resume(self) -> tuple[int, str]:
         if not self._path.exists():
             return 0, self._genesis
