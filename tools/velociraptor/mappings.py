@@ -27,6 +27,12 @@ Rules are matched against normalized rows by exact field conditions
 (`{field, op, value}` tuples). A rule that requires a condition simply
 does not fire when the condition is absent — an unfired rule is never
 filled with a guess. Rows that match no rule produce no artifact.
+
+CALIBRATION AUTHORIZATION (ADR 0003): the constants above are
+verdict-affecting calibration — static, deterministic-side-owned,
+PR-reviewed, and pinned by the authoritative-verdict regression fixture
+in tests/test_aiops_aggregator.py (AIOps domain) and by the DFIR demo's
+sealed-verdict assertions in CI.
 """
 
 from __future__ import annotations

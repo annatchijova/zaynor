@@ -11,6 +11,15 @@ never labels. The verdict label comes exclusively from VIGÍA behind
 Rules read only measured quantities that exist in the normalized window
 (alert names, metric values, log levels). Unfired rules never produce a
 guess; rows matching no rule produce no artifact.
+
+CALIBRATION AUTHORIZATION (ADR 0003): the `raw_score`/`prior_trust`
+values below are verdict-affecting calibration consumed by VIGÍA. They
+are static per-rule decimals owned by the deterministic side of the
+boundary, authored as part of the demo-lab feature, PR-reviewed, and
+pinned by the authoritative-verdict regression fixture in
+tests/test_aiops_aggregator.py — a constants change that moves the
+sealed verdict fails that fixture and must be re-reviewed. The scorer
+itself (vendor/vigia_engine/) is untouched.
 """
 
 from __future__ import annotations
