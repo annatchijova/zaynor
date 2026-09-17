@@ -18,9 +18,6 @@
   Spanish (voseo, professional, neutral). Everything committed to the repo — code,
   tests, comments, docstrings, documentation, and commit messages — is in English.
 - **No emojis** anywhere in the repository or in generated output.
-- **Commit prefix.** Hackathon work is committed with the fixed prefix
-  `HACKATHON` so automated contributions are filterable in `git log`. Keep the
-  prefix consistent; provenance is the point.
 - **You do not know the repo state until you have read it.** Do not assume paths,
   branch, cleanliness, dependency versions, or that a project-knowledge snapshot
   matches the live tree. Verify, then claim. See §3.
@@ -277,7 +274,7 @@ Before proposing a commit, confirm:
 - [ ] Limitations, WARNs, and gaps are documented, not hidden (§5.3).
 - [ ] Tests run and their real output was read (not assumed).
 - [ ] `git status` / `git log` reflect what will actually be committed (§2).
-- [ ] Commit message is in English, prefixed `HACKATHON`, and describes *why*.
+- [ ] Commit message is in English and describes *why*.
 
 ---
 

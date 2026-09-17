@@ -382,6 +382,12 @@ The flow for the three non-owner contributors:
    Prefer squash merge so `main` gets one clean commit per PR. Delete the
    branch after merging.
 
+**No `git commit` or `git push` without explicit permission.** An agent may
+stage changes and propose a commit message, but `git commit` and `git push`
+only run after the maintainer explicitly authorizes that specific action in
+the session. A general instruction to work on the repo is not commit
+permission.
+
 **Forbidden in any agent session:** `git rebase -i`, history-rewriting
 squash outside the merge step above, and `git push --force`
 (`--force-with-lease` included) to any shared branch. Only forward-only
@@ -441,3 +447,5 @@ in the PR instead of letting a green checkmark imply more than it proves.
 - [ ] Commit messages follow Conventional Commits; PR description states
       what changed, why, and which side of the ZAYNOR/VIGÍA/LLM boundary it
       touches.
+- [ ] `git commit` and `git push` ran only after explicit maintainer
+      authorization for that action.
