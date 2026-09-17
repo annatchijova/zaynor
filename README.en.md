@@ -2,6 +2,8 @@
 
 *[Leer en español](./README.md)*
 
+**[Published architecture diagram (HTML)](https://annatchijova.github.io/vigia/vigia_diagrams.html)**
+
 ## The real problem
 
 After an incident, an investigator must reconstruct what happened from
@@ -172,6 +174,7 @@ git clone https://github.com/annatchijova/vigia-intent-analysis.git vigia-repo
 
 # 2. Install Zaynor (requires Python >=3.12).
 cd zaynor
+
 python3 -m venv .venv && source .venv/bin/activate
 pip install -e .
 
@@ -181,7 +184,7 @@ cd ../vigia-repo && pip install -r requirements.txt && cd ../zaynor
 # 4. Try it without VIGÍA — Zaynor's own pipeline (replay/detect/case).
 zaynor case --fixture scenarios/inc-2026-demo-001/telemetry.jsonl --json
 
-# 5. Try it with VIGÍA — freeze, analyze, and audit a case.
+# 5. Freeze, analyze, and audit a case — all local, no external dependencies.
 zaynor freeze --case-id CASE-001 --evidence-profile admin-session-investigation \
   --profile-map scenarios/inc-2026-demo-001/evidence_profile.json \
   --source-root scenarios/inc-2026-demo-001 --cases-root ./cases

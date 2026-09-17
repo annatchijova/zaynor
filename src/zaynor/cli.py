@@ -26,6 +26,7 @@ from zaynor.frozen_snapshot import _manifest_digest, _snapshot_digest, _validate
 from zaynor.adapter import _evidence_path_for_mode1
 from zaynor.replay import replay
 from zaynor.authority_seal import AuthoritySeal, seal_authoritative_result, verify_authoritative_result
+from zaynor.vendored_engine import VENDORED_ENGINE_PATH
 
 _MAX_FIXTURE_BYTES = 10 * 1024 * 1024
 _DEFAULT_KNOWN_DEVICES = frozenset({"DEV-CORP-01", "DEV-CORP-02", "DEV-CORP-LAPTOP-09"})
@@ -82,6 +83,19 @@ def _directory_path(raw: str, *, create: bool = False) -> Path:
     if not resolved.is_dir() or resolved.is_symlink():
         raise CliInputError("path must be a regular directory")
     return resolved
+
+
+def _default_engine_repo() -> Path:
+    """Zaynor's own vendored VIGÍA engine — no separate clone needed for
+    `analyze` to work out of the box. `--engine-repo` still overrides this
+    for anyone pointing at a live VIGÍA checkout instead (development on
+    VIGÍA itself, or a newer engine version than the vendored snapshot).
+    """
+    if not VENDORED_ENGINE_PATH.is_dir():
+        raise CliInputError(
+            f"no --engine-repo given and the vendored engine is missing: {VENDORED_ENGINE_PATH}"
+        )
+    return _directory_path(str(VENDORED_ENGINE_PATH))
 
 
 def _known_devices(values: Sequence[str] | None) -> set[str]:
@@ -262,7 +276,7 @@ def _run_analyze(args: argparse.Namespace) -> int:
         raise CliInputError("selected case directory is missing or unsafe")
     manifest = _load_case_manifest(case_dir)
     evidence_dir = case_dir / "evidence"
-    engine_repo = _directory_path(args.engine_repo)
+    engine_repo = _directory_path(args.engine_repo) if args.engine_repo else _default_engine_repo()
     output_root = _directory_path(args.output_root, create=True)
     try:
         from zaynor.adapter import ZaynorMode1Adapter
@@ -429,7 +443,11 @@ def build_parser() -> argparse.ArgumentParser:
     analyze_parser = subparsers.add_parser("analyze", help="analizar únicamente la evidencia del caso congelado")
     analyze_parser.add_argument("--case-id", required=True)
     analyze_parser.add_argument("--cases-root", required=True)
-    analyze_parser.add_argument("--engine-repo", required=True)
+    analyze_parser.add_argument(
+        "--engine-repo",
+        default=None,
+        help="path to the VIGÍA engine checkout; defaults to Zaynor's own vendored copy (vendor/vigia_engine/)",
+    )
     analyze_parser.add_argument("--output-root", required=True)
     analyze_parser.add_argument("--python", default=None, help=argparse.SUPPRESS)
     analyze_parser.add_argument("--dev", action="store_true", help="habilitar opciones de desarrollo")

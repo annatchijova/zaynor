@@ -13,14 +13,15 @@ import pytest
 
 from zaynor.case_freezer import freeze_case
 from zaynor.zaynor_mode1_executor import Mode1ExecutionError, run_vigia_mode1, translate_mode1_bundle
+from zaynor.vendored_engine import VENDORED_ENGINE_PATH
 
-VIGIA_REPO_PATH = Path("/home/labestiadevigia/vigia-repo")
+VIGIA_REPO_PATH = VENDORED_ENGINE_PATH
 SCENARIO_ROOT = Path(__file__).parent.parent / "scenarios" / "inc-2026-demo-001"
 PROFILE_MAP = json.loads((SCENARIO_ROOT / "evidence_profile.json").read_text())
 
 pytestmark = pytest.mark.skipif(
     not (VIGIA_REPO_PATH / "vigia_agent.py").is_file(),
-    reason="vigia-repo checkout not present on this machine",
+    reason="vendored VIGÍA engine (vendor/vigia_engine/) is missing",
 )
 
 

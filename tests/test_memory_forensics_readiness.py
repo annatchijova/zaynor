@@ -25,11 +25,13 @@ import pytest
 
 from zaynor.zaynor_mode1_executor import ensure_vol3_alias_on_path
 
-VIGIA_REPO_PATH = Path("/home/labestiadevigia/vigia-repo")
+from zaynor.vendored_engine import VENDORED_ENGINE_PATH
+
+VIGIA_REPO_PATH = VENDORED_ENGINE_PATH
 
 pytestmark = pytest.mark.skipif(
     not VIGIA_REPO_PATH.is_dir(),
-    reason="vigia-repo checkout not present on this machine",
+    reason="vendored VIGÍA engine (vendor/vigia_engine/) is missing",
 )
 
 

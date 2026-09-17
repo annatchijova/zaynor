@@ -18,9 +18,15 @@ from pathlib import Path
 import pytest
 
 from zaynor.zaynor_mode1_executor import run_vigia_mode1, translate_mode1_bundle
+from zaynor.vendored_engine import VENDORED_ENGINE_PATH
 
-VIGIA_REPO_PATH = Path("/home/labestiadevigia/vigia-repo")
-OWL_EVIDENCE_DIR = VIGIA_REPO_PATH / "evidence" / "owl-2019-hd1-windows"
+# The ENGINE (code) is Zaynor's own vendored copy — no external repo needed
+# for this. The EVIDENCE (gigabytes of public Digital Corpora data) is not
+# vendored and is not shipped in this repo; it stays wherever a prior VIGÍA
+# investigation extracted it on this machine, hence the external path here.
+VIGIA_REPO_PATH = VENDORED_ENGINE_PATH
+EXTERNAL_EVIDENCE_ROOT = Path("/home/labestiadevigia/vigia-repo/evidence")
+OWL_EVIDENCE_DIR = EXTERNAL_EVIDENCE_ROOT / "owl-2019-hd1-windows"
 
 pytestmark = pytest.mark.skipif(
     not OWL_EVIDENCE_DIR.is_dir(),
@@ -42,7 +48,7 @@ def test_registry_hives_are_readable_once_allowlisted(tmp_path):
         case_id="INC-OWL-2019-REGRESSION",
         output_path=tmp_path / "bundle.json",
         timeout_seconds=180,
-        allowed_evidence_root=VIGIA_REPO_PATH / "evidence",
+        allowed_evidence_root=EXTERNAL_EVIDENCE_ROOT,
     )
     registry_signals = [
         s for s in bundle["pipeline_results"]["signals"]
@@ -66,7 +72,7 @@ def test_real_image_produces_traceable_findings_across_artifact_types(tmp_path):
         case_id="INC-OWL-2019-FINDINGS",
         output_path=tmp_path / "bundle.json",
         timeout_seconds=180,
-        allowed_evidence_root=VIGIA_REPO_PATH / "evidence",
+        allowed_evidence_root=EXTERNAL_EVIDENCE_ROOT,
     )
     result = translate_mode1_bundle("INC-OWL-2019-FINDINGS", bundle)
 
