@@ -33,6 +33,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -93,12 +94,16 @@ def main(argv: list[str] | None = None) -> int:
                         help="file: synthetic alerts; bundle: stage from an already-collected bundle path (--bundle-dir)")
     parser.add_argument("--alerts-dir", type=Path,
                         default=REPO_ROOT / "scenarios" / "inc-2026-aiops-001" / "alerts")
-    parser.add_argument("--staging-dir", type=Path,
-                        default=REPO_ROOT / "results" / "aiops-demo")
+    parser.add_argument("--run-root", type=Path,
+                        default=REPO_ROOT / "results" / "aiops-demo",
+                        help="root for this run's staging/cases/output (one subdirectory per run: frozen evidence is read-only by design, so re-running the same incident must not collide)")
     parser.add_argument("--bundle-dir", type=Path, default=None,
                         help="bundle directory (aiops/evidence.json) staged by the live aggregator")
     args = parser.parse_args(argv)
     args.window_dir = REPO_ROOT / "scenarios" / "inc-2026-aiops-001" / "window"
+
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S")
+    staging_dir = args.run_root / f"run-{stamp}"
 
     if args.mode == "bundle":
         bundle = args.bundle_dir
@@ -107,7 +112,7 @@ def main(argv: list[str] | None = None) -> int:
             return 1
         case_id = json.loads((bundle / "aiops" / "evidence.json").read_text())["case_id"]
     else:
-        aggregator = Aggregator(args.alerts_dir, args.staging_dir / "staging")
+        aggregator = Aggregator(args.alerts_dir, staging_dir / "staging")
         for alert in load_alert_files(args.alerts_dir):
             aggregator.ingest_alert(alert)
         incidents = aggregator.incidents()
@@ -115,11 +120,11 @@ def main(argv: list[str] | None = None) -> int:
             print("no incident candidates found in alert files", file=sys.stderr)
             return 1
         case_id = incidents[0]["incident_id"]
-        stage_all_incidents(aggregator, args.alerts_dir, args.staging_dir / "staging", window_dir=args.window_dir)
-        bundle = args.staging_dir / "staging" / case_id
+        stage_all_incidents(aggregator, args.alerts_dir, staging_dir / "staging", window_dir=args.window_dir)
+        bundle = staging_dir / "staging" / case_id
 
-    report = run_pipeline(case_id, bundle, args.staging_dir / "cases", args.staging_dir / "output")
-    report["agent_view"] = agent_view(case_id, args.staging_dir / "output")
+    report = run_pipeline(case_id, bundle, staging_dir / "cases", staging_dir / "output")
+    report["agent_view"] = agent_view(case_id, staging_dir / "output")
     print(json.dumps(report, indent=2, sort_keys=True, default=str))
     return 0
 
