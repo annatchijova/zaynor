@@ -274,7 +274,7 @@ Before proposing a commit, confirm:
 - [ ] Limitations, WARNs, and gaps are documented, not hidden (§5.3).
 - [ ] Tests run and their real output was read (not assumed).
 - [ ] `git status` / `git log` reflect what will actually be committed (§2).
-- [ ] Commit message is in English and describes *why*.
+- [ ] Commit message is in English, prefixed `HACKATHON`, and describes *why*.
 
 ---
 

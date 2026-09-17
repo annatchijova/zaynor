@@ -28,3 +28,6 @@ node_modules/
 .env
 .env.*
 !.env.example
+
+# Demo lab generated outputs (cases, bundles, reports)
+results/

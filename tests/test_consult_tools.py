@@ -4,7 +4,7 @@ import pytest
 
 from zaynor.agents.consult_tools import ConsultTools
 from zaynor.authority_seal import AuthoritySeal, seal_authoritative_result
-from zaynor.framework_context import AuthoritativePackage, FrameworkContext, MitreAnnotation
+from zaynor.framework_context import AuthoritativePackage, FrameworkContext, MitreAnnotation, OwaspAnnotation
 from zaynor.schemas import AuthoritativeFinding, EvidenceRef, ZaynorAuthoritativeResult
 
 
@@ -42,6 +42,20 @@ def test_consult_tools_keep_framework_context_non_authoritative():
     tools = ConsultTools(package, seal)
     context = tools.explain_framework()
     assert context["mitre"][0]["technique"] == "T1070.006"
+    assert context["changes_verdict"] is False
+
+
+def test_consult_tools_expose_owasp_as_context_only():
+    package, seal = _package()
+    package = AuthoritativePackage(
+        result=package.result,
+        framework=FrameworkContext(
+            owasp=(OwaspAnnotation("API-2023", "API1", "candidate", "authorization"),)
+        ),
+    )
+    tools = ConsultTools(package, seal_authoritative_result(package))
+    context = tools.explain_framework()
+    assert context["owasp"][0]["category"] == "API1"
     assert context["changes_verdict"] is False
 
 

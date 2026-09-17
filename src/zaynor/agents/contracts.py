@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 from enum import StrEnum
 from typing import Any
@@ -62,9 +63,14 @@ class UntrustedContext:
     instruction_authority: str = "none"
 
     def as_prompt_block(self) -> str:
+        # Encode the payload as a JSON string and escape markup delimiters.
+        # This is prompt hardening, not an authority control: the model still
+        # receives untrusted bytes, while policy and structural guards remain
+        # the actual controls on what the model can cause.
+        encoded = json.dumps(self.content, ensure_ascii=False)[1:-1].replace("<", "\\u003c")
         return (
             f"<untrusted-data source={self.source!r} authority='none'>\n"
-            f"{self.content}\n"
+            f"{encoded}\n"
             "</untrusted-data>"
         )
 

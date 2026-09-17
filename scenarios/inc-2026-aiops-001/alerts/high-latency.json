@@ -1,0 +1,15 @@
+{
+ "alerts": [
+  {
+   "annotations": {
+    "summary": "demo-api p95 latency above 300ms (synthetic fault injection)"
+   },
+   "labels": {
+    "alertname": "HighLatency",
+    "environment": "lab",
+    "service": "demo-api"
+   },
+   "startsAt": "2026-09-17T02:04:00+00:00"
+  }
+ ]
+}

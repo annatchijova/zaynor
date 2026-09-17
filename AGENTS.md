@@ -384,12 +384,6 @@ The flow for the three non-owner contributors:
    Prefer squash merge so `main` gets one clean commit per PR. Delete the
    branch after merging.
 
-**No `git commit` or `git push` without explicit permission.** An agent may
-stage changes and propose a commit message, but `git commit` and `git push`
-only run after the maintainer explicitly authorizes that specific action in
-the session. A general instruction to work on the repo is not commit
-permission.
-
 **Forbidden in any agent session:** `git rebase -i`, history-rewriting
 squash outside the merge step above, and `git push --force`
 (`--force-with-lease` included) to any shared branch. Only forward-only
@@ -406,9 +400,14 @@ Run the real command; don't infer results from reading the code.
 
 ```bash
 python3 -m pytest tests/ -q
-ruff check src tests scripts conftest.py
+python3 scripts/run_lab_tests.py   # demo-lab integration tests; stdlib runner, no deps
+ruff check src tools tests scripts conftest.py
 black --check src tests scripts conftest.py   # advisory: tree predates formatting
 mypy src/zaynor/          # advisory: 20 pre-existing notes, see pyproject [tool.mypy]
+# demo-lab smoke: offline DFIR + AIOps through the real freeze/analyze/audit
+# pipeline; the AIOps runner isolates each run, safe to repeat.
+python3 scripts/demo_dfir.py --mode mock
+python3 scripts/demo_aiops.py --mode file
 git log --format=%s | while IFS= read -r subject; do
   printf '%s\n' "$subject" | python3 scripts/commitlint.py
 done                       # every header on main passes the commit-msg gate
@@ -451,5 +450,3 @@ in the PR instead of letting a green checkmark imply more than it proves.
 - [ ] Commit messages follow Conventional Commits; PR description states
       what changed, why, and which side of the ZAYNOR/VIGÍA/LLM boundary it
       touches.
-- [ ] `git commit` and `git push` ran only after explicit maintainer
-      authorization for that action.

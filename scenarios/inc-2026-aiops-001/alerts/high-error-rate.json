@@ -1,0 +1,15 @@
+{
+ "alerts": [
+  {
+   "annotations": {
+    "summary": "demo-api error ratio above 5% (synthetic fault injection)"
+   },
+   "labels": {
+    "alertname": "HighErrorRate",
+    "environment": "lab",
+    "service": "demo-api"
+   },
+   "startsAt": "2026-09-17T02:04:00+00:00"
+  }
+ ]
+}
