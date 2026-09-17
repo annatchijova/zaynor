@@ -11,6 +11,7 @@ from __future__ import annotations
 import hashlib
 import os
 import resource
+import selectors
 import stat
 import subprocess
 import time
@@ -106,17 +107,73 @@ def _limit_resources(config: SandboxConfig) -> None:
     resource.setrlimit(resource.RLIMIT_FSIZE, (config.max_output_bytes, config.max_output_bytes))
 
 
-def run_worker_command(command: Sequence[str], config: SandboxConfig = SandboxConfig()) -> tuple[int, bytes, bytes]:
-    """Run an already-allowlisted worker command with POSIX resource limits.
+def _kill_process_group(pid: int) -> None:
+    try:
+        os.killpg(pid, 9)
+    except ProcessLookupError:
+        pass
 
-    Command allowlisting, filesystem isolation, and network isolation are the
-    worker launcher contract; this function supplies only process-level bounds.
-    """
+
+def _close_process_pipes(process: subprocess.Popen) -> None:
+    for stream in (process.stdout, process.stderr):
+        if stream is not None:
+            stream.close()
+
+
+def _read_bounded_pipes(process: subprocess.Popen, config: SandboxConfig) -> tuple[bytes, bytes]:
+    """Collect worker output incrementally under size and time bounds."""
+    selector = selectors.DefaultSelector()
+    selector.register(process.stdout, selectors.EVENT_READ, "stdout")
+    selector.register(process.stderr, selectors.EVENT_READ, "stderr")
+    buffers = {"stdout": bytearray(), "stderr": bytearray()}
+    open_streams = {"stdout", "stderr"}
+    deadline = time.monotonic() + config.timeout_seconds
+    try:
+        while open_streams:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                _kill_process_group(process.pid)
+                raise subprocess.TimeoutExpired(process.args, config.timeout_seconds)
+            for key, _ in selector.select(timeout=min(remaining, 0.5)):
+                name = key.data
+                chunk = key.fileobj.read1(65536)
+                if not chunk:
+                    selector.unregister(key.fileobj)
+                    open_streams.discard(name)
+                    continue
+                buffers[name].extend(chunk)
+                if len(buffers[name]) > config.max_output_bytes:
+                    _kill_process_group(process.pid)
+                    raise SandboxError("worker output exceeded its limit")
+    except BaseException:
+        _kill_process_group(process.pid)
+        try:
+            process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            _kill_process_group(process.pid)
+            process.wait()
+        _close_process_pipes(process)
+        raise
+    finally:
+        selector.close()
+
+    remaining = deadline - time.monotonic()
+    try:
+        process.wait(timeout=max(remaining, 0))
+    except subprocess.TimeoutExpired:
+        _kill_process_group(process.pid)
+        process.wait(timeout=5)
+        raise
+    _close_process_pipes(process)
+    return bytes(buffers["stdout"]), bytes(buffers["stderr"])
+
+
+def run_worker_command(command: Sequence[str], config: SandboxConfig = SandboxConfig()) -> tuple[int, bytes, bytes]:
+    """Run an allowlisted worker with POSIX resource and output limits."""
     if not command or any("\x00" in part for part in command):
         raise SandboxError("worker command must be non-empty and NUL-free")
     if not config.allowed_commands or command[0] not in config.allowed_commands:
         raise SandboxError("worker command is not in the explicit allowlist")
-    start = time.monotonic()
     process = subprocess.Popen(
         list(command),
         stdin=subprocess.DEVNULL,
@@ -127,14 +184,7 @@ def run_worker_command(command: Sequence[str], config: SandboxConfig = SandboxCo
         close_fds=True,
     )
     try:
-        stdout, stderr = process.communicate(timeout=config.timeout_seconds)
+        stdout, stderr = _read_bounded_pipes(process, config)
     except subprocess.TimeoutExpired as exc:
-        os.killpg(process.pid, 9)
-        process.wait()
         raise SandboxError("worker command exceeded its timeout") from exc
-    if len(stdout) > config.max_output_bytes or len(stderr) > config.max_output_bytes:
-        os.killpg(process.pid, 9)
-        raise SandboxError("worker output exceeded its limit")
-    if time.monotonic() - start > config.timeout_seconds:
-        raise SandboxError("worker command exceeded its wall-clock limit")
     return process.returncode, stdout, stderr

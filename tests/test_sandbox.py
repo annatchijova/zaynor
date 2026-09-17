@@ -1,4 +1,5 @@
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -44,6 +45,24 @@ class SandboxContractTests(unittest.TestCase):
             ["/bin/true"], SandboxConfig(allowed_commands=("/bin/true",))
         )
         self.assertEqual((returncode, stdout, stderr), (0, b"", b""))
+
+    def test_worker_output_limit_is_enforced_during_collection(self):
+        config = SandboxConfig(
+            allowed_commands=("/bin/sh",), max_output_bytes=4096, timeout_seconds=10
+        )
+        started = time.monotonic()
+        with self.assertRaisesRegex(SandboxError, "output exceeded"):
+            run_worker_command(
+                ["/bin/sh", "-c", "head -c 2000000 /dev/zero; sleep 30"], config
+            )
+        self.assertLess(time.monotonic() - started, 6)
+
+    def test_worker_timeout_is_enforced_while_child_is_running(self):
+        config = SandboxConfig(allowed_commands=("/bin/sh",), timeout_seconds=1)
+        started = time.monotonic()
+        with self.assertRaisesRegex(SandboxError, "exceeded its timeout"):
+            run_worker_command(["/bin/sh", "-c", "printf hi; sleep 6"], config)
+        self.assertLess(time.monotonic() - started, 4)
 
 
 if __name__ == "__main__":
