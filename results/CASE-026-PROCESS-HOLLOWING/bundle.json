@@ -1,0 +1,333 @@
+{
+  "agent_verdict": "MALICE",
+  "analysis_timestamp": "2026-09-18T07:20:30.859318+00:00",
+  "audit_trail": {
+    "agent_version": "1.0.0-SANS-2026",
+    "case_id": "case_026_ventrilocuo_process_hollowing",
+    "end_time": "2026-09-18T07:20:30.859325+00:00",
+    "entries": [
+      {
+        "action": "AGENT_INITIALIZED",
+        "case_id": "case_026_ventrilocuo_process_hollowing",
+        "entry_sha256": "bc1e9e2edf5c295cdc5cedac1288bddb8d39d25b61567ae3687fab4e6dbf2ee7",
+        "inputs_summary": {
+          "agent_file": "/home/labestiadevigia/zaynor/vendor/vigia_engine/vigia_agent.py",
+          "case_id": "case_026_ventrilocuo_process_hollowing"
+        },
+        "iteration": 0,
+        "note": "Agent initialized \u2014 source SHA-256: beefaec4b4130632...; runtime fingerprint: 5ae9fdcfbfac64d9...",
+        "outputs_summary": {
+          "agent_sha256": "beefaec4b4130632f75411cfbe2f1c0b8fd740d6b12aa68bd3022f326430ad12",
+          "agent_version": "1.0.0-SANS-2026",
+          "runtime_fingerprint": "5ae9fdcfbfac64d96d3378d13ce0416b6107b6633b6e1111c8d6cdc3822fc99e"
+        },
+        "seq": 1,
+        "timestamp": "2026-09-18T07:20:30.156718+00:00",
+        "tool": "vigia_agent"
+      },
+      {
+        "action": "EVIDENCE_INTEGRITY_CHECK",
+        "case_id": "case_026_ventrilocuo_process_hollowing",
+        "entry_sha256": "3cfe69af220b3410776587818991fd7a05e326502b51d3c0ebb53f2ec1e5e65a",
+        "inputs_summary": {
+          "path": "/tmp/zaynor-demo-cases/case_026_ventrilocuo_process_hollowing/.zaynor_snapshot_0e73775792bf08a2841e45e7be321b766582df4ad535520488b41eaf6f048d1f/evidence/case_026_ventrilocuo_process_hollowing.json"
+        },
+        "iteration": 0,
+        "note": "Computing SHA-256 of original evidence",
+        "outputs_summary": {},
+        "seq": 2,
+        "timestamp": "2026-09-18T07:20:30.156864+00:00",
+        "tool": "sha256_hasher"
+      },
+      {
+        "action": "EVIDENCE_INTEGRITY_CHECK",
+        "case_id": "case_026_ventrilocuo_process_hollowing",
+        "entry_sha256": "61b5b79ea2a6e2dcce033ca778f007f78f7920a4287a2f14e600cc6712b98e8c",
+        "inputs_summary": {
+          "path": "/tmp/zaynor-demo-cases/case_026_ventrilocuo_process_hollowing/.zaynor_snapshot_0e73775792bf08a2841e45e7be321b766582df4ad535520488b41eaf6f048d1f/evidence/case_026_ventrilocuo_process_hollowing.json"
+        },
+        "iteration": 0,
+        "note": "Evidence verified: 18c93edf3b0930f9...",
+        "outputs_summary": {
+          "sha256": "18c93edf3b0930f9bc4120edd93b04439c7f8b508c23350a4d89930dbdea426c"
+        },
+        "seq": 3,
+        "timestamp": "2026-09-18T07:20:30.156957+00:00",
+        "tool": "sha256_hasher"
+      },
+      {
+        "action": "PIPELINE_EXECUTE",
+        "case_id": "case_026_ventrilocuo_process_hollowing",
+        "entry_sha256": "bf6d04495f76172fe8cc152f8a74ddd3ec237dba729ad81c34aa61a3164186e5",
+        "inputs_summary": {
+          "evidence": "/tmp/zaynor-demo-cases/case_026_ventrilocuo_process_hollowing/.zaynor_snapshot_0e73775792bf08a2841e45e7be321b766582df4ad535520488b41eaf6f048d1f/evidence/case_026_ventrilocuo_process_hollowing.json",
+          "iteration": "0",
+          "params": {}
+        },
+        "iteration": 0,
+        "note": "Executing pipeline \u2014 iteration 0",
+        "outputs_summary": {},
+        "seq": 4,
+        "timestamp": "2026-09-18T07:20:30.157077+00:00",
+        "tool": "vigia_pipeline"
+      },
+      {
+        "action": "PIPELINE_COMPLETE",
+        "case_id": "case_026_ventrilocuo_process_hollowing",
+        "entry_sha256": "0dde3bbefdcc9f04167a65de810317681f14a952fb5396ba8bf2848c10ea24be",
+        "inputs_summary": {
+          "iteration": "0"
+        },
+        "iteration": 0,
+        "note": "Pipeline completed \u2014 4 signals",
+        "outputs_summary": {
+          "abduction": {
+            "best_hypothesis": "MALICIOUS_INTENT_DETECTED",
+            "best_posterior": "23/25",
+            "confidence": "23/25",
+            "is_conclusive": "True",
+            "narrative": "[MOTOR] Label-blind selection: MALICIOUS_INTENT_DETECTED. Intent score 0.4614 exceeds MALICE threshold \u2014 corroboration branch: cross-domain (2 domains, 4 artifacts) (B-068 gate, R4-3 v2)",
+            "narrative_provenance": "deterministic_motor_selection",
+            "scenario_context": "svchost.exe (hash limpio, firma Microsoft v\u00e1lida) ejecut\u00e1ndose desde C:\\Users\\Public\\Downloads\\, parent cmd.exe, secci\u00f3n .text con permisos RWX, manteniendo 1GB exfiltrado a AS en Ucrania. Firewall re...",
+            "scenario_context_provenance": "case_description_unverified"
+          },
+          "case_id": "case_026_ventrilocuo_process_hollowing",
+          "pipeline_meta": {
+            "artifact_count": "4",
+            "avg_score": "2887/4000",
+            "ebs_adapter_mode": "motor",
+            "expected_verdict": "MALICE",
+            "resolve": {
+              "motor_confidence": "23/25",
+              "motor_reason": "Intent score 0.4614 exceeds MALICE threshold \u2014 corroboration branch: cross-domain (2 domains, 4 artifacts) (B-068 gate, R4-3 v2)",
+              "motor_score": "2307/5000",
+              "motor_verdict": "MALICE",
+              "selection_function": "vigia_scorer._vigia_score (Aliseda selection)"
+            },
+            "source": "ebs_v1_json_adapter"
+          },
+          "signals": [
+            {
+              "artifact_id": "a026_01",
+              "confidence": "19/20",
+              "description": "svchost.exe (PID 3847): regi\u00f3n RWX de 8MB con PE header en offset 0 no mapeada a archivo en disco. Parent: cmd.exe. Esperado: services.exe.",
+              "evidence_type": "memory_process",
+              "source": "sift_volatility",
+              "z_score": "171/200"
+            },
+            {
+              "artifact_id": "a026_02",
+              "confidence": "9/10",
+              "description": "Hash del svchost.exe en disco: coincide con Windows 2025 Build 26100. Firma Microsoft v\u00e1lida. El archivo en disco es limpio.",
+              "evidence_type": "memory_process",
+              "source": "sift_authenticode",
+              "z_score": "207/250"
+            },
+            {
+              "artifact_id": "a026_03",
+              "confidence": "4/5",
+              "description": "Conexi\u00f3n persistente a 185.62.58.207 (AS57169, Ucrania). 1GB exfiltrado. Firewall reporta 0 bytes. TLS cert mismatch.",
+              "evidence_type": "memory_process",
+              "source": "sift_zeek",
+              "z_score": "92/125"
+            },
+            {
+              "artifact_id": "a026_04",
+              "confidence": "13/20",
+              "description": "Run key apuntando a C:\\Users\\Public\\Downloads\\svchost.exe para persistencia.",
+              "evidence_type": "registry_key",
+              "source": "sift_regripper",
+              "z_score": "117/250"
+            }
+          ]
+        },
+        "seq": 5,
+        "timestamp": "2026-09-18T07:20:30.858712+00:00",
+        "tool": "vigia_pipeline"
+      },
+      {
+        "action": "CONTRADICTION_CHECK",
+        "case_id": "case_026_ventrilocuo_process_hollowing",
+        "entry_sha256": "9974c82a65e2b667ce38d91aa054a08b0b276e1934621b403b2d6ee5d26357ec",
+        "inputs_summary": {
+          "n_signals": "4"
+        },
+        "iteration": 0,
+        "note": "0 contradiction(s) \u2014 below threshold 1, no correction; 3 rule(s) not evaluable",
+        "outputs_summary": {
+          "contradictions_found": "0",
+          "rules_not_evaluable": [
+            "ENTROPY_VS_BEHAVIORAL: no signal carries a 'tool' key (this path emits evidence_type/source), and no producer emits behavioral_fingerprint \u2014 rule not evaluable",
+            "SEMIOTIC_VS_TECHNICAL: module_results has no 'technical_result' \u2014 no producer in this repository writes it, so alert_level defaults to LOW \u2014 rule not evaluable",
+            "CONFIDENCE_COLLAPSE: mca_score is the mean of the same confidences the rule thresholds on, so 'mean > 6/10 while > 7/10 of terms are < 3/10' is unsatisfiable \u2014 rule needs a different MCA producer, not..."
+          ],
+          "threshold": "1"
+        },
+        "seq": 6,
+        "timestamp": "2026-09-18T07:20:30.858830+00:00",
+        "tool": "contradiction_detector"
+      },
+      {
+        "action": "AGENT_EXIT",
+        "case_id": "case_026_ventrilocuo_process_hollowing",
+        "entry_sha256": "6e03633f00d1c0409c69b22984d16e5aaa7b664bc6e47bb6cbdfac181af618da",
+        "inputs_summary": {
+          "verdict": "MALICIOUS_INTENT_DETECTED"
+        },
+        "iteration": 0,
+        "note": "Exit code 1 (MALICE) \u2014 analysis complete.",
+        "outputs_summary": {
+          "agent_verdict": "MALICE",
+          "exit_code": "1"
+        },
+        "seq": 7,
+        "timestamp": "2026-09-18T07:20:30.859044+00:00",
+        "tool": "vigia_agent"
+      }
+    ],
+    "start_time": "2026-09-18T07:20:30.107216+00:00",
+    "total_entries": 7
+  },
+  "case_id": "case_026_ventrilocuo_process_hollowing",
+  "evidence_path": "/tmp/zaynor-demo-cases/case_026_ventrilocuo_process_hollowing/.zaynor_snapshot_0e73775792bf08a2841e45e7be321b766582df4ad535520488b41eaf6f048d1f/evidence/case_026_ventrilocuo_process_hollowing.json",
+  "evidence_sha256": "18c93edf3b0930f9bc4120edd93b04439c7f8b508c23350a4d89930dbdea426c",
+  "iterations_executed": 1,
+  "narrative": "=== VIG\u00cdA FORENSIC AGENT \u2014 CASE case_026_ventrilocuo_process_hollowing ===\nEvidence: /tmp/zaynor-demo-cases/case_026_ventrilocuo_process_hollowing/.zaynor_snapshot_0e73775792bf08a2841e45e7be321b766582df4ad535520488b41eaf6f048d1f/evidence/case_026_ventrilocuo_process_hollowing.json\nEvidence SHA-256: 18c93edf3b0930f9bc4120edd93b04439c7f8b508c23350a4d89930dbdea426c\nAnalysis iterations: 1\nSelf-corrections applied: 0\n\n--- MAIN HYPOTHESIS ---\nHypothesis: MALICIOUS_INTENT_DETECTED\nPosterior confidence: 23/25\nConclusive: YES\n\n--- PEIRCEAN NARRATIVE ---\n[FIRSTNESS] 4 se\u00f1al(es): 4 primaria(s) de ['sift_authenticode', 'sift_regripper', 'sift_volatility', 'sift_zeek'], 0 derivada(s)/no-analizada(s). Top z: svchost.exe (PID 3847): regi\u00f3n RWX de 8M=0.85, Hash del svchost.exe en disco: coincide =0.83, Conexi\u00f3n persistente a 185.62.58.207 (AS=0.74.\n[SECONDNESS] Ninguna se\u00f1al primaria supera z>2 \u2014 sin desviaci\u00f3n estructural contra baseline en esta iteraci\u00f3n.\n[THIRDNESS] Hip\u00f3tesis: MALICIOUS_INTENT_DETECTED. Conclusiva: s\u00ed.\n\nRazonamiento del motor abductivo:\n[MOTOR] Label-blind selection: MALICIOUS_INTENT_DETECTED. Intent score 0.4614 exceeds MALICE threshold \u2014 corroboration branch: cross-domain (2 domains, 4 artifacts) (B-068 gate, R4-3 v2)\n\n--- CASE CONTEXT (UNVERIFIED INPUT \u2014 NOT ANALYTICAL EVIDENCE) ---\nsvchost.exe (hash limpio, firma Microsoft v\u00e1lida) ejecut\u00e1ndose desde C:\\Users\\Public\\Downloads\\, parent cmd.exe, secci\u00f3n .text con permisos RWX, manteniendo 1GB exfiltrado a AS en Ucrania. Firewall reporta 0 bytes.\n\n--- TOP SIGNALS (top 5 by z-score) ---\n  [svchost.exe (PID 3847): regi\u00f3n RWX de 8MB con PE header en offset 0 no] z=0.855 conf=0.95 \u2014 \n  [Hash del svchost.exe en disco: coincide con Windows 2025 Build 26100. ] z=0.828 conf=0.90 \u2014 \n  [Conexi\u00f3n persistente a 185.62.58.207 (AS57169, Ucrania). 1GB exfiltrad] z=0.736 conf=0.80 \u2014 \n  [Run key apuntando a C:\\Users\\Public\\Downloads\\svchost.exe para persist] z=0.468 conf=0.65 \u2014 \n\n--- FINAL ALERT LEVEL ---\nHIGH \u2014 MALICE verdict from Bayesian posterior aggregation. Individual z-scores below threshold (distributed evidence pattern: no single dominant signal, but aggregate posterior is decisive). Alert floored (B-028/B-065).\nReconciliation: verdict MALICE rests on hypothesis-level aggregation, not on any single high-magnitude signal. Per-signal magnitude level was: LOW (per-signal magnitude) \u2014 no individual primary signal exceeds z>2 in this iteration.\n\nCritical signals (z>3, primary): 0\nHigh signals (2<z<=3, primary): 0\nPrimary signals: 4 | Derived: 0 | Total: 4",
+  "pipeline_results": {
+    "abduction": {
+      "best_hypothesis": "MALICIOUS_INTENT_DETECTED",
+      "best_posterior": "23/25",
+      "confidence": {
+        "__fraction__": true,
+        "den": 25,
+        "num": 23
+      },
+      "devil_advocate": {
+        "aggregation": {
+          "k": 3,
+          "method": "top_k_already_validated_matches_v2",
+          "total_gap_mass": "0"
+        },
+        "counterfactual_summary": {
+          "primary_alternative_hypothesis": null
+        },
+        "decision_context": {
+          "confidence": "23/25",
+          "mapped_verdict": "MALICIOUS_INTENT_DETECTED",
+          "raw_verdict": "MALICIOUS_INTENT_DETECTED",
+          "score": "2887/4000"
+        },
+        "devil_advocate_source": "deterministic_no_pattern_data_available",
+        "meta": {
+          "deterministic": true,
+          "generated_from": "case_pattern_library"
+        },
+        "narrative": "Eco's Razor (Abductive Falsification) applied to verdict MALICIOUS_INTENT_DETECTED. Pattern-matching data was not available on this code path \u2014 CasePatternLibrary is not invoked here by design (agent audit-trail mode (vigia_agent.py \u2014 JSON-replay / autonomous path); see KNOWN_LIMITATIONS.md). No structured counter-hypothesis could be derived deterministically. This is a documented scope limitation of the current code path, not an absence of falsification attempt.",
+        "pattern_evidence_gaps": [],
+        "version": "r7-da-v1"
+      },
+      "is_conclusive": true,
+      "narrative": "[MOTOR] Label-blind selection: MALICIOUS_INTENT_DETECTED. Intent score 0.4614 exceeds MALICE threshold \u2014 corroboration branch: cross-domain (2 domains, 4 artifacts) (B-068 gate, R4-3 v2)",
+      "narrative_provenance": "deterministic_motor_selection",
+      "scenario_context": "svchost.exe (hash limpio, firma Microsoft v\u00e1lida) ejecut\u00e1ndose desde C:\\Users\\Public\\Downloads\\, parent cmd.exe, secci\u00f3n .text con permisos RWX, manteniendo 1GB exfiltrado a AS en Ucrania. Firewall reporta 0 bytes.",
+      "scenario_context_provenance": "case_description_unverified"
+    },
+    "case_id": "case_026_ventrilocuo_process_hollowing",
+    "pipeline_meta": {
+      "artifact_count": 4,
+      "avg_score": "2887/4000",
+      "ebs_adapter_mode": "motor",
+      "expected_verdict": "MALICE",
+      "resolve": {
+        "motor_confidence": "23/25",
+        "motor_reason": "Intent score 0.4614 exceeds MALICE threshold \u2014 corroboration branch: cross-domain (2 domains, 4 artifacts) (B-068 gate, R4-3 v2)",
+        "motor_score": "2307/5000",
+        "motor_verdict": "MALICE",
+        "selection_function": "vigia_scorer._vigia_score (Aliseda selection)"
+      },
+      "source": "ebs_v1_json_adapter"
+    },
+    "signals": [
+      {
+        "artifact_id": "a026_01",
+        "confidence": {
+          "__fraction__": true,
+          "den": 20,
+          "num": 19
+        },
+        "description": "svchost.exe (PID 3847): regi\u00f3n RWX de 8MB con PE header en offset 0 no mapeada a archivo en disco. Parent: cmd.exe. Esperado: services.exe.",
+        "evidence_type": "memory_process",
+        "source": "sift_volatility",
+        "z_score": {
+          "__fraction__": true,
+          "den": 200,
+          "num": 171
+        }
+      },
+      {
+        "artifact_id": "a026_02",
+        "confidence": {
+          "__fraction__": true,
+          "den": 10,
+          "num": 9
+        },
+        "description": "Hash del svchost.exe en disco: coincide con Windows 2025 Build 26100. Firma Microsoft v\u00e1lida. El archivo en disco es limpio.",
+        "evidence_type": "memory_process",
+        "source": "sift_authenticode",
+        "z_score": {
+          "__fraction__": true,
+          "den": 250,
+          "num": 207
+        }
+      },
+      {
+        "artifact_id": "a026_03",
+        "confidence": {
+          "__fraction__": true,
+          "den": 5,
+          "num": 4
+        },
+        "description": "Conexi\u00f3n persistente a 185.62.58.207 (AS57169, Ucrania). 1GB exfiltrado. Firewall reporta 0 bytes. TLS cert mismatch.",
+        "evidence_type": "memory_process",
+        "source": "sift_zeek",
+        "z_score": {
+          "__fraction__": true,
+          "den": 125,
+          "num": 92
+        }
+      },
+      {
+        "artifact_id": "a026_04",
+        "confidence": {
+          "__fraction__": true,
+          "den": 20,
+          "num": 13
+        },
+        "description": "Run key apuntando a C:\\Users\\Public\\Downloads\\svchost.exe para persistencia.",
+        "evidence_type": "registry_key",
+        "source": "sift_regripper",
+        "z_score": {
+          "__fraction__": true,
+          "den": 250,
+          "num": 117
+        }
+      }
+    ]
+  },
+  "runtime_fingerprint": "5ae9fdcfbfac64d96d3378d13ce0416b6107b6633b6e1111c8d6cdc3822fc99e",
+  "sans_compliance": {
+    "accuracy_validation": true,
+    "analytical_reasoning": true,
+    "architectural_guardrails": true,
+    "audit_trail": true,
+    "evidence_integrity": true,
+    "self_correction": false
+  },
+  "self_corrections_applied": 0,
+  "signal_stats": {
+    "n_primary_signals": 4,
+    "n_total_signals": 4,
+    "n_unanalyzed_artifacts": 0
+  },
+  "vigia_agent_version": "1.0.0-SANS-2026"
+}

@@ -1,0 +1,13 @@
+{
+  "case_id": "case_026_ventrilocuo_process_hollowing",
+  "content_sha256": "0e73775792bf08a2841e45e7be321b766582df4ad535520488b41eaf6f048d1f",
+  "entries": [
+    {
+      "relative_path": "case_026_ventrilocuo_process_hollowing.json",
+      "sha256": "18c93edf3b0930f9bc4120edd93b04439c7f8b508c23350a4d89930dbdea426c",
+      "size_bytes": 3857
+    }
+  ],
+  "sealed_at": "2026-09-18T07:20:26.513124+00:00",
+  "sealed_at_sha256": "b97133cbf49acd517cc7f8b8b0d6844c37dd5d85b2808b0a9293e61520bcda40"
+}

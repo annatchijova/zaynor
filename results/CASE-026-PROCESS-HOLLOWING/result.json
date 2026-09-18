@@ -1,0 +1,61 @@
+{
+  "audit_refs": [
+    "197eb53e3bba0074b3962d9f726c59b347c811cb4e37feca1f96698cda621f1f"
+  ],
+  "case_id": "case_026_ventrilocuo_process_hollowing",
+  "engine": {
+    "configuration_hash": "5ae9fdcfbfac64d96d3378d13ce0416b6107b6633b6e1111c8d6cdc3822fc99e",
+    "name": "vigia_agent",
+    "version": "1.0.0-SANS-2026"
+  },
+  "findings": [
+    {
+      "evidence_refs": [
+        {
+          "artifact": "a026_01",
+          "lineage_id": "a026_01"
+        },
+        {
+          "artifact": "a026_02",
+          "lineage_id": "a026_02"
+        },
+        {
+          "artifact": "a026_03",
+          "lineage_id": "a026_03"
+        },
+        {
+          "artifact": "a026_04",
+          "lineage_id": "a026_04"
+        }
+      ],
+      "finding_id": "F-case_026_ventrilocuo_process_hollowing",
+      "lineage_ids": [
+        "a026_01",
+        "a026_02",
+        "a026_03",
+        "a026_04"
+      ],
+      "mitre": null,
+      "nist": null,
+      "rationale": "[MOTOR] Label-blind selection: MALICIOUS_INTENT_DETECTED. Intent score 0.4614 exceeds MALICE threshold — corroboration branch: cross-domain (2 domains, 4 artifacts) (B-068 gate, R4-3 v2)",
+      "state": "MALICE"
+    }
+  ],
+  "fractures": [],
+  "hypotheses": [],
+  "integrity": {
+    "analyzed_snapshot_sha256": "184fb5988e5248c7c9ef434a5b6328c6bfd862286ba45abb1766b1933c37aef5",
+    "authorized_case_id": "case_026_ventrilocuo_process_hollowing",
+    "authorized_manifest_sha256": "0e73775792bf08a2841e45e7be321b766582df4ad535520488b41eaf6f048d1f",
+    "evidence_sha256": "18c93edf3b0930f9bc4120edd93b04439c7f8b508c23350a4d89930dbdea426c",
+    "iterations_executed": 1,
+    "self_corrections_applied": 0,
+    "vigia_agent_verdict": "MALICE"
+  },
+  "observations": [],
+  "provenance": [],
+  "schema_version": "zaynor-result-v1",
+  "timeline": [],
+  "unknowns": [],
+  "verdict": "MALICE"
+}

@@ -1,0 +1,15 @@
+{
+  "case_id": "case_026_ventrilocuo_process_hollowing",
+  "n_records": 1,
+  "records": [
+    {
+      "actor": "zaynor_case_freezer",
+      "artifact_hash": "18c93edf3b0930f9bc4120edd93b04439c7f8b508c23350a4d89930dbdea426c",
+      "metadata": {
+        "relative_path": "case_026_ventrilocuo_process_hollowing.json"
+      },
+      "operation": "FREEZE_COPY",
+      "timestamp": "2026-09-18T07:20:26.513107+00:00"
+    }
+  ]
+}
