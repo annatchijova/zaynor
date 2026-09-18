@@ -29,6 +29,10 @@ web interface, and MCP integrations for local analysis tools and assistants.
 
 **[Try ZAYNOR on Vercel](https://zaynor-demo.vercel.app) · [Reproduce a case](#reproducible-nitroba-case) · [ZAYNOR architecture](https://annatchijova.github.io/zaynor/architecture.html) · [VIGÍA mathematical decisions](https://annatchijova.github.io/vigia/vigia_diagrams.html) · [Install](./INSTALL.md)**
 
+[![ZAYNOR architecture diagram](./visual/Screenshot%20from%202026-09-18%2007-36-11.png)](https://annatchijova.github.io/zaynor/architecture.html)
+
+*Interactive diagram — [explore it live](https://annatchijova.github.io/zaynor/architecture.html), with guided views for the authority path, bounded investigation, and analyst audience.*
+
 ## The problem
 
 DFIR investigations combine logs, memory, filesystem, network, browser

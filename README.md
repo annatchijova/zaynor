@@ -58,6 +58,10 @@ CLI, web, API compatible con OpenAI, Ollama, OpenWebUI y MCP.
 
 **[Probar ZAYNOR en Vercel](https://zaynor-demo.vercel.app) · [Ver un caso reproducible](#caso-reproducible-nitroba) · [Arquitectura ZAYNOR](https://annatchijova.github.io/zaynor/architecture.html) · [Decisiones matemáticas de VIGÍA](https://annatchijova.github.io/vigia/vigia_diagrams.html) · [Instalar](./INSTALL.md)**
 
+[![Diagrama de arquitectura de ZAYNOR](./visual/Screenshot%20from%202026-09-18%2007-36-11.png)](https://annatchijova.github.io/zaynor/architecture.html)
+
+*Diagrama interactivo — [explorarlo en vivo](https://annatchijova.github.io/zaynor/architecture.html), con vistas guiadas por camino de autoridad, investigación acotada y audiencia de analista.*
+
 ## No hace falta creerle al README
 
 El pipeline se puede ejecutar end-to-end:
