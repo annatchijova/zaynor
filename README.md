@@ -335,15 +335,16 @@ redefinición de sus unidades.
 
 ## Red team y validación
 
-El repositorio contiene 24 documentos de rondas red-team numeradas o
+El repositorio contiene 27 documentos de rondas red-team numeradas o
 relacionadas sobre autoridad, CLI, path traversal, TOCTOU, sellos, MCP,
 Ollama, OpenWebUI, prompt injection y contratos de agentes.
 
-La última resolución de arquitectura registra el comando que produjo
-`362 passed, 1 skipped`. La corrida completa actual no se presenta como un
-resultado verde: en este entorno el sandbox bloquea sockets locales usados por
-fixtures de Ollama. Una corrida focalizada produjo `44 passed, 3 errors`; esos
-errores no se cuentan como tests pasados.
+Backend: `PYTHONPATH=src pytest -q --ignore=tests/test_real_forensic_image_evidence.py`
+produce `416 passed, 1 skipped` (el único test excluido es un hang
+preexistente y documentado, en investigación aparte — no se cuenta como
+passed). Frontend: `npm test` en `frontend/` produce `19 passed`. Ninguna
+corrida se presenta como verde si no lo fue: si un test falla, se documenta
+el fallo, no se lo excluye en silencio.
 
 - [Auditoría unificada de seguridad](./docs/red-team/2026-09-17-unified-audit.md)
 - [Resolución de la ronda backend](./docs/red-team/2026-09-17-round-22-resolution.md)
