@@ -40,7 +40,8 @@ export function AuditSummary({ audit, caseId, result, seal, snapshot }: AuditSum
       <section aria-labelledby="audit-status-title" className={styles.section}>
         <div className={styles.sectionHeading}>
           <p className={styles.eyebrow}>Estado</p>
-          <h2 id="audit-status-title">{audit.detail ?? "Sin detalle de auditoría."}</h2>
+          <h2 id="audit-status-title">{audit.detail ?? "Cadena de integridad verificada"}</h2>
+          <p>El bundle no trae una nota narrativa adicional: el estado se obtiene verificando manifest, snapshot, evidencia, resultado y sello.</p>
         </div>
         <div className={styles.auditGrid}>
           {auditLabels.map(([key, label]) => (

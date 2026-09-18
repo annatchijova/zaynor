@@ -80,9 +80,22 @@
     "detail": null
   },
   "investigation": {
-    "session_id": null,
-    "status": "NOT_STARTED",
-    "proposals": [],
+    "session_id": "FIXTURE-REPLAY-NITROBA",
+    "status": "OPEN",
+    "proposals": [
+      {
+        "proposal_id": "P-NITROBA-001",
+        "case_id": "VIGIA-NITROBA-M57-001",
+        "question": "¿Qué relación documentan las sesiones Gmail/AIM y los artefactos NITROBA-ART-001 a NITROBA-ART-005?",
+        "rationale": "Replay visual de una pregunta acotada derivada del bundle Nitroba/M57; no produce ni modifica el resultado autoritativo.",
+        "requested_tool": "bundle.read_artifact_metadata",
+        "capability": "READ_ONLY",
+        "arguments_digest": "fixture-replay-nitroba-p001",
+        "information_sought": "Vinculación documentada entre sesiones, cookies, cuentas y la evidencia preservada.",
+        "status": "PROPOSED",
+        "created_at": "2026-09-17T16:06:14Z"
+      }
+    ],
     "observations": [],
     "authoritative_result_unchanged": true
   }

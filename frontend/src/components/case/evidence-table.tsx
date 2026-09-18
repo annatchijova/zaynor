@@ -34,11 +34,15 @@ function EvidenceDetail({ selected }: { readonly selected: SelectedEvidence }) {
   }
 
   if (view === "metadata") {
-    return <pre className={styles.detailCode}>{JSON.stringify(artifact.metadata, null, 2)}</pre>;
+    return Object.keys(artifact.metadata).length ? (
+      <pre className={styles.detailCode}>{JSON.stringify(artifact.metadata, null, 2)}</pre>
+    ) : (
+      <p>El manifest no suministra metadatos adicionales para este artefacto.</p>
+    );
   }
 
   if (view === "provenance") {
-    return (
+    return artifact.provenance.length ? (
       <dl className={styles.provenanceList}>
         {artifact.provenance.map((entry) => (
           <div key={`${entry.label}-${entry.value}`}>
@@ -49,6 +53,8 @@ function EvidenceDetail({ selected }: { readonly selected: SelectedEvidence }) {
           </div>
         ))}
       </dl>
+    ) : (
+      <p>Este artefacto no declara provenance adicional; su integridad está cubierta por el manifest congelado.</p>
     );
   }
 
@@ -66,8 +72,9 @@ function EvidenceDetail({ selected }: { readonly selected: SelectedEvidence }) {
 
   return (
     <p>
-      Esta acción sólo preparará una propuesta para una capacidad permitida. No modifica el
-      snapshot, la evidencia ni el veredicto autoritativo.
+      No hay una consulta read-only registrada para este artefacto. Una consulta futura sólo podría
+      preparar una propuesta para una capacidad permitida; no modificaría el snapshot, la evidencia
+      ni el veredicto autoritativo.
     </p>
   );
 }

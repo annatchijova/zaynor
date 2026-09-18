@@ -62,13 +62,10 @@
   box-shadow: 0 0 0 1rem color-mix(in srgb, var(--color-integrity) 6%, transparent), 0 0 3rem color-mix(in srgb, var(--color-integrity) 24%, transparent);
 }
 
-.heroOrb span {
-  inline-size: 2.1rem;
-  block-size: 2.1rem;
-  border: 0.35rem solid var(--color-integrity);
-  border-top-color: transparent;
-  border-radius: 50%;
-  transform: rotate(35deg);
+.heroOrb img {
+  inline-size: 4.5rem;
+  block-size: auto;
+  filter: drop-shadow(0 0 1rem color-mix(in srgb, var(--color-integrity) 30%, transparent));
 }
 
 .heroStack {
@@ -213,6 +210,50 @@
   margin-block-start: var(--space-10);
 }
 
+.modes {
+  margin-block-start: var(--space-10);
+}
+
+.modeGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
+.modeCard {
+  padding: var(--space-5);
+  border: 1px solid var(--color-border);
+  border-inline-start: 0.25rem solid #8b5cf6;
+  background: var(--color-surface);
+  box-shadow: var(--shadow-surface);
+}
+
+.modeCard h3 {
+  margin: var(--space-2) 0 0;
+}
+
+.modeCard p,
+.modeNote {
+  color: var(--color-text-muted);
+}
+
+.modeCard p {
+  margin-block: var(--space-3) 0;
+}
+
+.modeTag {
+  color: #6d28d9;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+.modeNote {
+  margin-block: var(--space-4) 0;
+  font-size: 0.875rem;
+}
+
 .foundationGrid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -344,6 +385,10 @@
     grid-template-columns: 1fr;
   }
 
+  .modeGrid {
+    grid-template-columns: 1fr;
+  }
+
   .resourceGrid {
     grid-template-columns: 1fr;
   }
@@ -364,5 +409,39 @@
 
   .caseSignals {
     justify-content: start;
+  }
+}
+
+@media (max-width: 30rem) {
+  .page {
+    width: min(100% - 1rem, 76rem);
+    padding-block-start: var(--space-4);
+  }
+
+  .intro,
+  .boundary,
+  .resources {
+    padding: var(--space-4);
+  }
+
+  .intro h1 {
+    font-size: 2.15rem;
+  }
+
+  .heroOrb {
+    inline-size: 5.5rem;
+    block-size: 5.5rem;
+  }
+
+  .heroOrb img {
+    inline-size: 3.5rem;
+  }
+
+  .heroStack {
+    font-size: 0.625rem;
+  }
+
+  .primaryAction {
+    inline-size: 100%;
   }
 }

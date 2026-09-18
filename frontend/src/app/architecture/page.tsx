@@ -17,10 +17,23 @@ export default function ArchitecturePage() {
         <p className={styles.eyebrow}>Arquitectura de autoridad</p>
         <h1>La evidencia y el motor determinista conservan la decisión</h1>
         <p>
-          ZAYNOR comienza después de que un incidente fue declarado y su evidencia fue recolectada.
-          La interfaz explica el resultado; no participa de la decisión forense.
+          ZAYNOR puede trabajar sobre bundles postmortem ya adquiridos o sobre observaciones de un
+          laboratorio LIVE acotado. La adquisición produce evidencia y provenance; después del freeze,
+          sólo VIGÍA emite la decisión forense.
         </p>
       </header>
+
+      <section aria-labelledby="diagrams-title" className={`${styles.section} ${styles.publishedResources}`}>
+        <div className={styles.sectionHeading}>
+          <p className={styles.eyebrow}>Diagramas publicados</p>
+          <h2 id="diagrams-title">Referencias visuales</h2>
+        </div>
+        <div className={styles.links}>
+          <a href={zaynorDiagramUrl} rel="noopener noreferrer" target="_blank">Abrir diagrama publicado de ZAYNOR</a>
+          <a href={vigiaDiagramUrl} rel="noopener noreferrer" target="_blank">Abrir diagramas publicados de VIGÍA</a>
+        </div>
+        <p className={styles.externalNote}>Los enlaces abren documentación pública en una pestaña nueva y no transmiten datos del caso.</p>
+      </section>
 
       <section aria-labelledby="authority-path-title" className={styles.section}>
         <div className={styles.sectionHeading}>
@@ -86,23 +99,6 @@ export default function ArchitecturePage() {
         </aside>
       </section>
 
-      <section aria-labelledby="diagrams-title" className={styles.section}>
-        <div className={styles.sectionHeading}>
-          <p className={styles.eyebrow}>Diagramas publicados</p>
-          <h2 id="diagrams-title">Referencias visuales</h2>
-        </div>
-        <div className={styles.links}>
-          <a href={zaynorDiagramUrl} rel="noopener noreferrer" target="_blank">
-            Abrir diagrama publicado de ZAYNOR
-          </a>
-          <a href={vigiaDiagramUrl} rel="noopener noreferrer" target="_blank">
-            Abrir diagramas publicados de VIGÍA
-          </a>
-        </div>
-        <p className={styles.externalNote}>
-          Los enlaces abren documentación pública en una pestaña nueva y no transmiten datos del caso.
-        </p>
-      </section>
     </div>
   );
 }

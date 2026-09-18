@@ -194,12 +194,15 @@ export function SeniorConsole({ caseOverview, evidence }: SeniorConsoleProps) {
           </dl>
         </article>
         <article>
-          <p className={styles.eyebrow}>MCP calls y versiones</p>
-          <h2>Datos no suministrados</h2>
-          <p className={styles.emptyData}>El contrato actual no suministra llamadas MCP ni hashes de resultados anteriores.</p>
+          <p className={styles.eyebrow}>MCP / bridge y versiones</p>
+          <h2>Linaje técnico disponible</h2>
+          <p className={styles.emptyData}>Este bundle conserva hashes, engine y referencias de auditoría. No incluye un transcript de cada llamada MCP; no se inventa uno.</p>
           <dl className={styles.definitionList}>
-            <div><dt>Versión actual</dt><dd>{formatHash(result.result_sha256)}</dd></div>
+            <div><dt>Engine / versión</dt><dd>{formatEngineDisplay(result.engine)}</dd></div>
+            <div><dt>Audit refs</dt><dd>{result.audit_refs.length ? result.audit_refs.join(", ") : "No declaradas"}</dd></div>
+            <div><dt>Manifest</dt><dd>{formatHash(snapshot.manifest_sha256)}</dd></div>
             <div><dt>Evidence set</dt><dd>{formatHash(snapshot.evidence_set_sha256)}</dd></div>
+            <div><dt>Resultado sellado</dt><dd>{formatHash(result.result_sha256)}</dd></div>
             <div><dt>Canonicalization</dt><dd>{seal.canonicalize_version}</dd></div>
           </dl>
         </article>

@@ -107,6 +107,12 @@ export function InvestigationQueue({ caseOverview }: InvestigationQueueProps) {
         <p>
           Resultado vigente: {result.verdict}. Último sello verificado: {formatDateTime(caseOverview.audit.checked_at)}.
         </p>
+        {investigation.session_id?.startsWith("FIXTURE-REPLAY-") ? (
+          <p className={styles.composerHint}>
+            Replay visual del bundle local: la propuesta está registrada para mostrar el flujo,
+            pero no ejecuta MCP ni representa una observación LIVE.
+          </p>
+        ) : null}
       </section>
 
       <section aria-labelledby="composer-title" className={styles.section}>
