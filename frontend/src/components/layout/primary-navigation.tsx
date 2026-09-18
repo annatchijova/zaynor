@@ -3,10 +3,11 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-const caseId = "CASE-001";
+const caseId = "VIGIA-NITROBA-M57-001";
 
 const navigation = [
   { href: "/", label: "Inicio" },
+  { href: "/cases", label: "Casos" },
   { href: "/about", label: "Acerca de" },
   { href: `/cases/${caseId}`, label: "Caso" },
   { href: `/cases/${caseId}/evidence`, label: "Evidencia" },

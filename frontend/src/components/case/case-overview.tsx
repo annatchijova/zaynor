@@ -14,6 +14,7 @@ import { SectionCard } from "../ui/section-card";
 import { VerdictPill } from "../ui/verdict-pill";
 import { CaseNavigation } from "./case-navigation";
 import { FindingStateBadge } from "./finding-state-badge";
+import { FrameworkIndicators } from "./framework-indicators";
 
 import styles from "./case-workspace.module.css";
 
@@ -107,6 +108,8 @@ export function CaseOverviewView({ caseOverview }: CaseOverviewProps) {
           ))}
         </div>
       </section>
+
+      <FrameworkIndicators caseId={caseId} />
 
       <section className={styles.analysisGrid}>
         <SectionCard>

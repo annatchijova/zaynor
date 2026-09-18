@@ -1,0 +1,112 @@
+.panel {
+  display: grid;
+  gap: var(--space-5);
+  margin-block-start: var(--space-8);
+  padding: var(--space-5);
+  border: 1px solid var(--color-border);
+  background: var(--color-surface-raised);
+}
+
+.panel h2 {
+  margin: var(--space-2) 0 0;
+  font-size: 1.35rem;
+  letter-spacing: -0.02em;
+}
+
+.eyebrow {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+
+.source,
+.disclaimer,
+.empty {
+  margin: var(--space-2) 0 0;
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+}
+
+.techniques {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.technique {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 13rem;
+  padding: var(--space-3);
+  border: 1px solid var(--color-border);
+  color: var(--color-text);
+  text-decoration: none;
+  background: var(--color-surface);
+}
+
+.technique:hover,
+.technique:focus-visible {
+  border-color: var(--color-accent);
+}
+
+.technique strong {
+  color: var(--color-accent);
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+}
+
+.technique span {
+  font-size: 0.85rem;
+}
+
+.disclaimer {
+  border-block-start: 1px solid var(--color-border);
+  padding-block-start: var(--space-3);
+  font-size: 0.75rem;
+}
+
+.explanations {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.explanations article {
+  padding: var(--space-3);
+  border-inline-start: 0.2rem solid var(--color-interactive);
+  background: var(--color-surface);
+}
+
+.explanations strong {
+  font-size: 0.85rem;
+}
+
+.explanations p {
+  margin: var(--space-2) 0 0;
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+}
+
+.nistPhases {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: var(--space-2);
+}
+
+.nistPhases span {
+  padding: var(--space-2);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+}
+
+@media (max-width: 48rem) {
+  .explanations,
+  .nistPhases {
+    grid-template-columns: 1fr;
+  }
+}

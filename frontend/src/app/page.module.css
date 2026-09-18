@@ -18,6 +18,10 @@
   grid-template-columns: minmax(0, 1fr) auto;
   padding: clamp(1.5rem, 4vw, 3.5rem);
   border-inline-start: 0.375rem solid var(--color-integrity);
+  overflow: hidden;
+  background:
+    radial-gradient(circle at 88% 18%, color-mix(in srgb, var(--color-integrity) 16%, transparent), transparent 30%),
+    var(--color-surface);
 }
 
 .kicker,
@@ -40,6 +44,56 @@
   letter-spacing: -0.04em;
 }
 
+.heroAside {
+  display: grid;
+  justify-items: center;
+  gap: var(--space-4);
+  min-inline-size: 15rem;
+}
+
+.heroOrb {
+  display: grid;
+  place-items: center;
+  inline-size: 7rem;
+  block-size: 7rem;
+  border: 1px solid color-mix(in srgb, var(--color-integrity) 55%, var(--color-border));
+  border-radius: 50%;
+  background: radial-gradient(circle, color-mix(in srgb, var(--color-integrity) 38%, transparent), transparent 64%);
+  box-shadow: 0 0 0 1rem color-mix(in srgb, var(--color-integrity) 6%, transparent), 0 0 3rem color-mix(in srgb, var(--color-integrity) 24%, transparent);
+}
+
+.heroOrb span {
+  inline-size: 2.1rem;
+  block-size: 2.1rem;
+  border: 0.35rem solid var(--color-integrity);
+  border-top-color: transparent;
+  border-radius: 50%;
+  transform: rotate(35deg);
+}
+
+.heroStack {
+  display: grid;
+  gap: var(--space-2);
+  width: 100%;
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+}
+
+.heroStack span {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0.55rem 0.7rem;
+  border: 1px solid var(--color-border);
+  background: color-mix(in srgb, var(--color-surface-raised) 72%, transparent);
+}
+
+.heroStack b {
+  color: var(--color-integrity);
+}
+
 .sectionHeading h2,
 .boundary h2 {
   font-size: clamp(1.5rem, 3vw, 2.25rem);
@@ -50,6 +104,88 @@
   max-inline-size: 64ch;
   margin: var(--space-5) 0 0;
   color: var(--color-text-muted);
+}
+
+.resources {
+  margin-block-start: var(--space-8);
+  padding: clamp(1.25rem, 3vw, 2rem);
+  border: 1px solid color-mix(in srgb, #8b5cf6 28%, var(--color-border));
+  border-radius: var(--radius-md);
+  background:
+    radial-gradient(circle at 92% 0%, color-mix(in srgb, #a78bfa 26%, transparent), transparent 34%),
+    linear-gradient(135deg, color-mix(in srgb, #ede9fe 68%, var(--color-surface)), var(--color-surface));
+  box-shadow: 0 1rem 3rem color-mix(in srgb, #7c3aed 12%, transparent);
+}
+
+.resources .sectionHeading {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: var(--space-4);
+  margin-block-end: 0;
+}
+
+.resources .sectionHeading h2 {
+  max-inline-size: none;
+  color: #4c1d95;
+}
+
+.resources .kicker {
+  color: #6d28d9;
+}
+
+.resourceGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-3);
+  margin-block-start: var(--space-5);
+}
+
+.resourceCard {
+  display: grid;
+  align-content: start;
+  gap: var(--space-2);
+  min-block-size: 12rem;
+  padding: var(--space-5);
+  border: 1px solid color-mix(in srgb, #8b5cf6 25%, var(--color-border));
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-surface);
+  text-decoration: none;
+  transition: transform var(--transition-fast), border-color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.resourceCard:hover {
+  border-color: #7c3aed;
+  box-shadow: var(--shadow-lift);
+  transform: translateY(-0.15rem);
+}
+
+.resourceIcon {
+  display: grid;
+  place-items: center;
+  inline-size: 2rem;
+  block-size: 2rem;
+  border-radius: 50%;
+  background: #ede9fe;
+  color: #6d28d9;
+  font-size: 1.25rem;
+}
+
+.resourceCard strong {
+  font-size: 0.95rem;
+  color: #4c1d95;
+}
+
+.resourceCard span:last-child,
+.resourceNote {
+  color: var(--color-text-muted);
+  font-size: 0.78rem;
+}
+
+.resourceNote {
+  margin: var(--space-4) 0 0;
+  color: #6d28d9;
 }
 
 .primaryAction {
@@ -65,6 +201,7 @@
   font-weight: 700;
   text-decoration: none;
   transition: background-color var(--transition-fast), border-color var(--transition-fast);
+  box-shadow: 0 0.5rem 1.5rem color-mix(in srgb, var(--color-interactive) 24%, transparent);
 }
 
 .primaryAction:hover {
@@ -120,11 +257,29 @@
   box-shadow: var(--shadow-surface);
   text-decoration: none;
   transition: border-color var(--transition-fast), background-color var(--transition-fast);
+  position: relative;
+  overflow: hidden;
 }
 
 .caseList a:hover {
   border-color: var(--color-interactive);
   background: var(--color-surface-raised);
+}
+
+.caseList a::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0;
+  block-size: 0.15rem;
+  background: linear-gradient(90deg, var(--color-integrity), var(--color-interactive));
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform var(--transition-fast);
+}
+
+.caseList a:hover::after,
+.caseList a:focus-visible::after {
+  transform: scaleX(1);
 }
 
 .caseId,
@@ -187,6 +342,19 @@
 
   .foundationGrid {
     grid-template-columns: 1fr;
+  }
+
+  .resourceGrid {
+    grid-template-columns: 1fr;
+  }
+
+  .heroAside {
+    justify-items: start;
+    min-inline-size: 0;
+  }
+
+  .heroStack {
+    max-inline-size: 22rem;
   }
 
   .caseList a {

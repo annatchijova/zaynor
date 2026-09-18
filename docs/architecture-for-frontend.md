@@ -180,6 +180,18 @@ requiere aprobación humana externa.
 
 ## Qué muestra el frontend
 
+El catálogo de casos del frontend se alimenta de bundles sellados derivados
+del corpus canónico de ZAYNOR/VIGÍA. Incluye los casos públicos de `casos/`,
+casos adversariales, falsos positivos y falsos negativos seleccionados del
+corpus de VIGÍA. Cada workspace puede mostrar el veredicto, evidencia,
+provenance, auditoría y contexto de técnicas MITRE ATT&CK cuando el bundle o
+la metadata canónica las declara.
+
+Los indicadores MITRE y el contexto NIST se presentan como enriquecimiento de
+investigación: no son findings adicionales, no recalculan scores y no cambian
+el resultado autoritativo ni su sello. La UI debe distinguir siempre entre el
+resultado firmado y el contexto de framework.
+
 ### Vista autoritativa
 
 Debe ser la capa más visible:

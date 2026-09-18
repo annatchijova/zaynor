@@ -251,13 +251,6 @@ export const demoCaseMeta: Readonly<Record<string, { readonly name: string; read
 };
 
 export const caseSummaries: readonly CaseSummary[] = [
-  {
-    case_id: case001.case_id,
-    name: "Sesión administrativa fuera de horario",
-    verdict: case001.authoritative_result.verdict,
-    seal_status: case001.seal.status,
-    updated_at: case001.audit.checked_at,
-  },
   ...demoCases.map((overview) => ({
     case_id: overview.case_id,
     name: demoCaseMeta[overview.case_id]?.name ?? null,

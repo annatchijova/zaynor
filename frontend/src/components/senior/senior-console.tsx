@@ -2,6 +2,7 @@ import type { CaseOverview, EvidenceArtifact, Finding, JsonValue } from "@/lib/a
 import { formatDateTime, formatEngineDisplay, formatEvidenceRefs, formatHash } from "@/lib/presentation/formatters";
 
 import { CaseNavigation } from "@/components/case/case-navigation";
+import { FrameworkIndicators } from "@/components/case/framework-indicators";
 import { FindingStateBadge } from "@/components/case/finding-state-badge";
 import { InvestigationTimeline } from "@/components/investigation/investigation-timeline";
 import { IntegrityBadge } from "@/components/ui/integrity-badge";
@@ -105,6 +106,8 @@ export function SeniorConsole({ caseOverview, evidence }: SeniorConsoleProps) {
           </table>
         </div>
       </section>
+
+      <FrameworkIndicators caseId={caseId} />
 
       <section className={styles.twoColumn}>
         <article>

@@ -225,7 +225,10 @@ export class MockApiClient implements ZaynorApiClient {
     return {
       format,
       content_type: contentTypes[format],
-      download_url: `mock://reports/${caseId}.${format}`,
+      download_url:
+        caseId === "VIGIA-NITROBA-M57-001"
+          ? `/reports/NITROBA.${format}`
+          : `mock://reports/${caseId}.${format}`,
     };
   }
 

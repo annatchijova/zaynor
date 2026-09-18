@@ -113,13 +113,10 @@ button {
   text-decoration: none;
 }
 
-.brand__mark {
-  inline-size: 0.75rem;
-  block-size: 0.75rem;
-  display: inline-block;
-  border: 2px solid var(--color-integrity);
-  border-radius: 50%;
-  box-shadow: inset 0 0 0 2px var(--color-surface);
+.brand__logo {
+  inline-size: 1.75rem;
+  block-size: 1.5rem;
+  object-fit: contain;
 }
 
 .app-header__controls {

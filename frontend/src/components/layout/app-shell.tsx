@@ -1,4 +1,5 @@
 import Link from "next/link";
+import Image from "next/image";
 import { Suspense, type ReactNode } from "react";
 
 import { PrimaryNavigation, PrimaryNavigationFallback } from "./primary-navigation";
@@ -17,7 +18,7 @@ export function AppShell({ children }: AppShellProps) {
       <header className="app-header">
         <div className="app-header__inner">
           <Link aria-label="Inicio de ZAYNOR" className="brand" href="/">
-            <span aria-hidden="true" className="brand__mark" />
+            <Image alt="" className="brand__logo" height={24} priority src="/brand/logo-zaynor.svg" width={28} />
             <span>ZAYNOR</span>
           </Link>
           <div className="app-header__controls">

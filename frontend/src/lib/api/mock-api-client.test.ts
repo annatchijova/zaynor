@@ -9,13 +9,13 @@ import {
   unavailableNarrationMockDataset,
 } from "./mock-api-client";
 
-test("returns the CASE-001 fixture without an HTTP dependency", async () => {
+test("lists a canonical VIGÍA case while retaining the legacy fixture for compatibility", async () => {
   const api = new MockApiClient();
 
   const [summary] = await api.listCases();
   const overview = await api.getCase("CASE-001");
 
-  assert.equal(summary?.case_id, "CASE-001");
+  assert.equal(summary?.case_id, "case_008_paranoia_perimetro");
   assert.equal(overview.snapshot.status, "VERIFIED");
   assert.equal(overview.authoritative_result.verdict, "ABSTAIN");
 });

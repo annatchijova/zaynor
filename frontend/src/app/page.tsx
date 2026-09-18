@@ -1,33 +1,62 @@
 import Link from "next/link";
 
-import { IntegrityBadge } from "@/components/ui/integrity-badge";
 import { SectionCard } from "@/components/ui/section-card";
-import { VerdictPill } from "@/components/ui/verdict-pill";
 import { api } from "@/lib/api";
-import { formatDateTime } from "@/lib/presentation/formatters";
 
 import styles from "./page.module.css";
 
 export default async function OverviewPage() {
   const [health, cases] = await Promise.all([api.getHealth(), api.listCases()]);
+  const featuredCase = cases.find((item) => item.case_id === "VIGIA-NITROBA-M57-001") ?? cases[0];
 
   return (
     <div className={styles.page}>
       <header className={styles.intro}>
         <div>
-          <p className={styles.kicker}>Postmortem DFIR</p>
-          <h1>Consola de análisis forense.</h1>
+          <p className={styles.kicker}>ZAYNOR · LOCAL FORENSIC INTELLIGENCE</p>
+          <h1>La evidencia habla. El veredicto queda sellado.</h1>
           <p className={styles.lede}>
-            Resultados deterministas, evidencia congelada y una frontera explícita entre
-            investigación asistida y autoridad forense.
+            Investigación postmortem con casos reales, bundles verificables y asistencia local.
+            El motor matemático decide; la IA ayuda a entender.
           </p>
         </div>
-        {cases[0] ? (
-          <Link className={styles.primaryAction} href={`/cases/${cases[0].case_id}`}>
-            Abrir caso
-          </Link>
-        ) : null}
+        <div className={styles.heroAside}>
+          <div className={styles.heroOrb} aria-hidden="true"><span /></div>
+          <div className={styles.heroStack}>
+            <span><b>01</b> evidencia congelada</span>
+            <span><b>02</b> VIGÍA determinista</span>
+            <span><b>03</b> sello verificado</span>
+          </div>
+          <Link className={styles.primaryAction} href="/cases">Explorar catálogo de casos →</Link>
+        </div>
       </header>
+
+      <section aria-labelledby="public-resources-title" className={styles.resources}>
+        <div className={styles.sectionHeading}>
+          <p className={styles.kicker}>Demo en vivo · documentación pública</p>
+          <h2 id="public-resources-title">Resultados, reportes y arquitectura</h2>
+        </div>
+        <div className={styles.resourceGrid}>
+          {featuredCase ? (
+            <Link className={styles.resourceCard} href={`/cases/${featuredCase.case_id}/reports`}>
+              <span className={styles.resourceIcon}>↗</span>
+              <strong>Descargar MD · HTML · PDF</strong>
+              <span>Reportes sellados de {featuredCase.case_id}. El backend genera los artefactos; la UI no altera su contenido.</span>
+            </Link>
+          ) : null}
+          <a className={styles.resourceCard} href="https://annatchijova.github.io/zaynor/architecture.html" rel="noopener noreferrer" target="_blank">
+            <span className={styles.resourceIcon}>◎</span>
+            <strong>Diagramas publicados de ZAYNOR</strong>
+            <span>Arquitectura de autoridad y flujo de evidencia en una pestaña nueva.</span>
+          </a>
+          <a className={styles.resourceCard} href="https://annatchijova.github.io/vigia/vigia_diagrams.html" rel="noopener noreferrer" target="_blank">
+            <span className={styles.resourceIcon}>◌</span>
+            <strong>Diagramas publicados de VIGÍA</strong>
+            <span>Referencias visuales del motor y sus capacidades, sin transmitir datos del caso.</span>
+          </a>
+        </div>
+        <p className={styles.resourceNote}>Los enlaces públicos abren documentación en una pestaña nueva y no transmiten datos del caso.</p>
+      </section>
 
       <section aria-labelledby="system-title" className={styles.foundation}>
         <div className={styles.sectionHeading}>
@@ -45,41 +74,9 @@ export default async function OverviewPage() {
           </SectionCard>
           <SectionCard>
             <p className={styles.cardLabel}>Narración local</p>
-            <strong className={styles.systemValue}>{health.ollama}</strong>
+            <strong className={styles.systemValue}>OLLAMA · {health.ollama}</strong>
           </SectionCard>
         </div>
-      </section>
-
-      <section aria-labelledby="cases-title" className={styles.casesSection}>
-        <div className={styles.sectionHeading}>
-          <p className={styles.kicker}>Casos recientes</p>
-          <h2 id="cases-title">Resultados disponibles</h2>
-        </div>
-        {cases.length ? (
-          <ul className={styles.caseList}>
-            {cases.map((caseSummary) => (
-              <li key={caseSummary.case_id}>
-                <Link href={`/cases/${caseSummary.case_id}`}>
-                  <div>
-                    <span className={styles.caseId}>{caseSummary.name ?? caseSummary.case_id}</span>
-                    {caseSummary.name ? <span className={styles.caseTime}>{caseSummary.case_id}</span> : null}
-                    <span className={styles.caseTime}>
-                      Actualizado: {formatDateTime(caseSummary.updated_at)}
-                    </span>
-                  </div>
-                  <div className={styles.caseSignals}>
-                    <VerdictPill verdict={caseSummary.verdict} />
-                    <IntegrityBadge label="Sello" status={caseSummary.seal_status} />
-                  </div>
-                </Link>
-              </li>
-            ))}
-          </ul>
-        ) : (
-          <SectionCard>
-            <p>No hay casos disponibles en la fuente configurada.</p>
-          </SectionCard>
-        )}
       </section>
 
       <section aria-labelledby="boundary-title" className={styles.boundary}>
