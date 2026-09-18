@@ -1,5 +1,23 @@
 # ZAYNOR
 
+[![CI](https://github.com/annatchijova/zaynor/actions/workflows/ci.yml/badge.svg)](https://github.com/annatchijova/zaynor/actions/workflows/ci.yml)
+[![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](./pyproject.toml)
+[![Ruff](https://img.shields.io/badge/lint-ruff-green.svg)](https://docs.astral.sh/ruff/)
+[![Black](https://img.shields.io/badge/format-black-black.svg)](https://black.readthedocs.io/)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](./LICENSE)
+[![Conventional Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-yellow.svg)](https://www.conventionalcommits.org/en/v1.0.0/)
+[![Keep a Changelog](https://img.shields.io/badge/Keep%20a%20Changelog-1.1.0-orange.svg)](./CHANGELOG.md)
+[![SemVer](https://img.shields.io/badge/SemVer-2.0.0-blueviolet.svg)](https://semver.org/spec/v2.0.0.html)
+
+[![CI](https://github.com/annatchijova/zaynor/actions/workflows/ci.yml/badge.svg)](https://github.com/annatchijova/zaynor/actions/workflows/ci.yml)
+[![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](./pyproject.toml)
+[![Ruff](https://img.shields.io/badge/lint-ruff-green.svg)](https://docs.astral.sh/ruff/)
+[![Black](https://img.shields.io/badge/format-black-black.svg)](https://black.readthedocs.io/)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](./LICENSE)
+[![Conventional Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-yellow.svg)](https://www.conventionalcommits.org/en/v1.0.0/)
+[![Keep a Changelog](https://img.shields.io/badge/Keep%20a%20Changelog-1.1.0-orange.svg)](./CHANGELOG.md)
+[![SemVer](https://img.shields.io/badge/SemVer-2.0.0-blueviolet.svg)](https://semver.org/spec/v2.0.0.html)
+
 **Investigación forense asistida por IA sin delegarle a la IA la decisión final.**
 
 Investigar un incidente implica reconstruir qué ocurrió a partir de evidencia
@@ -76,7 +94,7 @@ ZAYNOR reúne tres capacidades que suelen estar separadas:
 - normalización, provenance y freeze del caso;
 - análisis determinista con VIGÍA;
 - resultado, seal, audit trail, hash chain e informes;
-- adquisición local acotada con Velociraptor y observaciones OTel.
+- adquisición local acotada con Velociraptor y observaciones OTel ([demo lab reproducible](./docs/demo-lab/README.md)).
 
 ### Investigación asistida
 
@@ -389,7 +407,7 @@ Velociraptor, OpenWebUI y laboratorio, consultá [`INSTALL.md`](./INSTALL.md),
 
 - [`GUIA_PERITOS.md`](./GUIA_PERITOS.md) — evidencia, resultado, audit y report.
 - [`casos/README.md`](./casos/README.md) — casos, fuentes y provenance.
-- [`docs/demo-lab/README.md`](./docs/demo-lab/README.md) — laboratorio Velociraptor/AIOps.
+- [`docs/demo-lab/README.md`](./docs/demo-lab/README.md) — laboratorio reproducible DFIR + AIOps: Velociraptor, OTel, Prometheus/Loki/Tempo/Grafana y pipeline `freeze → VIGÍA → audit`.
 
 ### Quiero entender la arquitectura
 
