@@ -2,6 +2,8 @@
 
 <img src="./visual/logo-zaynor-full.svg" alt="ZAYNOR" width="260">
 
+*[Read this in English](./README.en.md)*
+
 [![CI](https://github.com/annatchijova/zaynor/actions/workflows/ci.yml/badge.svg)](https://github.com/annatchijova/zaynor/actions/workflows/ci.yml)
 [![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](./pyproject.toml)
 [![Ruff](https://img.shields.io/badge/lint-ruff-green.svg)](https://docs.astral.sh/ruff/)
@@ -55,8 +57,6 @@ raw evidence, casos postmortem y adquisición acotada con Velociraptor. Incluye
 CLI, web, API compatible con OpenAI, Ollama, OpenWebUI y MCP.
 
 **[Probar ZAYNOR en Vercel](https://zaynor-demo.vercel.app) · [Ver un caso reproducible](#caso-reproducible-nitroba) · [Arquitectura ZAYNOR](https://annatchijova.github.io/zaynor/architecture.html) · [Decisiones matemáticas de VIGÍA](https://annatchijova.github.io/vigia/vigia_diagrams.html) · [Instalar](./INSTALL.md)**
-
-*[Read this in English](./README.en.md)*
 
 ## No hace falta creerle al README
 
@@ -514,10 +514,6 @@ El árbol físico completo incluye código fuente, casos, tests, documentación 
 artefactos generados. `build/`, caches y dependencias instaladas no forman
 parte de la superficie fuente documentada.
 
-## Licencia
-
-Apache License 2.0. Ver [`LICENSE`](./LICENSE).
-
 ## Evidencia visual de una corrida CLI
 
 Estas capturas documentan una ejecución local reproducible sobre
@@ -563,3 +559,7 @@ AUTHORITATIVE VERDICT: MALICE
 
 Esto demuestra que el LLM puede narrar mal, pero no puede cambiar la
 autoridad.
+
+## Licencia
+
+Apache License 2.0. Ver [`LICENSE`](./LICENSE).

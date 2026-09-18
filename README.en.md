@@ -1,5 +1,7 @@
 # ZAYNOR — local, deterministic, traceable DFIR investigation
 
+*[Leer en español](./README.md)*
+
 [![CI](https://github.com/annatchijova/zaynor/actions/workflows/ci.yml/badge.svg)](https://github.com/annatchijova/zaynor/actions/workflows/ci.yml)
 [![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](./pyproject.toml)
 [![Ruff](https://img.shields.io/badge/lint-ruff-green.svg)](https://docs.astral.sh/ruff/)
@@ -26,8 +28,6 @@ The case can be processed locally. ZAYNOR exposes a CLI, OpenAI-compatible API,
 web interface, and MCP integrations for local analysis tools and assistants.
 
 **[Try ZAYNOR on Vercel](https://zaynor-demo.vercel.app) · [Reproduce a case](#reproducible-nitroba-case) · [ZAYNOR architecture](https://annatchijova.github.io/zaynor/architecture.html) · [VIGÍA mathematical decisions](https://annatchijova.github.io/vigia/vigia_diagrams.html) · [Install](./INSTALL.md)**
-
-*[Leer en español](./README.md)*
 
 ## The problem
 
@@ -279,10 +279,6 @@ The physical tree includes source code, cases, tests, documentation, and
 generated artifacts. `build/`, caches, and installed dependencies are not part
 of the documented source surface.
 
-## License
-
-Apache License 2.0. See [`LICENSE`](./LICENSE).
-
 ## Visual evidence from a CLI run
 
 These screenshots document a reproducible local run of
@@ -328,3 +324,7 @@ AUTHORITATIVE VERDICT: MALICE
 
 This demonstrates that the LLM can narrate incorrectly, but cannot change the
 authoritative result.
+
+## License
+
+Apache License 2.0. See [`LICENSE`](./LICENSE).

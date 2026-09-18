@@ -31,5 +31,19 @@ Confirmed by running both formats through the real pipeline
 `case_083_sacrificio_del_peon` → `MALICE` — both match their own
 `expected_verdict`.
 
-Samuel's original 9 synthetic fixtures are preserved, unmodified, in
-`../casos-samuel/` — not deleted, not merged in here.
+## Synthetic (Samuel, 9)
+
+Samuel's original synthetic fixtures, preserved unmodified, moved in here
+from the former `casos-samuel/` directory. Own schema (`case.schema.json`)
+and index (`index.json`), `INC-2026-*` naming — kept as authored, not
+translated to the canonical/real cases' shape above:
+
+- `INC-2026-COVER-001.json` — Privileged Session and External Transfer
+- `INC-2026-MERCY-001.json` — Web File Created During Session Intervention
+- `INC-2026-MEMORY-001.json` — Executable Memory on a Workstation
+- `INC-2026-LINUX-001.json` — Scheduler and Package Integrity Mismatch
+- `INC-2026-INCOMPLETE-001.json` — Incomplete Memory Process Inventories
+- `INC-2026-NOISE-001.json` — Administration Requests Among Routine Traffic
+- `INC-2026-LINEAGE-001.json` — Conflicting Dashboard and Host Records
+- `INC-2026-BANKER-001.json` — API Hooks and Recurring Temp Execution
+- `INC-2026-DOMAIN-001.json` — Directory Service Installation Media Creation
