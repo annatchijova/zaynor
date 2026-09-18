@@ -1,5 +1,7 @@
 # ZAYNOR
 
+<img src="./visual/logo-zaynor-full.svg" alt="ZAYNOR" width="260">
+
 [![CI](https://github.com/annatchijova/zaynor/actions/workflows/ci.yml/badge.svg)](https://github.com/annatchijova/zaynor/actions/workflows/ci.yml)
 [![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](./pyproject.toml)
 [![Ruff](https://img.shields.io/badge/lint-ruff-green.svg)](https://docs.astral.sh/ruff/)
