@@ -1,10 +1,12 @@
 """Offline evidence, reasoning-trace, and memory integration boundaries.
 
-This module is deliberately small. ANNACONDA remains the owner of the
-Velociraptor collection adapter; ZAYNOR only accepts an already sealed,
-verified evidence window and materializes it through the existing case-freeze
-boundary. CRONOS and MNEME are optional sinks for investigation context. They
-receive observations and summaries, never authoritative results or seals.
+This module is deliberately small. ZAYNOR owns the adapted Velociraptor
+collection adapter under ``tools/velociraptor`` and accepts its sealed,
+verified evidence window through the existing case-freeze boundary. The
+``annaconda`` names below are compatibility labels for the original window
+contract and hash recipe, not a claim that collection still lives in another
+repository. CRONOS and MNEME are optional sinks for investigation context.
+They receive observations and summaries, never authoritative results or seals.
 """
 
 from __future__ import annotations
@@ -46,7 +48,7 @@ def _safe_output_path(root: Path, relative: str) -> Path:
 
 
 def verify_annaconda_window(window: dict[str, Any]) -> None:
-    """Fail closed unless an ANNACONDA evidence window hash verifies."""
+    """Fail closed unless the adapted evidence-window contract verifies."""
     if not isinstance(window, dict) or not isinstance(window.get("window_hash"), str):
         raise HybridIntegrationError("evidence window is missing window_hash")
     body = {key: value for key, value in window.items() if key != "window_hash"}

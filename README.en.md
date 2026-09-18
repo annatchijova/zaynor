@@ -26,14 +26,19 @@ Zaynor addresses one concrete question:
 > What does the evidence support, which alternative explanations were
 > considered, what should be investigated next, and what remains unknown?
 
-Zaynor is not a SIEM, an EDR, or a real-time monitoring system. It is a local,
-post-incident DFIR investigation tool.
+Zaynor does not replace a SIEM or an EDR and does not assign verdicts during
+collection. It can analyze already-acquired postmortem evidence or receive
+observations from bounded local collectors — including Velociraptor in the
+DFIR lab. In both modes, acquisition produces evidence and provenance only;
+every authoritative conclusion requires a freeze and deterministic re-analysis.
 
 ## What it does
 
-Zaynor receives an already-declared incident and already-collected evidence. It
-freezes the case, preserves artifact identity, and passes the evidence to a
-deterministic mathematical engine. That engine produces and seals the
+Zaynor can receive an already-declared incident with postmortem evidence, or
+observations from a bounded local collector. Collection does not score or
+decide: it produces normalized evidence, provenance, and a window hash. Zaynor
+then freezes the case, preserves artifact identity, and passes the evidence to
+a deterministic mathematical engine. That engine produces and seals the
 authoritative result using one of these public labels:
 
 ```text
@@ -60,7 +65,8 @@ observe in the demo.
 
 ```mermaid
 flowchart TD
-    A["Declared incident<br/>+ collected evidence<br/>(simulated fixture or authorized public data)"] --> B["Case freeze<br/>manifest · hashes · immutable case_id"]
+    A["Declared incident<br/>+ postmortem evidence or local collector"] --> A2["Bounded local acquisition<br/>Velociraptor DFIR / observations"]
+    A2 --> B["Case freeze<br/>manifest · hashes · immutable case_id"]
     B --> C["Deterministic mathematical engine<br/>(VIGÍA)"]
     C --> D["Sealed authoritative verdict<br/>MALICE · SUSPICION · ABSTAIN · BENIGN"]
     D --> E["MITRE ATT&CK / NIST context<br/>annotates, never changes the verdict"]
@@ -144,9 +150,10 @@ identity of the person at the keyboard, the credential origin, and the
 complete transfer of the file remain unknown unless the frozen evidence
 supports them.
 
-A synthetic fixture or replay may put an already-formed case on screen. It is
-a demonstration harness, not a claim that Zaynor is live monitoring or a
-production SIEM.
+An already-formed fixture or replay may put a case on screen. The lab also
+exercises a bounded local Velociraptor acquisition path. That path produces
+evidence and provenance only; it is not continuous SIEM/EDR monitoring and
+cannot assign a verdict before freeze and deterministic re-analysis.
 
 ## Three-minute demonstration
 
@@ -255,7 +262,7 @@ Their real status, not an aspirational one:
 | FLEET_COMMANDER | wired | Writes to the investigation log (hypotheses, tasking, escalation) — never produces a verdict or triggers an autonomous loop. |
 | DETECTION_ENGINEER | wired | `draft_sigma_rule` generates Sigma candidates grounded in a real finding from the sealed result. |
 | DISPATCHER | wired | A catalog of the evidence types Mode 1 can actually analyze (registry, prefetch, browser, event log, memory, MFT, EBS-JSON). |
-| ENDPOINT_HUNTER / PERSISTENCE_HUNTER | out of scope | Would require a live collection backend (EDR-style) this project does not have and does not intend to build — VIGÍA analyzes already-frozen evidence, not live telemetry. |
+| ENDPOINT_HUNTER / PERSISTENCE_HUNTER | bounded lab path | DFIR acquisition uses the local Velociraptor path and produces evidence/provenance only; it is not an EDR and assigns no verdict during collection. |
 | THREAT_INTEL | out of scope, for now | A portable implementation exists (VirusTotal/GTI enrichment with honest no-key degradation), evaluated but not yet wired in: it implies an external network dependency, a pending product decision. |
 
 The final integration must preserve these properties:
@@ -274,8 +281,8 @@ The final integration must preserve these properties:
 
 The current demonstration does not include:
 
-- real-time monitoring or collection;
-- acquisition from real systems;
+- continuous SIEM/EDR-scale monitoring;
+- operational acquisition without a verifiable freeze, manifest, and provenance;
 - autonomous remediation;
 - shell, arbitrary network, or write access for the LLM;
 - PDF or HTML rendering;

@@ -26,14 +26,20 @@ Zaynor responde una pregunta concreta:
 > ¿Qué sostiene la evidencia, qué explicaciones alternativas fueron
 > consideradas, qué conviene investigar después y qué todavía no puede saberse?
 
-Zaynor no pretende ser un SIEM, un EDR ni un sistema de monitoreo en tiempo
-real. Es una herramienta local de investigación DFIR post-incidente.
+Zaynor no reemplaza un SIEM ni un EDR y no asigna veredictos durante la
+recolección. Puede analizar evidencia postmortem ya adquirida o recibir
+observaciones desde colectores locales acotados —incluido Velociraptor en el
+laboratorio DFIR—. En ambos modos, la adquisición sólo produce evidencia y
+provenance; toda conclusión autoritativa requiere freeze y reanálisis por el
+motor matemático determinista.
 
 ## Qué hace
 
-Zaynor recibe un incidente ya declarado y evidencia ya recolectada. Congela el
-caso, preserva la identidad de sus artefactos y pasa la evidencia al motor
-matemático determinista. Ese motor produce y sella el resultado autoritativo
+Zaynor puede recibir un incidente ya declarado con evidencia postmortem, o
+recibir observaciones de un colector local acotado. La recolección no puntúa ni
+decide: produce evidencia normalizada, provenance y un window hash. Después,
+Zaynor congela el caso, preserva la identidad de sus artefactos y pasa la
+evidencia al motor matemático determinista. Ese motor produce y sella el resultado autoritativo
 con una de estas etiquetas públicas:
 
 ```text
@@ -128,7 +134,8 @@ jurado puede observar en la demo.
 
 ```mermaid
 flowchart TD
-    A["Incidente declarado<br/>+ evidencia recolectada<br/>(fixture simulado o dato público autorizado)"] --> B["Freeze del caso<br/>manifest · hashes · case_id inmutable"]
+    A["Incidente declarado<br/>+ evidencia postmortem o collector local"] --> A2["Adquisición local acotada<br/>Velociraptor DFIR / observaciones"]
+    A2 --> B["Freeze del caso<br/>manifest · hashes · case_id inmutable"]
     B --> C["Motor matemático determinista<br/>(VIGÍA)"]
     C --> D["Veredicto autoritativo sellado<br/>MALICE · SUSPICION · ABSTAIN · BENIGN"]
     D --> E["Contexto MITRE ATT&CK / NIST<br/>anota, nunca cambia el veredicto"]
@@ -213,8 +220,11 @@ establecer. La identidad de la persona frente al teclado, el origen de la
 credencial y la transferencia completa del archivo permanecen desconocidos si
 la evidencia congelada no los prueba.
 
-El fixture o replay sintético sirve para poner en pantalla un caso ya
-formado. No representa monitoreo real ni convierte a Zaynor en un SIEM.
+El fixture o replay sintético sirve para poner en pantalla un caso ya formado.
+El laboratorio también ejercita una ruta acotada de adquisición local con
+Velociraptor. Esa ruta sólo produce evidencia y provenance: no es monitoreo
+continuo de SIEM/EDR y no puede asignar un veredicto antes del freeze y el
+reanálisis determinista.
 
 ## Demo de tres minutos
 
@@ -323,7 +333,7 @@ manifest. Su estado real, no aspiracional:
 | FLEET_COMMANDER | conectado | Escribe en el log de investigación (hipótesis, tareas, escalamiento) — nunca produce un veredicto ni dispara un loop autónomo. |
 | DETECTION_ENGINEER | conectado | `draft_sigma_rule` genera candidatos Sigma anclados a un finding real del resultado sellado. |
 | DISPATCHER | conectado | Catálogo de los tipos de evidencia que Mode 1 realmente sabe analizar (registro, prefetch, browser, event log, memoria, MFT, EBS-JSON). |
-| ENDPOINT_HUNTER / PERSISTENCE_HUNTER | fuera de alcance | Requerirían un backend de recolección en vivo (tipo EDR) que este proyecto no tiene ni pretende tener — VIGÍA analiza evidencia ya congelada, no telemetría en vivo. |
+| ENDPOINT_HUNTER / PERSISTENCE_HUNTER | laboratorio acotado | La adquisición DFIR local usa la ruta de Velociraptor y sólo produce evidencia/provenance; no es un EDR ni asigna veredictos durante la colección. |
 | THREAT_INTEL | fuera de alcance, por ahora | Existe una implementación portable (enriquecimiento vía VirusTotal/GTI con degradación honesta sin API key) evaluada y no incorporada todavía: implica una dependencia de red externa, una decisión de producto pendiente. |
 
 La integración final debe conservar estas propiedades:
@@ -343,16 +353,16 @@ La integración final debe conservar estas propiedades:
 
 No forman parte de la demostración actual:
 
-- monitoreo o recolección en tiempo real;
-- adquisición desde sistemas reales;
+- monitoreo continuo de escala SIEM/EDR;
+- adquisición operacional sin freeze, manifest y provenance verificables;
 - remediación autónoma;
 - shell, red arbitraria o escritura para el LLM;
 - renderizado PDF o HTML;
 - un SIEM, EDR o producto de escala operacional.
 
-El monitoreo en tiempo real, nuevos formatos de reporte y conectores
-operacionales quedan como mejoras posteriores. El chat local completo y el
-contexto exhaustivo de MITRE/NIST sí forman parte del producto que se está
+El monitoreo continuo, nuevos formatos de reporte y conectores operacionales
+quedan como mejoras posteriores. La adquisición local de laboratorio, el chat
+local y el contexto MITRE/NIST forman parte del producto que se está
 integrando.
 
 ## Documentación
