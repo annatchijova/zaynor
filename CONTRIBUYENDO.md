@@ -1,128 +1,202 @@
-# Contribuyendo a ZAYNOR
+# Contribuir a ZAYNOR
 
 *[Read this in English](CONTRIBUTING.md)*
 
-Gracias por querer trabajar en ZAYNOR. ZAYNOR crece desde VIGÍA como un
-sistema forense grande y útil, con un compromiso de mantenimiento a largo
-plazo. Las contribuciones deben ayudar a preservar esa utilidad a medida que
-el proyecto evoluciona.
+ZAYNOR acepta contribuciones de código, tests, documentación, casos forenses,
+integraciones y validación adversarial.
 
-## Antes de empezar
+Antes de cambiar el sistema, entendé una frontera:
 
-- ZAYNOR integra el motor determinista de VIGÍA (`vendor/vigia_engine/`)
-  en vez de reimplementarlo — ver `AGENTS.md` §2.1. Si tu cambio toca algo
-  bajo `vendor/`, necesita una razón documentada; la suposición por
-  defecto es que la lógica propia de VIGÍA no es tuya para reescribir.
-- No toques el scorer ni su contrato de decisión. Los cambios al scorer
-  requieren una decisión arquitectónica documentada y aprobada explícitamente.
-- Nada de floats en el camino de decisión (`CLAUDE.md` §5.2). Cualquier
-  ratio, peso, o valor que alimente un resultado sellado usa
-  `fractions.Fraction`.
-- El LLM nunca decide un veredicto (`CLAUDE.md` §5.1). Si tu cambio deja
-  que un modelo influya en un finding, un puntaje o un sello, la
-  arquitectura está mal — no es un problema de implementación.
+> **La IA puede investigar y explicar. Sólo la ruta determinista de evidencia
+> puede cambiar el estado forense autoritativo.**
 
-## Flujo de trabajo
+Una contribución no está terminada sólo porque funciona una vez. Debe
+preservar los límites de autoridad, provenance, reproducibilidad y
+auditabilidad.
 
-1. Leé el archivo real antes de parchearlo — no asumas qué hace una
-   función por su nombre ni por memoria de una versión anterior.
-2. Un cambio enfocado por commit. Explicá *por qué*, no solo qué.
-3. Escribí los commits en formato [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/):
-   `<tipo>[alcance opcional][!]: <descripción en imperativo>` — con alguno
-   de `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`, `perf`,
-   `ci`, `build`, `security`, `revert` (la lista completa la aplica
-   `scripts/commitlint.py` — `ALLOWED_TYPES` es la fuente de verdad). Ejemplos:
-   `feat(core): add new evidence profile`,
-   `fix(telemetry): correct OTel span naming`.
-   El hook `commit-msg` (`scripts/commitlint.py`, instalado con
-   `./scripts/install-hooks.sh`) rechaza los encabezados que no conforman;
-   los pocos encabezados previos a la regla que deja pasar están listados
-   en `.commitlint-allowlist`. Los encabezados `Merge ...` / `Revert ...`
-   pasan sin cambios.
-4. Proponé tests con cada cambio. Deben cubrir el comportamiento esperado,
-   límites, casos negativos y casos adversariales relevantes. Una pull request
-   sin propuesta de tests está incompleta.
-5. Mantené la documentación sincronizada con el código. Cambiar un archivo
-   que un documento contrata (la CLI, la API, los agentes, el adaptador de
-   VIGÍA, el sello, las herramientas MCP, el frontend, las herramientas de
-   SDLC) exige actualizar ese documento en el mismo cambio. Qué partes del
-   código contratan qué docs está en `DOCS_MAP` de `scripts/docs_check.py`
-   — la fuente de verdad; ampliala cuando agregues una parte que tenga
-   contrato documental. La aplicación es mecánica:
-   - el hook `pre-push` corre `scripts/docs_check.py` sobre el rango
-     empujado (instalado con `./scripts/install-hooks.sh`);
-   - CI corre la misma compuerta en cada PR y en cada push directo a
-     `main` (job `docs-sync`).
-   Una regla se puede eximir de forma deliberada con el trailer de commit
-   en el párrafo final del mensaje — `Docs-Waiver: <rule-id> <razón>` —
-   por regla, visible en el historial, nunca silenciosa. Solo cuenta un
-   trailer en posición de trailer: una línea ilustrativa `Docs-Waiver:`
-   dentro del cuerpo o de un bloque de código no es una exención. Corré
-   la compuerta localmente cuando quieras:
-   ```bash
-   python3 scripts/docs_check.py --base origin/main   # diff de la rama vs main
-   python3 scripts/docs_check.py --staged             # lo que hay staged
+## Invariantes arquitectónicos
+
+Los cambios deben preservar estas propiedades salvo que una decisión
+arquitectónica explícita cambie el contrato.
+
+### VIGÍA es dueño de la semántica determinista de decisión
+
+ZAYNOR integra el motor VIGÍA vendorizado en `vendor/vigia_engine/`; no
+mantiene una reimplementación independiente del scorer de VIGÍA.
+
+No modifiques silenciosamente el comportamiento del scorer vendorizado. Los
+cambios de semántica de VIGÍA pertenecen al upstream y requieren una
+actualización explícita del contrato de integración de ZAYNOR.
+
+### La IA no tiene autoridad sobre el veredicto
+
+Un LLM o agente puede investigar, derivar, adquirir dentro de su policy o
+explicar un resultado verificado. No puede crear ni modificar un finding,
+puntaje, veredicto, sello o threshold de decisión autoritativo.
+
+Ningún rol de agente de IA registrado tiene `MUTATE` ni `AUTHORIZE`.
+
+Ver [`AGENTS.md`](AGENTS.md) y
+[`src/zaynor/agents/README.md`](src/zaynor/agents/README.md).
+
+### La aritmética autoritativa es reproducible
+
+No introduzcas coma flotante binaria en scoring autoritativo, hashing,
+canonicalización ni estado sellado. Las representaciones numéricas exactas y
+canónicas, como `Fraction`, `Decimal` y enteros, se usan según el contrato
+correspondiente.
+
+### La evidencia son datos no confiables
+
+El contenido de la evidencia nunca debe convertirse en instrucciones ni
+capabilities.
+
+Los collectors producen observaciones y provenance. Las salidas de MCP y
+tools son inputs no confiables. La evidencia nueva debe volver por la ruta de
+análisis determinista antes de poder afectar una conclusión autoritativa.
+
+### La provenance sobrevive a las transformaciones
+
+No descartes silenciosamente la identidad de la fuente, información de
+custodia, hashes, relaciones de dependencia, incertidumbre ni la distinción
+entre evidencia real y sintética.
+
+## Cómo hacer un cambio
+
+1. **Leé primero la implementación actual.** No infieras el comportamiento
+   por el nombre de un archivo, documentación vieja o una versión anterior.
+2. **Mantené el cambio enfocado.** Preferí una preocupación coherente por
+   commit y explicá por qué hace falta.
+3. **Usá Conventional Commits.**
+
+   ```text
+   feat(core): add evidence profile
+   fix(telemetry): correct OTel span naming
+   security(mcp): reject unauthorized capability
+   docs(install): document local Ollama setup
    ```
-6. Configurá las compuertas locales una vez por clon:
-   ```bash
-   pip install -e ".[dev]" && pip install pre-commit
-   ./scripts/install-hooks.sh   # commit-msg (commitlint) + pre-push (bloqueo de force-push + docs-sync)
-   pre-commit install           # higiene de espacios/EOF/YAML/TOML/JSON
-   ```
-   Si clonaste antes de que aterrizara una actualización de hooks, corré
-   `./scripts/install-hooks.sh --force` para tomarla (si no, sigue el hook
-   viejo y solo la compuerta de CI aplica el chequeo nuevo).
-   Y corré la suite de verificación antes de proponer un cambio:
-   ```bash
-   python3 -m pytest tests/ -q
-   ruff check src tools tests scripts conftest.py
-   ```
-   `black --check src tests scripts conftest.py` y `mypy src/zaynor/` son
-   consultivos (el árbol es anterior al formateo; 20 notas preexistentes de
-   mypy están registradas en `pyproject.toml [tool.mypy]`). Mantené el
-   estilo circundante en los archivos que toques y corregí las notas nuevas
-   de mypy ahí, pero ninguno de los dos bloquea una fusión.
-7. Si tocás `src/zaynor/report.py`, `audit_log.py`, o cualquier cosa
-   sellada/hasheada, agregá un test que falle si tu cambio rompe
-   determinismo o evidencia de manipulación — no solo un test del camino
-   feliz.
-8. Nada de `git rebase`, nada de `git push --force`, nada de aplastar
-   historial. Ver `CLAUDE.md` §2 para la disciplina de git completa que
-   sigue este repo. (El hook `pre-push` aplica el veto al force-push de
-   forma mecánica.)
 
-## Releases (SemVer + Keep a Changelog)
+   Los tipos permitidos y su enforcement viven en
+   [`scripts/commitlint.py`](scripts/commitlint.py).
+4. **Testeá los cambios de comportamiento.** Cubrí el comportamiento
+   esperado y los casos negativos, de borde y adversariales relevantes. Las
+   correcciones sensibles a seguridad o autoridad deben incluir un test de
+   regresión que demuestre el fallo anterior.
+5. **Actualizá la documentación contratada junto con el código.** Las
+   relaciones entre documentación y código son verificadas por
+   `scripts/docs_check.py`. Si un componente nuevo establece un contrato
+   documental, actualizá `DOCS_MAP`.
+6. **No reescribas el historial compartido.** Force-pushes, rebases del
+   historial compartido y squashes silenciosos no forman parte del flujo de
+   este repositorio.
 
-- El versionado sigue [SemVer](https://semver.org/spec/v2.0.0.html):
-  `MAJOR` rompe la interfaz pública o la semántica de evidencia (superficie
-  del CLI, contrato del resultado sellado, formato de manifest/sello);
-  `MINOR` agrega funcionalidad compatible (comandos, roles, perfiles de
-  evidencia, anotaciones de frameworks); `PATCH` corrige bugs o docs.
-- Cada cambio visible para el usuario suma una entrada bajo
-  `CHANGELOG.md` `## [Unreleased]`, agrupada en `Added` / `Changed` /
-  `Fixed` / `Security` / `Removed`, según [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
-- La persona mantenedora corta un release moviendo las entradas de
-  `Unreleased` bajo un encabezado `## [x.y.z] - YYYY-MM-DD`, subiendo
-  `version` en `pyproject.toml` y etiquetando `vX.Y.Z`.
+## Configuración de desarrollo
 
-## Agregar casos y cobertura adversarial
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
 
-Los casos deben estar documentados y ser trazables. El corpus debe incluir
-casos adversariales, break, benignos, falsos positivos (FP) y falsos negativos
-(FN), no solamente detecciones exitosas. Incluí fuentes autorizadas y
-documentadas como NIST, Digital Corpora, DFRWS, DEF CON DFIR CTF y otros
-repositorios o datasets expresamente autorizados.
+pip install -e ".[dev]"
+pip install pre-commit
 
-Un caso nuevo debe ser salida reproducible de VIGÍA/ZAYNOR, no evidencia
-inventada. Los fixtures sintéticos sirven para tests, pero deben estar
-claramente etiquetados y separados de los casos reales. Documentá la fuente,
-la autorización, el comportamiento esperado y la categoría del caso.
+./scripts/install-hooks.sh
+pre-commit install
+```
 
-## Reportar un problema de seguridad
+Antes de proponer un cambio de código:
 
-Para vulnerabilidades de seguridad, escribí a `anna.tchijova@icloud.com`; no
-abras un issue público ni dependas de un flujo público de security advisories.
+```bash
+python3 -m pytest tests/ -q
+ruff check src tools tests scripts conftest.py
+git diff --check
+```
+
+`black --check` y `mypy` son actualmente consultivos, no gates de merge.
+Mantené el estilo circundante y no introduzcas nuevos errores de tipos en el
+código que toques.
+
+Los hooks instalados aplican reglas de mensajes de commit, sincronización de
+documentación y seguridad del historial. CI repite los gates del repositorio
+de forma independiente. Ver [`scripts/`](scripts/) y los workflows de CI para
+la implementación actual de esos gates.
+
+## Cambios sensibles a seguridad y autoridad
+
+Los cambios que involucren cualquiera de estos elementos requieren revisión
+adicional:
+
+- integración o scoring de VIGÍA;
+- `result.json` / `result.seal.json`;
+- canonicalización, hashes, HMACs o audit chains;
+- freeze o custodia de evidencia;
+- límites de filesystem y paths;
+- capabilities MCP o permisos de agentes;
+- límites de Ollama/modelos;
+- hallucination guards o authority guards.
+
+Para estos cambios, incluí un test de regresión que falle cuando se viola la
+propiedad de seguridad relevante. Un camino feliz exitoso no alcanza.
+
+Ver [`SEGURIDAD.md`](SEGURIDAD.md) y [`docs/red-team/`](docs/red-team/).
+
+## Agregar casos forenses
+
+Los casos son unidades de evaluación, no ejemplos inventados para que el motor
+parezca exitoso.
+
+Cada caso nuevo debe identificar:
+
+- si la evidencia es real o sintética;
+- fuente y provenance;
+- autorización o licencia cuando corresponda;
+- comportamiento esperado;
+- categoría del caso;
+- información suficiente para reproducir el resultado de ZAYNOR/VIGÍA.
+
+La evidencia real debe provenir de fuentes documentadas y autorizadas. Entre
+las fuentes existentes hay datasets y desafíos forenses públicos como Digital
+Corpora y DFRWS.
+
+Los fixtures sintéticos son bienvenidos para regresión, adversarial, BREAK,
+falsos positivos y falsos negativos, pero deben estar claramente etiquetados y
+mantenerse distinguibles de la evidencia forense real.
+
+Ver [`casos/README.md`](casos/README.md).
+
+## Documentación
+
+Si cambiás comportamiento, empezá por el documento más cercano a ese contrato:
+
+- [`README.md`](README.md) — modelo del producto y frontera de autoridad;
+- [`INSTALL.md`](INSTALL.md) — instalación y operación;
+- [`GUIA_PERITOS.md`](GUIA_PERITOS.md) — flujo forense reproducible;
+- [`AGENTS.md`](AGENTS.md) — contratos de integración y agentes;
+- [`src/zaynor/agents/README.md`](src/zaynor/agents/README.md) — roles y capabilities;
+- [`docs/mcp-locales.md`](docs/mcp-locales.md) — superficie MCP;
+- [`docs/demo-lab/README.md`](docs/demo-lab/README.md) — laboratorio DFIR/AIOps;
+- [`docs/technical-details.md`](docs/technical-details.md) — detalles de implementación;
+- [`SEGURIDAD.md`](SEGURIDAD.md) — límites y reportes de seguridad.
+
+## Releases
+
+ZAYNOR sigue [Semantic Versioning](https://semver.org/) y mantiene
+[`CHANGELOG.md`](CHANGELOG.md) con la estructura de Keep a Changelog.
+
+Los cambios incompatibles en interfaces públicas, semántica de evidencia,
+formatos de sellos u otros contratos autoritativos persistidos requieren
+especial cuidado: la compatibilidad también es comportamiento forense, no
+solamente ergonomía de API.
+
+La preparación de releases y el versionado son responsabilidad de las
+personas mantenedoras.
+
+## Reportar vulnerabilidades
+
+No reportes vulnerabilidades con detalles de exploits en issues públicas.
+
+Seguí [`SEGURIDAD.md`](SEGURIDAD.md) para reportes y divulgación privada.
 
 ## Código de conducta
 
-Ver `CODIGO_DE_CONDUCTA.md`.
+La participación en el proyecto se rige por
+[`CODIGO_DE_CONDUCTA.md`](CODIGO_DE_CONDUCTA.md).

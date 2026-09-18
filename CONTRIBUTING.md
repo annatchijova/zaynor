@@ -2,121 +2,194 @@
 
 *[Leer en español](CONTRIBUYENDO.md)*
 
-Thanks for wanting to work on ZAYNOR. ZAYNOR grows from VIGÍA into a large,
-useful forensic system with a long-term maintenance commitment. Contributions
-should help preserve that usefulness as the project evolves.
+ZAYNOR accepts contributions to code, tests, documentation, forensic cases,
+integrations, and adversarial validation.
 
-## Before you start
+Before changing the system, understand one boundary:
 
-- ZAYNOR integrates VIGÍA's deterministic engine (`vendor/vigia_engine/`)
-  rather than reimplementing it — see `AGENTS.md` §2.1. If your change
-  touches anything under `vendor/`, it needs a documented reason; the
-  default assumption is that VIGÍA's own logic is not yours to rewrite.
-- Do not touch the scorer or its decision contract. Scorer changes require a
-  separately documented, explicitly approved architectural decision.
-- No float in the decision path (`CLAUDE.md` §5.2). Ratios, weights, and
-  anything that feeds a sealed result use `fractions.Fraction`.
-- The LLM never decides a verdict (`CLAUDE.md` §5.1). If your change lets
-  a model influence a finding, a score, or a seal, the architecture is
-  wrong, not the implementation.
+> **AI may investigate and explain. Only the deterministic evidence path may
+> change authoritative forensic state.**
 
-## Workflow
+A contribution is not complete because it works once. It should preserve
+authority boundaries, provenance, reproducibility, and auditability.
 
-1. Read the live file before patching it — don't assume what a function
-   does from its name or from memory of an earlier version.
-2. One focused change per commit. Explain *why*, not just what.
-3. Write commits in [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/)
-   format — `<type>[optional scope][!]: <imperative description>` — with one
-   of `feat`, `fix`, `docs`, `style`, `refactor`, `test`, `chore`, `perf`,
-   `ci`, `build`, `security`, `revert` (the full list enforced by
-   `scripts/commitlint.py` — `ALLOWED_TYPES` is the source of truth). Examples:
-   `feat(core): add new evidence profile`,
-   `fix(telemetry): correct OTel span naming`,
-   `feat(frontend): establish forensic analysis interface`.
-   The `commit-msg` hook (`scripts/commitlint.py`, installed via
-   `./scripts/install-hooks.sh`) rejects non-conforming headers; the few
-   pre-gate headers it grandfathers are listed in `.commitlint-allowlist`.
-   `Merge ...` / `Revert ...` headers pass untouched.
-4. Propose tests with every change. Tests should cover intended behavior,
-   boundary conditions, negative cases, and relevant adversarial cases. A
-   pull request without a test proposal is incomplete.
-5. Keep the docs in sync with the code. Changing a file that a document
-   contracts (the CLI, the API, the agents, the VIGÍA adapter, the seal,
-   the MCP tools, the frontend, the SDLC tooling) requires updating that
-   document in the same change. Which code parts contract which docs is
-   `DOCS_MAP` in `scripts/docs_check.py` — the single source of truth;
-   extend it when you add a part that has a doc contract.    Enforcement is mechanical:
-   - the `pre-push` hook runs `scripts/docs_check.py` over the range
-     being pushed (installed by `./scripts/install-hooks.sh`);
-   - CI runs the same gate on every PR and on every direct push to
-     `main` (`docs-sync` job).
-   A rule can be waived deliberately with a commit trailer in the final
-   paragraph of the commit message — `Docs-Waiver: <rule-id> <reason>` —
-   per rule, visible in git history, never silent. Only a trailer in
-   trailer position counts: an illustrative `Docs-Waiver:` line inside
-   body prose or a code fence is not a waiver. Run the gate locally at
-   any time:
-   ```bash
-   python3 scripts/docs_check.py --base origin/main   # branch diff vs main
-   python3 scripts/docs_check.py --staged             # what is staged now
+## Architectural invariants
+
+Changes must preserve these properties unless an explicit architectural
+decision changes the contract.
+
+### VIGÍA owns deterministic decision semantics
+
+ZAYNOR integrates the vendored VIGÍA engine in `vendor/vigia_engine/`; it
+does not maintain an independent reimplementation of VIGÍA's scorer.
+
+Do not silently modify vendored scoring behavior. Changes to VIGÍA semantics
+belong upstream and require an explicit update to ZAYNOR's integration
+contract.
+
+### AI has no verdict authority
+
+An LLM or agent may investigate, derive, acquire within policy, or explain a
+verified result. It must not create or modify an authoritative finding, score,
+verdict, seal, or decision threshold.
+
+No registered AI-agent role has `MUTATE` or `AUTHORIZE`.
+
+See [`AGENTS.md`](AGENTS.md) and
+[`src/zaynor/agents/README.md`](src/zaynor/agents/README.md).
+
+### Authoritative arithmetic is reproducible
+
+Do not introduce binary floating-point into authoritative scoring, hashing,
+canonicalization, or sealed state. Exact/canonical numeric representations
+such as `Fraction`, `Decimal`, and integers are used according to the
+relevant contract.
+
+### Evidence is untrusted data
+
+Evidence content must never become instructions or capabilities.
+
+Collectors produce observations and provenance. MCP/tool outputs are
+untrusted inputs. New evidence must return through the deterministic analysis
+path before it can affect an authoritative conclusion.
+
+### Provenance survives transformation
+
+Do not silently discard source identity, custody information, hashes,
+dependency relationships, uncertainty, or distinctions between real and
+synthetic evidence.
+
+## Making a change
+
+1. **Read the current implementation first.** Do not infer behavior from a
+   filename, old documentation, or an earlier version.
+2. **Keep the change focused.** Prefer one coherent concern per commit and
+   explain why the change is necessary.
+3. **Use Conventional Commits.**
+
+   ```text
+   feat(core): add evidence profile
+   fix(telemetry): correct OTel span naming
+   security(mcp): reject unauthorized capability
+   docs(install): document local Ollama setup
    ```
-6. Set up the local gates once per clone:
-   ```bash
-   pip install -e ".[dev]" && pip install pre-commit
-   ./scripts/install-hooks.sh   # commit-msg (commitlint) + pre-push (force-push guard + docs-sync)
-   pre-commit install           # whitespace/EOF/YAML/TOML/JSON hygiene
-   ```
-   If you cloned before a hook update landed, re-run
-   `./scripts/install-hooks.sh --force` to pick it up (otherwise the old
-   hook keeps running and only the CI gate enforces the new check).
-   Then run the verification suite before proposing a change:
-   ```bash
-   python3 -m pytest tests/ -q
-   ruff check src tools tests scripts conftest.py
-   ```
-   `black --check src tests scripts conftest.py` and `mypy src/zaynor/`
-   are advisory (the tree predates formatting; 20 pre-existing mypy notes
-   are tracked in `pyproject.toml [tool.mypy]`). Match surrounding style
-   in files you touch, fix new mypy notes there, but neither gates a merge.
-7. If you touch `src/zaynor/report.py`, `audit_log.py`, or anything
-   sealed/hashed, add a test that would fail if your change broke
-   determinism or tamper-evidence — not just a happy-path test.
-8. No `git rebase`, no `git push --force`, no squashing history. See
-   `CLAUDE.md` §2 for the full git discipline this repo follows. (The
-   `pre-push` hook enforces the force-push ban mechanically.)
 
-## Releases (SemVer + Keep a Changelog)
+   Allowed types and enforcement live in
+   [`scripts/commitlint.py`](scripts/commitlint.py).
+4. **Test behavioral changes.** Cover the intended behavior and relevant
+   negative, boundary, and adversarial cases. Security- or authority-sensitive
+   fixes should include a regression test demonstrating the previous failure.
+5. **Update contracted documentation with the code.** Documentation/code
+   relationships are enforced by `scripts/docs_check.py`. If a new component
+   establishes a documentation contract, update `DOCS_MAP`.
+6. **Do not rewrite shared history.** Force pushes, rebases of shared project
+   history, and silent squashing are not part of this repository's workflow.
 
-- Versioning follows [SemVer](https://semver.org/spec/v2.0.0.html):
-  `MAJOR` breaks the public interface or evidence semantics (CLI surface,
-  sealed-result contract, manifest/seal format); `MINOR` adds
-  backward-compatible functionality (commands, roles, evidence profiles,
-  framework annotations); `PATCH` fixes bugs or docs.
-- Every user-facing change adds an entry under `CHANGELOG.md`
-  `## [Unreleased]`, grouped as `Added` / `Changed` / `Fixed` /
-  `Security` / `Removed`, per [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
-- The maintainer cuts a release by moving `Unreleased` entries under a
-  `## [x.y.z] - YYYY-MM-DD` header, bumping `version` in
-  `pyproject.toml`, and tagging `vX.Y.Z`.
+## Development setup
 
-## Adding cases and adversarial coverage
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
 
-Cases must be documented and traceable. The corpus should include adversarial,
-break, benign, false-positive (FP), and false-negative (FN) cases, not only
-successful detections. Include authorized, documented sources such as NIST,
-Digital Corpora, DFRWS, DEF CON DFIR CTF, and other explicitly authorized
-repositories or datasets.
+pip install -e ".[dev]"
+pip install pre-commit
 
-A new case should be reproducible VIGÍA/ZAYNOR output, not invented evidence.
-Synthetic fixtures are welcome for tests, but must be clearly labeled and
-kept separate from real cases. Document the source, authorization, expected
-behavior, and case category.
+./scripts/install-hooks.sh
+pre-commit install
+```
 
-## Reporting a security issue
+Before proposing a code change:
 
-For security vulnerabilities, email `anna.tchijova@icloud.com`; do not open a
-public issue or rely on a public security-advisory workflow.
+```bash
+python3 -m pytest tests/ -q
+ruff check src tools tests scripts conftest.py
+git diff --check
+```
 
-## Code of conduct
+`black --check` and `mypy` are currently advisory rather than merge gates.
+Match the surrounding style and do not introduce new type errors in code you
+touch.
 
-See `CODE_OF_CONDUCT.md`.
+The installed hooks enforce commit-message, documentation-sync, and
+history-safety rules. CI repeats the repository gates independently. See
+[`scripts/`](scripts/) and the CI workflows for the exact current
+implementation of those gates.
+
+## Security- and authority-sensitive changes
+
+Changes involving any of the following require additional scrutiny:
+
+- VIGÍA integration or scoring;
+- `result.json` / `result.seal.json`;
+- canonicalization, hashes, HMACs, or audit chains;
+- evidence freeze or custody;
+- filesystem/path boundaries;
+- MCP capabilities or agent permissions;
+- Ollama/model boundaries;
+- hallucination or authority guards.
+
+For these changes, include a regression test that fails when the relevant
+security property is violated. A successful happy path alone is insufficient.
+
+See [`SECURITY.md`](SECURITY.md) and [`docs/red-team/`](docs/red-team/).
+
+## Adding forensic cases
+
+Cases are evaluation units, not examples invented to make the engine look
+successful.
+
+Every added case must identify:
+
+- whether the evidence is real or synthetic;
+- source and provenance;
+- authorization or licensing where applicable;
+- expected behavior;
+- case category;
+- enough information to reproduce the ZAYNOR/VIGÍA result.
+
+Real evidence must come from documented, authorized sources. Existing sources
+include public forensic datasets and challenges such as Digital Corpora and
+DFRWS.
+
+Synthetic fixtures are welcome for regression, adversarial, BREAK,
+false-positive, and false-negative coverage, but must be clearly labeled and
+kept distinguishable from real forensic evidence.
+
+See [`casos/README.md`](casos/README.md).
+
+## Documentation
+
+If you are changing behavior, start with the document closest to that
+contract:
+
+- [`README.md`](README.md) — product model and authority boundary;
+- [`INSTALL.md`](INSTALL.md) — installation and operation;
+- [`GUIA_PERITOS.md`](GUIA_PERITOS.md) — reproducible forensic workflow;
+- [`AGENTS.md`](AGENTS.md) — integration and agent contracts;
+- [`src/zaynor/agents/README.md`](src/zaynor/agents/README.md) — agent roles and capabilities;
+- [`docs/mcp-locales.md`](docs/mcp-locales.md) — MCP surface;
+- [`docs/demo-lab/README.md`](docs/demo-lab/README.md) — DFIR/AIOps laboratory;
+- [`docs/technical-details.md`](docs/technical-details.md) — implementation details;
+- [`SECURITY.md`](SECURITY.md) — security boundaries and reporting.
+
+## Releases
+
+ZAYNOR follows [Semantic Versioning](https://semver.org/) and maintains
+[`CHANGELOG.md`](CHANGELOG.md) using the Keep a Changelog structure.
+
+Breaking changes to public interfaces, evidence semantics, seal formats, or
+other persisted authoritative contracts require particular care: compatibility
+is forensic behavior, not merely API ergonomics.
+
+Release preparation and versioning are maintainer responsibilities.
+
+## Reporting vulnerabilities
+
+Do not report vulnerabilities containing exploit details in a public issue.
+
+Follow [`SECURITY.md`](SECURITY.md) for private reporting and disclosure.
+
+## Code of Conduct
+
+Participation in the project is governed by
+[`CODE_OF_CONDUCT.md`](CODE_OF_CONDUCT.md).

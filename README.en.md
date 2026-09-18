@@ -1,5 +1,14 @@
 # ZAYNOR — local, deterministic, traceable DFIR investigation
 
+[![CI](https://github.com/annatchijova/zaynor/actions/workflows/ci.yml/badge.svg)](https://github.com/annatchijova/zaynor/actions/workflows/ci.yml)
+[![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](./pyproject.toml)
+[![Ruff](https://img.shields.io/badge/lint-ruff-green.svg)](https://docs.astral.sh/ruff/)
+[![Black](https://img.shields.io/badge/format-black-black.svg)](https://black.readthedocs.io/)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](./LICENSE)
+[![Conventional Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-yellow.svg)](https://www.conventionalcommits.org/en/v1.0.0/)
+[![Keep a Changelog](https://img.shields.io/badge/Keep%20a%20Changelog-1.1.0-orange.svg)](./CHANGELOG.md)
+[![SemVer](https://img.shields.io/badge/SemVer-2.0.0-blueviolet.svg)](https://semver.org/spec/v2.0.0.html)
+
 ZAYNOR is a local AI-assisted forensic investigation platform that separates
 investigative autonomy from authority over conclusions.
 
@@ -16,9 +25,7 @@ or modify the verdict: new evidence must return to the deterministic pipeline.
 The case can be processed locally. ZAYNOR exposes a CLI, OpenAI-compatible API,
 web interface, and MCP integrations for local analysis tools and assistants.
 
-**Demo web:** [zaynor-demo.vercel.app](https://zaynor-demo.vercel.app)
-
-**Architecture:** [published interactive diagram](https://annatchijova.github.io/zaynor/architecture.html)
+**[Try ZAYNOR on Vercel](https://zaynor-demo.vercel.app) · [Reproduce a case](#reproducible-nitroba-case) · [ZAYNOR architecture](https://annatchijova.github.io/zaynor/architecture.html) · [VIGÍA mathematical decisions](https://annatchijova.github.io/vigia/vigia_diagrams.html) · [Install](./INSTALL.md)**
 
 *[Leer en español](./README.md)*
 
