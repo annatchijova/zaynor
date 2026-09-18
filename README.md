@@ -515,3 +515,49 @@ parte de la superficie fuente documentada.
 ## Licencia
 
 Apache License 2.0. Ver [`LICENSE`](./LICENSE).
+
+## Evidencia visual de una corrida CLI
+
+Estas capturas documentan una ejecución local reproducible sobre
+`case_026_ventrilocuo_process_hollowing`:
+
+- [Freeze y análisis](./visual/Screenshot%20from%202026-09-18%2004-20-42.png)
+- [Resultado autoritativo y sello](./visual/Screenshot%20from%202026-09-18%2004-20-44.png)
+- [Audit trail con cadena válida](./visual/Screenshot%20from%202026-09-18%2004-22-41.png)
+- [Chat local y guard de autoridad](./visual/Screenshot%20from%202026-09-18%2004-26-12.png)
+
+Lo importante:
+
+- freeze correcto;
+- VIGÍA produjo `MALICE`;
+- audit: `overall: VERIFIED`;
+- audit trail válido: `chain_valid: true`;
+- resultado y sello verificados;
+- el modelo intentó introducir `UNKNOWN` como veredicto/confianza;
+- el hallucination guard lo detectó:
+  - `claims_total: 4`;
+  - `claims_verified: 3`;
+  - `claims_hallucinated: 1`;
+  - `suspicious: true`;
+  - claim rechazada: `UNKNOWN`.
+
+El veredicto autoritativo siguió siendo `MALICE`.
+
+`confidence: UNKNOWN` en el audit no significa que falló: es un campo del
+resultado que no fue calculado o proporcionado para ese fixture.
+`provenance: EMPTY` también es una característica de ese fixture, no una
+falla de integridad.
+
+La secuencia visible para la demo es:
+
+```text
+VIGÍA: MALICE
+AUDIT: VERIFIED
+CHAIN: VALID
+MODEL CLAIM: UNKNOWN
+GUARD: REJECTED
+AUTHORITATIVE VERDICT: MALICE
+```
+
+Esto demuestra que el LLM puede narrar mal, pero no puede cambiar la
+autoridad.

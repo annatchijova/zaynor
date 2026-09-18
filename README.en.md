@@ -282,3 +282,49 @@ of the documented source surface.
 ## License
 
 Apache License 2.0. See [`LICENSE`](./LICENSE).
+
+## Visual evidence from a CLI run
+
+These screenshots document a reproducible local run of
+`case_026_ventrilocuo_process_hollowing`:
+
+- [Freeze and analysis](./visual/Screenshot%20from%202026-09-18%2004-20-42.png)
+- [Authoritative result and seal](./visual/Screenshot%20from%202026-09-18%2004-20-44.png)
+- [Audit trail with valid chain](./visual/Screenshot%20from%202026-09-18%2004-22-41.png)
+- [Local chat and authority guard](./visual/Screenshot%20from%202026-09-18%2004-26-12.png)
+
+The important points:
+
+- freeze completed correctly;
+- VIGÍA produced `MALICE`;
+- audit: `overall: VERIFIED`;
+- valid audit trail: `chain_valid: true`;
+- result and seal verified;
+- the model attempted to introduce `UNKNOWN` as a verdict/confidence claim;
+- the hallucination guard detected it:
+  - `claims_total: 4`;
+  - `claims_verified: 3`;
+  - `claims_hallucinated: 1`;
+  - `suspicious: true`;
+  - rejected claim: `UNKNOWN`.
+
+The authoritative verdict remained `MALICE`.
+
+`confidence: UNKNOWN` in the audit does not mean that verification failed: it
+is a result field that was not calculated or supplied for this fixture.
+`provenance: EMPTY` is also a characteristic of this fixture, not an
+integrity failure.
+
+The visible demo sequence is:
+
+```text
+VIGÍA: MALICE
+AUDIT: VERIFIED
+CHAIN: VALID
+MODEL CLAIM: UNKNOWN
+GUARD: REJECTED
+AUTHORITATIVE VERDICT: MALICE
+```
+
+This demonstrates that the LLM can narrate incorrectly, but cannot change the
+authoritative result.
