@@ -1,7 +1,3 @@
-<p align="center">
-  <img src="docs/assets/logo.png" alt="Zaynor" width="280">
-</p>
-
 # Zaynor — local, traceable DFIR investigation
 
 [![CI](https://github.com/annatchijova/zaynor/actions/workflows/ci.yml/badge.svg)](https://github.com/annatchijova/zaynor/actions/workflows/ci.yml)
@@ -22,10 +18,6 @@ data is sent to an external service.
 
 **[Published architecture diagram (HTML)](https://annatchijova.github.io/zaynor/architecture.html)**
 · [local copy](./docs/architecture.html)
-
-<p align="center">
-  <img src="docs/assets/screenshot.png" alt="Zaynor investigation console: sealed verdict, timeline, and junior-examiner chat" width="100%">
-</p>
 
 ## Table of contents
 

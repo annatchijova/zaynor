@@ -1,7 +1,3 @@
-<p align="center">
-  <img src="docs/assets/logo.png" alt="Zaynor" width="280">
-</p>
-
 # Zaynor — investigación DFIR local y trazable
 
 [![CI](https://github.com/annatchijova/zaynor/actions/workflows/ci.yml/badge.svg)](https://github.com/annatchijova/zaynor/actions/workflows/ci.yml)
@@ -22,10 +18,6 @@ del caso sale a un servicio externo.
 
 **[Diagrama de arquitectura HTML publicado](https://annatchijova.github.io/zaynor/architecture.html)**
 · [copia local](./docs/architecture.html)
-
-<p align="center">
-  <img src="docs/assets/screenshot.png" alt="Consola de investigación de Zaynor: veredicto sellado, timeline y chat del perito junior" width="100%">
-</p>
 
 ## Tabla de contenidos
 
