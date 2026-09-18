@@ -185,38 +185,99 @@ Report vulnerabilities privately according to [`SEGURIDAD.md`](./SEGURIDAD.md).
 - [`AUTHORS.md`](./AUTHORS.md)
 - [`CONTRIBUTING.md`](./CONTRIBUTING.md)
 
-## Main repository structure
+## ZAYNOR technical surface
 
 ```text
-zaynor/
-├── src/zaynor/                 # CLI, API, authority, freeze, seals, agents
-│   ├── agents/                 # Ollama, guards, roles, and capabilities
-│   ├── api.py                  # OpenAI-compatible API
-│   ├── authority_seal.py       # authoritative result and verification
-│   ├── case_freezer.py         # freeze and provenance
-│   ├── cli.py                  # command-line interface
-│   ├── hallucination_guard.py  # narrative claim verification
-│   ├── tools.py                # read-only evidence tools
-│   └── zaynor_mode1_executor.py
-├── vendor/vigia_engine/        # integrated deterministic VIGÍA engine
-├── casos/                      # public and canonical executable cases
-├── casos-samuel/               # clearly separated synthetic fixtures
-├── results/                    # generated results and reports
-├── frontend/                   # visual interface and public replay
-├── scripts/                    # build, verification, and gate utilities
-├── tests/                      # unit, security, and focused E2E tests
-├── docs/                       # architecture, lab, MCP, and red-team docs
-├── GUIA_PERITOS.md             # reproducible forensic workflow
-├── INSTALL.md                  # local installation and operation
-├── SECURITY.md                 # security policy in English
-├── SEGURIDAD.md                # security policy in Spanish
-├── CONTRIBUTING.md             # contribution guide in English
-├── CONTRIBUYENDO.md            # contribution guide in Spanish
-└── README.md / README.en.md    # bilingual main documentation
+ZAYNOR
+├── Deterministic forensic authority
+│   └── VIGÍA
+│       ├── abductive and inductive reasoning
+│       ├── likelihood + ENFSI
+│       ├── causal closure and graph stability
+│       ├── risk-bounded decision
+│       ├── quadripartite verdict
+│       ├── exact arithmetic
+│       └── deterministic scoring
+│
+├── Forensic acquisition and analysis
+│   ├── Velociraptor
+│   ├── memory, disk, and network
+│   ├── MFT, Prefetch, Registry, and Shellbags
+│   ├── PCAP
+│   ├── browser, Android, iOS, and macOS
+│   ├── timeline reconstruction
+│   └── artifact normalization
+│
+├── Evidence integrity
+│   ├── freeze and canonicalization
+│   ├── provenance
+│   ├── SHA-256 seals
+│   ├── case-bound audit hash chain
+│   ├── timestamps in hashed entries
+│   ├── optional HMAC
+│   ├── custody verification
+│   └── deterministic replay
+│
+├── Agentic investigation
+│   ├── Ollama
+│   ├── capability policy: READ / DERIVE / ACQUIRE / MUTATE / AUTHORIZE
+│   ├── MENTOR
+│   ├── INVESTIGATOR
+│   ├── DISPATCHER
+│   ├── DETECTION_ENGINEER
+│   └── hallucination and authority guards
+│
+├── MCP
+│   ├── VIGÍA
+│   ├── CRONOS
+│   ├── MNEME
+│   └── ZAYNOR MCP
+│
+├── Observability and LIVE laboratory
+│   ├── OpenTelemetry
+│   ├── Prometheus
+│   ├── Loki
+│   ├── Tempo
+│   └── Grafana
+│
+├── Interfaces
+│   ├── CLI
+│   ├── OpenAI-compatible API
+│   ├── OpenWebUI
+│   ├── Web UI
+│   └── MD / HTML / PDF reports
+│
+└── Verification
+    ├── test suite
+    ├── adversarial corpus
+    ├── Red Team rounds
+    ├── determinism tests
+    ├── authority-boundary tests
+    └── reproducible forensic cases
 ```
 
-Generated directories such as `build/`, caches, and installed dependencies
-are not part of the documented source structure.
+### Main stack and dependencies
+
+```text
+Python 3.12
+├── ZAYNOR
+│   ├── vendored VIGÍA engine
+│   ├── Ollama
+│   ├── MCP
+│   ├── Velociraptor
+│   └── ReportLab / reporting
+├── DFIR
+│   └── SIFT-style analysis modules
+└── Observability
+    └── OpenTelemetry → Prometheus / Loki / Tempo / Grafana
+
+Frontend
+└── Next.js / TypeScript → ZAYNOR API
+```
+
+The physical tree includes source code, cases, tests, documentation, and
+generated artifacts. `build/`, caches, and installed dependencies are not part
+of the documented source surface.
 
 ## License
 

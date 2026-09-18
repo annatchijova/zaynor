@@ -418,38 +418,99 @@ Velociraptor, OpenWebUI y laboratorio, consultá [`INSTALL.md`](./INSTALL.md),
 - [`CONTRIBUTING.md`](./CONTRIBUTING.md)
 - [`AUTHORS.md`](./AUTHORS.md)
 
-## Estructura principal del repositorio
+## Superficie técnica de ZAYNOR
 
 ```text
-zaynor/
-├── src/zaynor/                 # CLI, API, autoridad, freeze, sellos y agentes
-│   ├── agents/                 # Ollama, guards, roles y capabilities
-│   ├── api.py                  # API compatible con OpenAI
-│   ├── authority_seal.py       # resultado autoritativo y verificación
-│   ├── case_freezer.py         # freeze y provenance
-│   ├── cli.py                  # interfaz de línea de comandos
-│   ├── hallucination_guard.py  # verificación de claims narrativos
-│   ├── tools.py                # herramientas read-only de evidencia
-│   └── zaynor_mode1_executor.py
-├── vendor/vigia_engine/        # motor determinista integrado de VIGÍA
-├── casos/                      # casos públicos y canónicos ejecutables
-├── casos-samuel/               # fixtures sintéticos claramente separados
-├── results/                    # resultados y reportes generados
-├── frontend/                   # interfaz visual y replay público
-├── scripts/                    # utilidades de build, verificación y gates
-├── tests/                      # tests unitarios, de seguridad y E2E focalizados
-├── docs/                       # arquitectura, laboratorio, MCP y red team
-├── GUIA_PERITOS.md             # reproducción de análisis forense
-├── INSTALL.md                  # instalación y operación local
-├── SECURITY.md                 # security policy en inglés
-├── SEGURIDAD.md                # security policy en español
-├── CONTRIBUTING.md             # contribución en inglés
-├── CONTRIBUYENDO.md            # contribución en español
-└── README.md / README.en.md    # documentación principal bilingüe
+ZAYNOR
+├── Autoridad forense determinista
+│   └── VIGÍA
+│       ├── razonamiento abductivo e inductivo
+│       ├── likelihood + ENFSI
+│       ├── cierre causal y estabilidad de grafos
+│       ├── decisión acotada por riesgo
+│       ├── veredicto cuadripartito
+│       ├── aritmética exacta
+│       └── scoring determinista
+│
+├── Adquisición y análisis forense
+│   ├── Velociraptor
+│   ├── memoria, disco y red
+│   ├── MFT, Prefetch, Registry y Shellbags
+│   ├── PCAP
+│   ├── browser, Android, iOS y macOS
+│   ├── reconstrucción de timelines
+│   └── normalización de artefactos
+│
+├── Integridad de evidencia
+│   ├── freeze y canonicalización
+│   ├── provenance
+│   ├── sellos SHA-256
+│   ├── audit hash chain ligada al caso
+│   ├── timestamps en entradas hasheadas
+│   ├── HMAC opcional
+│   ├── verificación de custodia
+│   └── replay determinista
+│
+├── Investigación agentic
+│   ├── Ollama
+│   ├── policy de capabilities: READ / DERIVE / ACQUIRE / MUTATE / AUTHORIZE
+│   ├── MENTOR
+│   ├── INVESTIGATOR
+│   ├── DISPATCHER
+│   ├── DETECTION_ENGINEER
+│   └── hallucination y authority guards
+│
+├── MCP
+│   ├── VIGÍA
+│   ├── CRONOS
+│   ├── MNEME
+│   └── ZAYNOR MCP
+│
+├── Observabilidad y laboratorio LIVE
+│   ├── OpenTelemetry
+│   ├── Prometheus
+│   ├── Loki
+│   ├── Tempo
+│   └── Grafana
+│
+├── Interfaces
+│   ├── CLI
+│   ├── API compatible con OpenAI
+│   ├── OpenWebUI
+│   ├── Web UI
+│   └── reportes MD / HTML / PDF
+│
+└── Verificación
+    ├── suite de tests
+    ├── corpus adversarial
+    ├── rondas Red Team
+    ├── tests de determinismo
+    ├── tests de autoridad
+    └── casos forenses reproducibles
 ```
 
-Los directorios generados como `build/`, caches y dependencias instaladas no
-forman parte de la estructura fuente documentada.
+### Stack y dependencias principales
+
+```text
+Python 3.12
+├── ZAYNOR
+│   ├── motor VIGÍA vendorizado
+│   ├── Ollama
+│   ├── MCP
+│   ├── Velociraptor
+│   └── ReportLab / reporting
+├── DFIR
+│   └── módulos de análisis estilo SIFT
+└── Observabilidad
+    └── OpenTelemetry → Prometheus / Loki / Tempo / Grafana
+
+Frontend
+└── Next.js / TypeScript → API ZAYNOR
+```
+
+El árbol físico completo incluye código fuente, casos, tests, documentación y
+artefactos generados. `build/`, caches y dependencias instaladas no forman
+parte de la superficie fuente documentada.
 
 ## Licencia
 
