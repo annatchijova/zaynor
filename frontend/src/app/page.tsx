@@ -110,6 +110,11 @@ export default async function OverviewPage() {
             <strong>Diagramas publicados de VIGÍA</strong>
             <span>Referencias visuales del motor y sus capacidades, sin transmitir datos del caso.</span>
           </a>
+          <a className={styles.resourceCard} href="https://annatchijova.github.io/zaynor/pitch.html" rel="noopener noreferrer" target="_blank">
+            <span className={styles.resourceIcon}>▣</span>
+            <strong>Slides de ZAYNOR</strong>
+            <span>Presentación visual del problema, la arquitectura y la frontera de autoridad.</span>
+          </a>
         </div>
         <p className={styles.resourceNote}>Los enlaces públicos abren documentación en una pestaña nueva y no transmiten datos del caso.</p>
       </section>
