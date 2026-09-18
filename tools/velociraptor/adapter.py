@@ -46,6 +46,18 @@ class VelociraptorAdapterError(ValueError):
     """A collection, transport, or window input is invalid or failed closed."""
 
 
+def _curated_vql(vql: str) -> str:
+    """Return committed VQL or reject an arbitrary query."""
+    if not isinstance(vql, str):
+        raise VelociraptorAdapterError("VQL must be a string")
+    for template in vql_templates.CATALOG:
+        if vql == template.vql:
+            return template.vql
+    raise VelociraptorAdapterError(
+        "arbitrary VQL is forbidden; use a committed Velociraptor template"
+    )
+
+
 def _canonical_hash(value: Any) -> bytes:
     # Byte-for-byte lockstep with ANNACONDA's _sha256_canonical() and
     # zaynor.hybrid_integrations._canonical_hash().
@@ -142,6 +154,7 @@ class MockTransport:
         self._capture = capture
 
     def query(self, vql: str) -> Iterator[dict[str, Any]]:  # pragma: no cover - simple
+        _curated_vql(vql)
         yield from self._rows_for_vql(vql)
 
     def _rows_for_vql(self, vql: str) -> Iterator[dict[str, Any]]:
@@ -196,6 +209,7 @@ class RestTransport:
         self._max_response_bytes = max_response_bytes
 
     def query(self, vql: str) -> Iterator[dict[str, Any]]:
+        vql = _curated_vql(vql)
         request = urllib.request.Request(
             f"{self._base_url}/api/v1/query",
             data=json.dumps({"query": vql}).encode("utf-8"),

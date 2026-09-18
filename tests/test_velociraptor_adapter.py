@@ -7,6 +7,7 @@ import pytest
 
 from vendor.vigia_engine.vigia.core.canonicalize import _canonicalize
 
+from tools.velociraptor import vql_templates
 from tools.velociraptor.adapter import (
     MockTransport,
     RestTransport,
@@ -54,6 +55,17 @@ def test_collect_seals_window_verifiable_by_case_freezer_boundary():
     assert window["artifacts"][0]["evidence_type"] == "log_entry"
 
 
+def test_collection_emits_observations_only_not_score_or_verdict():
+    window = VelociraptorAdapter().collect(
+        "INC-TEST",
+        [("sim-auth-events", iter([{"event": "vpn_login", "success": True}]))],
+    )
+    assert "score" not in window
+    assert "verdict" not in window
+    for artifact in window["artifacts"]:
+        assert not any(key in artifact for key in ("raw_score", "score", "verdict"))
+
+
 def test_collect_rejects_unknown_artifact():
     adapter = VelociraptorAdapter()
     with pytest.raises(VelociraptorAdapterError):
@@ -65,6 +77,22 @@ def test_mock_transport_replays_capture_rows():
     rows = list(mock.rows_for_artifact("sim-auth-events"))
     assert rows[0]["ref"] == "auth:E001"
     assert rows[1]["event"] == "ssh_session_start"
+
+
+def test_transports_reject_arbitrary_vql():
+    mock = MockTransport(CAPTURE)
+    with pytest.raises(VelociraptorAdapterError, match="arbitrary VQL"):
+        list(mock.query("SELECT * FROM shell_command(command='id')"))
+
+    # REST validates before opening a socket.
+    rest = RestTransport("http://127.0.0.1:8889")
+    with pytest.raises(VelociraptorAdapterError, match="arbitrary VQL"):
+        list(rest.query("SELECT * FROM shell_command(command='id')"))
+
+    assert list(mock.query(vql_templates.CATALOG_BY_ID["sim-auth-events"].vql)) == [
+        ["auth:E001", "vpn_login", True],
+        ["auth:E002", "ssh_session_start", None],
+    ]
 
 
 def test_rest_transport_builds_basic_auth_header_and_bounded_client():
