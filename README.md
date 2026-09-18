@@ -84,7 +84,9 @@ ZAYNOR reúne tres capacidades que suelen estar separadas:
 - ingesta de bundles, raw evidence y evidencia postmortem;
 - normalización, provenance y freeze del caso;
 - análisis determinista con VIGÍA;
-- resultado, seal, audit trail, hash chain e informes;
+- resultado sellado; audit trail encadenado por hash con timestamps incluidos
+  en las entradas hasheadas; cadena de custodia del reporte con
+  `result_sha256` determinista y `report_hash` con marca temporal; e informes;
 - adquisición local acotada con Velociraptor y observaciones OTel ([demo lab reproducible](./docs/demo-lab/README.md)).
 
 ### Investigación asistida
@@ -415,6 +417,39 @@ Velociraptor, OpenWebUI y laboratorio, consultá [`INSTALL.md`](./INSTALL.md),
 - [`SEGURIDAD.md`](./SEGURIDAD.md)
 - [`CONTRIBUTING.md`](./CONTRIBUTING.md)
 - [`AUTHORS.md`](./AUTHORS.md)
+
+## Estructura principal del repositorio
+
+```text
+zaynor/
+├── src/zaynor/                 # CLI, API, autoridad, freeze, sellos y agentes
+│   ├── agents/                 # Ollama, guards, roles y capabilities
+│   ├── api.py                  # API compatible con OpenAI
+│   ├── authority_seal.py       # resultado autoritativo y verificación
+│   ├── case_freezer.py         # freeze y provenance
+│   ├── cli.py                  # interfaz de línea de comandos
+│   ├── hallucination_guard.py  # verificación de claims narrativos
+│   ├── tools.py                # herramientas read-only de evidencia
+│   └── zaynor_mode1_executor.py
+├── vendor/vigia_engine/        # motor determinista integrado de VIGÍA
+├── casos/                      # casos públicos y canónicos ejecutables
+├── casos-samuel/               # fixtures sintéticos claramente separados
+├── results/                    # resultados y reportes generados
+├── frontend/                   # interfaz visual y replay público
+├── scripts/                    # utilidades de build, verificación y gates
+├── tests/                      # tests unitarios, de seguridad y E2E focalizados
+├── docs/                       # arquitectura, laboratorio, MCP y red team
+├── GUIA_PERITOS.md             # reproducción de análisis forense
+├── INSTALL.md                  # instalación y operación local
+├── SECURITY.md                 # security policy en inglés
+├── SEGURIDAD.md                # security policy en español
+├── CONTRIBUTING.md             # contribución en inglés
+├── CONTRIBUYENDO.md            # contribución en español
+└── README.md / README.en.md    # documentación principal bilingüe
+```
+
+Los directorios generados como `build/`, caches y dependencias instaladas no
+forman parte de la estructura fuente documentada.
 
 ## Licencia
 

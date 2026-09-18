@@ -52,8 +52,11 @@ negotiate the verdict.
   queries only after the authoritative result is verified.
 - It is not a SIEM or EDR: local lab acquisition can be received, but
   collectors produce evidence and do not assign verdicts during collection.
-- It is not only a VIGÍA wrapper: it adds ingestion contracts, freeze, hashes,
-  seals, audit, safe narration, API, CLI, web, and capability boundaries.
+- It is not only a VIGÍA wrapper: it adds ingestion contracts, freeze, sealed
+  results, a hash-chained audit trail with timestamps included in hashed
+  entries, a report custody chain with deterministic `result_sha256` and a
+  timestamped `report_hash`, safe narration, API, CLI, web, and capability
+  boundaries.
 - Memory is not authority: CRONOS and MNEME may provide auxiliary traces,
   memory, or custody, but do not replace verification of `result.json` and
   `result.seal.json`.
@@ -181,6 +184,39 @@ Report vulnerabilities privately according to [`SEGURIDAD.md`](./SEGURIDAD.md).
 - [`LIMITACIONES_CONOCIDAS.md`](./LIMITACIONES_CONOCIDAS.md)
 - [`AUTHORS.md`](./AUTHORS.md)
 - [`CONTRIBUTING.md`](./CONTRIBUTING.md)
+
+## Main repository structure
+
+```text
+zaynor/
+├── src/zaynor/                 # CLI, API, authority, freeze, seals, agents
+│   ├── agents/                 # Ollama, guards, roles, and capabilities
+│   ├── api.py                  # OpenAI-compatible API
+│   ├── authority_seal.py       # authoritative result and verification
+│   ├── case_freezer.py         # freeze and provenance
+│   ├── cli.py                  # command-line interface
+│   ├── hallucination_guard.py  # narrative claim verification
+│   ├── tools.py                # read-only evidence tools
+│   └── zaynor_mode1_executor.py
+├── vendor/vigia_engine/        # integrated deterministic VIGÍA engine
+├── casos/                      # public and canonical executable cases
+├── casos-samuel/               # clearly separated synthetic fixtures
+├── results/                    # generated results and reports
+├── frontend/                   # visual interface and public replay
+├── scripts/                    # build, verification, and gate utilities
+├── tests/                      # unit, security, and focused E2E tests
+├── docs/                       # architecture, lab, MCP, and red-team docs
+├── GUIA_PERITOS.md             # reproducible forensic workflow
+├── INSTALL.md                  # local installation and operation
+├── SECURITY.md                 # security policy in English
+├── SEGURIDAD.md                # security policy in Spanish
+├── CONTRIBUTING.md             # contribution guide in English
+├── CONTRIBUYENDO.md            # contribution guide in Spanish
+└── README.md / README.en.md    # bilingual main documentation
+```
+
+Generated directories such as `build/`, caches, and installed dependencies
+are not part of the documented source structure.
 
 ## License
 
