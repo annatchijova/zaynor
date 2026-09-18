@@ -162,6 +162,26 @@ reports.
 - [`frontend/`](./frontend/) — visual interface and public replay.
 - [`docs/architecture-for-frontend.md`](./docs/architecture-for-frontend.md) — view contract.
 
+## Red team and validation
+
+The repository contains 27 numbered or related red-team round documents
+covering authority boundaries, the CLI, path traversal, TOCTOU, seals, MCP,
+Ollama, OpenWebUI, prompt injection, and agent contracts.
+
+Backend: `PYTHONPATH=src pytest -q --ignore=tests/test_real_forensic_image_evidence.py`
+produces `416 passed, 1 skipped` (the one excluded test is a preexisting,
+documented hang under separate investigation — not counted as passed).
+Frontend: `npm test` in `frontend/` produces `19 passed`. No run is
+presented as green if it wasn't: a failing test gets documented, not
+silently excluded.
+
+- [Unified security audit](./docs/red-team/2026-09-17-unified-audit.md)
+- [Backend round resolution](./docs/red-team/2026-09-17-round-22-resolution.md)
+- [Architecture audit resolution](./docs/red-team/2026-09-17-round-23-architecture-audit-resolution.md)
+- [Ollama/OpenWebUI audit](./docs/red-team/2026-09-16-round-15-ollama-openwebui.md)
+- [Round 21 resolution](./docs/red-team/2026-09-17-round-21-resolution.md)
+- [Test suite](./tests/)
+
 ## Security and limits
 
 Security does not depend on model obedience. The result is cryptographically
