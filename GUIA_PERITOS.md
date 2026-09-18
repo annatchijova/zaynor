@@ -2,9 +2,10 @@
 
 Esta guía cubre las dos formas de entrada de evidencia que ZAYNOR sabe
 analizar hoy, con comandos probados de verdad (no ilustrativos) para
-copiar y pegar. Requiere el repo instalado (`pip install -e .`, ver
-README.md) — nada de esto necesita un segundo repositorio ni conexión a
-internet.
+copiar y pegar. EBS v1 no es un tercer camino de análisis: es una
+verificación adicional disponible para los casos JSON del Camino A.
+Requiere el repo instalado (`pip install -e .`, ver README.md) — nada de
+esto necesita un segundo repositorio ni conexión a internet.
 
 Hay **dos verificadores independientes, no intercambiables**:
 
@@ -107,10 +108,11 @@ zaynor audit --case-id "$CASE_ID" --cases-root /tmp/perito-cases \
 zaynor report --case-id "$CASE_ID" --output-root /tmp/perito-outputs --format pdf
 ```
 
-Este camino usa **solo** `zaynor audit` para verificación independiente —
-el bundle que guarda `zaynor analyze` acá es la salida directa de la CLI
-de Mode 1 (`agent_verdict`/`pipeline_results`/`audit_trail`), no el
-formato EBS v1 que entiende `verify_ebs_v1.py` (ver sección siguiente).
+Este camino usa **solo** `zaynor audit` para verificar la integridad y el
+tamper-evidence de la corrida ZAYNOR. No dispone de la segunda verificación
+standalone EBS v1: el bundle que guarda `zaynor analyze` acá es la salida
+directa de la CLI de Mode 1 (`agent_verdict`/`pipeline_results`/`audit_trail`),
+no el formato EBS v1 que entiende `verify_ebs_v1.py` (ver sección siguiente).
 
 ---
 
@@ -118,7 +120,8 @@ formato EBS v1 que entiende `verify_ebs_v1.py` (ver sección siguiente).
 
 VIGÍA tiene su propio verificador standalone, sin ninguna dependencia de
 código de producción — pensado para que un tercero (otro perito, un
-juzgado) pueda auditar el bundle sin instalar nada más que Python 3.6+.
+juzgado) pueda auditar el bundle con Python compatible, sin dependencias
+externas.
 Verifica un formato de bundle **distinto** al que ya usa `zaynor audit`
 (bundle_hash/graph_hash/policy_hash/decision_hash — 4 hashes propios del
 estándar EBS v1 de VIGÍA), así que hace falta un paso intermedio para
@@ -134,8 +137,12 @@ python3 vendor/vigia_engine/forensics/verify_ebs_v1.py /tmp/bundle.ebs.json --ve
 ```
 
 Confirmado real, ambos pasos, contra `casos/case_083_sacrificio_del_peon.json`:
-veredicto `MALICE`, verificador da `PASS`, `Level 2 — Cryptographically
-valid`, 9/11 chequeos OK. Los 2 chequeos que no pasan (`R4_ENGINE_ATTESTATION`,
+el builder imprime veredicto `MALICE`; el verificador da `PASS`, `Level 2 —
+Cryptographically valid`, con 9 de 11 chequeos satisfechos. La salida de
+`R3_DECISION_COHERENCE` del bundle verificado muestra `decision=ABSTAIN`, así
+que el veredicto del caso original y la decisión EBS no son equivalentes y
+deben tratarse como una inconsistencia pendiente, no como un único resultado.
+Los 2 chequeos que no pasan (`R4_ENGINE_ATTESTATION`,
 `R5_ECL_BINDING`) requieren atestación criptográfica del motor y anclaje
 ECL — funcionalidad de VIGÍA que no está cableada en ZAYNOR todavía; por
 eso no uses `--strict` (exige Level 3) hasta que esa pieza se agregue —
