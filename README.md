@@ -1,644 +1,412 @@
-# Zaynor — investigación DFIR local y trazable
+# ZAYNOR
 
-[![CI](https://github.com/annatchijova/zaynor/actions/workflows/ci.yml/badge.svg)](https://github.com/annatchijova/zaynor/actions/workflows/ci.yml)
-[![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](./pyproject.toml)
-[![Ruff](https://img.shields.io/badge/lint-ruff-green.svg)](https://docs.astral.sh/ruff/)
-[![Black](https://img.shields.io/badge/format-black-black.svg)](https://black.readthedocs.io/)
-[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](./LICENSE)
-[![Conventional Commits](https://img.shields.io/badge/Conventional%20Commits-1.0.0-yellow.svg)](https://www.conventionalcommits.org/en/v1.0.0/)
-[![Keep a Changelog](https://img.shields.io/badge/Keep%20a%20Changelog-1.1.0-orange.svg)](./CHANGELOG.md)
-[![SemVer](https://img.shields.io/badge/SemVer-2.0.0-blueviolet.svg)](https://semver.org/spec/v2.0.0.html)
+**Investigación forense asistida por IA sin delegarle a la IA la decisión final.**
+
+Investigar un incidente implica reconstruir qué ocurrió a partir de evidencia
+incompleta, contradictoria y potencialmente manipulada. Un modelo de IA puede
+ayudar mucho: correlacionar artefactos, encontrar inconsistencias, formular
+hipótesis y decidir qué conviene investigar después.
+
+Pero un LLM también puede equivocarse.
+
+En DFIR, una respuesta convincente no es evidencia. Una alucinación, una
+correlación espuria o una instrucción adversarial escondida dentro de un
+artefacto no deberían convertirse en una conclusión forense.
+
+ZAYNOR fue construido alrededor de esa frontera:
+
+> **La IA decide qué investigar. La evidencia verificada decide qué puede afirmarse.**
+
+El modelo local puede investigar, preguntar y explicar. No puede decidir ni
+modificar el veredicto. La evidencia pasa por
+[VIGÍA](https://github.com/annatchijova/vigia-intent-analysis), un motor
+matemático determinista que evalúa hipótesis, contradicciones, causalidad e
+incertidumbre mediante un scorer reproducible antes de producir un resultado
+verificable.
+Si la IA encuentra evidencia nueva, esa evidencia vuelve al sistema antes de
+que pueda cambiar la conclusión.
+
+```text
+evidencia
+   ↓
+análisis determinista
+   ↓
+resultado verificable
+   ↓
+IA local investiga
+   ↓
+nueva evidencia
+   └──────────────→ análisis nuevamente
+```
+
+ZAYNOR funciona localmente y admite evidencia forense estructurada, bundles,
+raw evidence, casos postmortem y adquisición acotada con Velociraptor. Incluye
+CLI, web, API compatible con OpenAI, Ollama, OpenWebUI y MCP.
+
+**[Probar ZAYNOR en Vercel](https://zaynor-demo.vercel.app) · [Ver un caso reproducible](#caso-reproducible-nitroba) · [Arquitectura ZAYNOR](https://annatchijova.github.io/zaynor/architecture.html) · [Decisiones matemáticas de VIGÍA](https://annatchijova.github.io/vigia/vigia_diagrams.html) · [Instalar](./INSTALL.md)**
 
 *[Read this in English](./README.en.md)*
 
-Prototipo para **Hackathon CyberAr 2026** (I Congreso de Ciberdefensa,
-FIE-UNDEF), **Eje 2 — Inteligencia artificial para la defensa de redes e
-infraestructura**. Corre por completo en la máquina del perito: ningún dato
-del caso sale a un servicio externo.
+## No hace falta creerle al README
 
-**[Diagrama de arquitectura HTML publicado](https://annatchijova.github.io/zaynor/architecture.html)**
-· [copia local](./docs/architecture.html)
-
-## Tabla de contenidos
-
-- [Problema, usuarios y supuestos](#problema-usuarios-y-supuestos)
-- [Qué hace](#qué-hace)
-- [Flujo de autoridad](#flujo-de-autoridad)
-- [MCP locales](#mcp-locales)
-- [Audiencias](#audiencias)
-- [Caso de demostración](#caso-de-demostración)
-- [Demo de tres minutos](#demo-de-tres-minutos)
-- [Cómo empezar](#cómo-empezar)
-- [Interfaz web](#interfaz-web)
-- [Laboratorio de demostración](#laboratorio-de-demostración)
-- [Agentes locales](#agentes-locales-ollama-por-rol)
-- [Requisitos y soberanía](#requisitos-y-soberanía)
-- [Modelo de amenazas, riesgos y limitaciones](#modelo-de-amenazas-riesgos-y-limitaciones)
-- [Pruebas, evidencias y datos de prueba](#pruebas-evidencias-y-datos-de-prueba)
-- [Privacidad, ética, accesibilidad y continuidad](#privacidad-ética-accesibilidad-y-continuidad)
-- [Terceros y originalidad](#terceros-y-originalidad)
-- [Estado y alcance](#estado-y-alcance)
-- [Documentación](#documentación)
-- [Contribuir](#contribuir)
-- [Autores](#autores)
-- [Licencia](#licencia)
-
-## Entregables CyberAr 2026
-
-| Entregable | Dónde está en este repositorio |
-|---|---|
-| 1. Problema, usuarios y supuestos | [esta sección](#problema-usuarios-y-supuestos); detalle en [`docs/extra_arenaai.md`](./docs/extra_arenaai.md) |
-| 2. Prototipo funcional | [Cómo empezar](#cómo-empezar), [interfaz web](#interfaz-web), [`scripts/demo_dfir.py`](./scripts/demo_dfir.py), [`scripts/demo_aiops.py`](./scripts/demo_aiops.py) |
-| 3. Arquitectura, diagrama e instalación | [Flujo de autoridad](#flujo-de-autoridad), [diagrama HTML](https://annatchijova.github.io/zaynor/architecture.html), [`INSTALL.md`](./INSTALL.md) |
-| 4. Amenazas, riesgos, controles y limitaciones | [`SEGURIDAD.md`](./SEGURIDAD.md), [`LIMITACIONES_CONOCIDAS.md`](./LIMITACIONES_CONOCIDAS.md), [`docs/SANDBOX.md`](./docs/SANDBOX.md) |
-| 5. Pruebas, evidencias reproducibles y datos | [esta sección](#pruebas-evidencias-y-datos-de-prueba); `tests/`, `scenarios/`, `casos/` |
-| 6. Privacidad, ética, accesibilidad y continuidad | [esta sección](#privacidad-ética-accesibilidad-y-continuidad) |
-| 7. Pitch y declaración de terceros | [Demo de tres minutos](#demo-de-tres-minutos), [Terceros](#terceros-y-originalidad), [`AUTHORS.md`](./AUTHORS.md) |
-
-El video o pitch deck, cuando el organizador lo requiera, se entrega por la
-plataforma del evento. El argumento de tres minutos está más abajo.
-
-## Problema, usuarios y supuestos
-
-Después de un incidente, un analista debe reconstruir qué ocurrió a partir de
-logs de autenticación, procesos, red, filesystem, tickets y notas operativas.
-Las fuentes pueden ser incompletas, contradictorias o contener texto
-controlado por un atacante. La correlación manual es lenta. Un asistente
-genérico basado en LLM puede ser rápido, pero también puede inventar hechos,
-sobreafirmar causalidad o tratar una frase dentro de un log como una orden.
-
-Zaynor responde una pregunta concreta:
-
-> ¿Qué sostiene la evidencia, qué explicaciones alternativas fueron
-> consideradas, qué conviene investigar después y qué todavía no puede saberse?
-
-Zaynor no reemplaza un SIEM ni un EDR y no asigna veredictos durante la
-recolección. Puede analizar evidencia postmortem ya adquirida o recibir
-observaciones desde colectores locales acotados —incluido Velociraptor en el
-laboratorio DFIR—. En ambos modos, la adquisición sólo produce evidencia y
-provenance; toda conclusión autoritativa requiere freeze y reanálisis por el
-motor matemático determinista.
-**Usuarios**
-
-| Audiencia | Necesidad |
-|---|---|
-| Perito junior | Preguntar el caso en lenguaje natural sin que el chat invente un veredicto. |
-| Analista senior | Artefactos congelados, provenance, timeline, sello y preguntas abiertas. |
-| Responsable del incidente | Resumen del resultado sellado, incertidumbre material y acciones propuestas (nunca ejecutadas). |
-
-**Supuestos**
-
-- El incidente ya está declarado y la evidencia ya está recolectada. Zaynor
-  no es un SIEM ni un EDR: no detecta en vivo ni correlaciona alertas para
-  abrir el caso.
-- Solo se usan fixtures simulados o datos públicos autorizados. No se prueba
-  contra sistemas reales.
-- Toda inferencia corre en un backend local (Ollama u equivalente). Ningún
-  dato del caso sale de la máquina.
-- Una instrucción escrita dentro de un log, ticket o artefacto es evidencia
-  no confiable, nunca una orden del sistema.
-
-## Qué hace
-
-Zaynor puede recibir un incidente ya declarado con evidencia postmortem, o
-recibir observaciones de un colector local acotado. La recolección no puntúa ni
-decide: produce evidencia normalizada, provenance y un window hash. Después,
-Zaynor congela el caso, preserva la identidad de sus artefactos y pasa la
-evidencia al motor matemático determinista. Ese motor produce y sella el resultado autoritativo
-con una de estas etiquetas públicas:
+El pipeline se puede ejecutar end-to-end:
 
 ```text
-MALICE | ABSTAIN | UNKNOWN | BENIGN | SUSPICION
+ingesta → freeze → VIGÍA → resultado → seal → audit → report
 ```
 
-La IA no detecta ni decide el veredicto. Después del sellado, un LLM local
-puede decidir qué investigar a continuación, proponer una operación de lectura
-acotada y explicar el resultado para distintas audiencias. Si una consulta
-produce nueva evidencia, esa evidencia vuelve a pasar por el motor
-matemático antes de modificar cualquier resultado autoritativo.
+El caso forense NITROBA produce de forma reproducible:
 
-El principio arquitectónico es:
+**`SUSPICION` · `AUDIT VERIFIED`**
 
-> **La IA decide qué investigar. El motor matemático determinista decide qué
-> sostiene la evidencia.**
+**[Reproducir NITROBA](#caso-reproducible-nitroba) · [Ver resultado sellado](./frontend/src/lib/api/fixtures/cases/VIGIA-NITROBA-M57-001.json) · [Ver informe PDF](./results/NITROBA.pdf) · [Ver informe MD](./results/NITROBA.md)**
 
-El motor cuadripartito de la línea VIGÍA existe como capacidad técnica. Su
-explicación detallada, score y semántica interna forman parte de la
-profundización posterior; este README prioriza la frontera de autoridad que el
-jurado puede observar en la demo.
+El motor y sus invariantes se ejercitan además sobre el corpus de VIGÍA:
+**más de 200 casos independientes**, entre evidencia forense real documentada,
+casos maliciosos, benignos, adversariales, BREAK, falsos positivos, formas de
+falsos negativos y fixtures de regresión.
 
-## Flujo de autoridad
+## Qué hace concretamente
+
+ZAYNOR reúne tres capacidades que suelen estar separadas:
+
+### Core forense
+
+- ingesta de bundles, raw evidence y evidencia postmortem;
+- normalización, provenance y freeze del caso;
+- análisis determinista con VIGÍA;
+- resultado, seal, audit trail, hash chain e informes;
+- adquisición local acotada con Velociraptor y observaciones OTel.
+
+### Investigación asistida
+
+- Ollama local con modelo, host y timeout configurables;
+- preguntas y consultas read-only con policy gate;
+- tres MCP locales —VIGÍA, CRONOS y MNEME— más el servidor MCP propio;
+- hallucination guard para la narración;
+- nueva evidencia que vuelve al análisis determinista.
+
+### Interfaces
+
+- CLI para ingestión, freeze, análisis, auditoría, chat y reporting;
+- API local compatible con OpenAI;
+- OpenWebUI conectado a la API de ZAYNOR;
+- web con vistas junior/senior y catálogo de casos;
+- reportes MD, HTML y PDF.
+
+## Modelo de autoridad
+
+La arquitectura tiene dos planos:
 
 ```mermaid
-flowchart TD
-    A["Incidente declarado<br/>+ evidencia postmortem o collector local"] --> A2["Adquisición local acotada<br/>Velociraptor DFIR / observaciones"]
-    A2 --> B["Freeze del caso<br/>manifest · hashes · case_id inmutable"]
-    B --> C["Motor matemático determinista<br/>(VIGÍA)"]
-    C --> D["Veredicto autoritativo sellado<br/>MALICE · SUSPICION · ABSTAIN · BENIGN · UNKNOWN"]
-    D --> E["Contexto MITRE ATT&CK / NIST<br/>anota, nunca cambia el veredicto"]
-    E --> F(("IA local"))
-    F -->|propone próxima pregunta| G["Operación read-only<br/>tipada y acotada"]
-    G --> H["Nueva evidencia"]
-    H -.->|reanálisis, nunca decide sola| C
-    F --> I["Chat perito junior"]
-    F --> J["Vista técnica senior"]
-    F --> K["Informe ejecutivo"]
+flowchart TB
+    subgraph AUTH[PLANO AUTORITATIVO]
+        A[Bundles / raw / Velociraptor] --> B[Normalización]
+        B --> C[Freeze + provenance]
+        C --> D[VIGÍA determinista]
+        D --> E[result.json + result.seal.json]
+    end
 
-    X["Artefacto con instrucción embebida<br/>(ticket, log, nota de operador)"] -. queda como dato,<br/>nunca autoridad .-> C
+    subgraph INVEST[PLANO DE INVESTIGACIÓN]
+        F[Agente local / Ollama] --> G[Policy gate]
+        G --> H[Consulta read-only]
+        H --> I[Nueva evidencia]
+    end
 
-    classDef authoritative fill:#2d5016,stroke:#1a3009,color:#fff
-    classDef ai fill:#1a3a5c,stroke:#0d1f30,color:#fff
-    classDef adversarial fill:#5c1a1a,stroke:#300d0d,color:#fff,stroke-dasharray: 5 5
-    class B,C,D,E authoritative
-    class F,G,H,I,J,K ai
-    class X adversarial
+    E -->|proyección verificada| F
+    I --> A
+    J[VIGÍA MCP] --> H
+    K[CRONOS / MNEME] --> F
+    F -. nunca escribe .-> E
 ```
 
-La IA (celeste) nunca escribe en el camino autoritativo (verde); el artefacto
-adversarial (rojo, línea punteada) entra como evidencia leída, nunca como
-instrucción que cruce hacia el motor determinista.
+**Sólo el plano autoritativo puede cambiar el veredicto.** La API y la CLI
+verifican `result.json` junto con `result.seal.json` antes de narrar. Ollama
+recibe una proyección verificada; el hallucination guard elimina o rechaza
+claims contradictorios. La corrección del resultado no depende de la
+corrección del LLM.
 
-La IA nunca puede:
+## Qué significa determinista
 
-- escribir directamente el veredicto o el resultado sellado;
-- crear referencias a evidencia que no devolvió una herramienta real;
-- ejecutar shell, red arbitraria o escritura en el filesystem;
-- convertir una ambigüedad en una conclusión segura;
-- ejecutar una recomendación defensiva.
+VIGÍA no es una caja negra que reemplaza un modelo por reglas simples. El motor
+representa propiedades que una narración generativa puede ocultar:
 
-Una instrucción escrita dentro de un log, ticket o artefacto sigue siendo
-**evidencia no confiable**, nunca una orden del sistema.
+- **Independencia de evidencia:** artefactos dependientes no cuentan como
+  corroboración independiente sólo por ser numerosos.
+- **Cierre causal:** una hipótesis con una cadena causal incompleta puede no
+  sostener un veredicto aunque existan señales fuertes.
+- **Decisión acotada por riesgo:** la incertidumbre puede terminar en `ABSTAIN`
+  o `UNKNOWN` en lugar de ser rellenada por una inferencia generativa.
+- **Aritmética exacta:** la ruta autoritativa no depende de floats ni de una
+  probabilidad fabricada por el modelo.
 
-## MCP locales
+La implementación y sus invariantes están documentadas en
+[`docs/technical-details.md`](./docs/technical-details.md), el
+[scorer vendorizado](./vendor/vigia_engine/vigia_scorer.py) y los tests de
+[aritmética exacta](./tests/test_vigia_scorer_fraction.py).
 
-Zaynor puede trabajar con tres integraciones MCP locales, además de su propio
-servidor MCP. Todas usan procesos locales y listas de herramientas acotadas:
+Referencia visual del motor y sus decisiones matemáticas:
+[diagramas publicados de VIGÍA](https://annatchijova.github.io/vigia/vigia_diagrams.html).
 
-| MCP | Propósito | Puede cambiar el veredicto |
-| --- | --- | --- |
-| VIGÍA | Leer, consultar y analizar evidencia autorizada | No |
-| CRONOS | Memoria operativa, hipótesis y trazas hash-chained | No |
-| MNEME | Custodia y verificación de bundles de memoria | No |
-| ZAYNOR MCP | Memoria y preguntas de una investigación case-bound | No |
+## Del evidence al veredicto
 
-Los MCP aportan observaciones, memoria o integridad auxiliar. No reemplazan la
-verificación criptográfica de `result.json` y `result.seal.json`, no ejecutan
-VIGÍA nuevamente desde el chat y no convierten la existencia de un archivo en
-un caso verificado. El detalle de herramientas, allowlists y contratos está en
-[`docs/mcp-locales.md`](./docs/mcp-locales.md).
+El resultado autoritativo no nace de una respuesta generativa. Proviene del
+scorer y de las capas matemáticas de VIGÍA.
 
-## Audiencias
+VIGÍA evalúa la evidencia bajo invariantes explícitos de independencia entre
+fuentes, contradicción, provenance, confianza efectiva, coherencia causal,
+estabilidad y riesgo de decisión. Las hipótesis compiten con la evidencia
+disponible y con explicaciones alternativas; acumular artefactos no aumenta
+automáticamente su soporte.
 
-### Perito junior
+Entre los mecanismos del motor se encuentran:
 
-El perito junior dispone del chat local (`zaynor chat`, también expuesto por
-`zaynor serve` y por la interfaz web) para preguntar por el caso en lenguaje
-natural. El chat explica:
+- **Composición de evidencia y dependencia:** limita la corroboración falsa
+  cuando varias observaciones derivan de una misma fuente.
+- **Fracturas y contradicciones:** reducen soporte o impiden sostener una
+  conclusión cuando la evidencia rompe los supuestos de una hipótesis.
+- **Causal Closure Score (CCS):** mide si la cadena causal necesaria está
+  suficientemente cerrada; un cierre insuficiente puede imponer abstención.
+- **Risk-Bounded Decision Layer:** combina posterior, drift, estabilidad y
+  consistencia para conservar una zona explícita de `ABSTAIN`.
+- **Confianza efectiva y estabilidad:** separan la fuerza aparente de una
+  señal de la estabilidad del razonamiento que la sostiene.
+- **Aritmética reproducible:** `Fraction` y `Decimal` se usan donde la ruta
+  autoritativa exige resultados exactos y comparables.
 
-1. qué se observó;
-2. por qué es relevante;
-3. qué evidencia respalda cada explicación;
-4. qué alternativas se consideraron;
-5. qué conviene consultar después;
-6. qué permanece desconocido.
+El scorer transforma ese estado en una decisión explícita. ZAYNOR conserva
+estados como `MALICE`, `SUSPICION`, `BENIGN`, `UNKNOWN` y `ABSTAIN`, junto con
+confianza, razones, referencias y material de auditoría.
 
-El chat ayuda a investigar y comprender. No es un segundo motor de veredictos
-ni puede ejecutar remediaciones. El veredicto nace antes del chat: el motor
-matemático determinista produce `result.json` junto con `result.seal.json` y
-esos artefactos son la autoridad. Si el modelo contradice el resultado
-sellado, el guard de alucinaciones elimina o rechaza esa afirmación. Todo
-modelo generativo corre localmente vía Ollama: no hay fallback a un proveedor
-cloud ni envío de evidencia a servicios externos.
+`ABSTAIN` no significa que el sistema haya fallado: significa que las
+condiciones matemáticas para sostener una conclusión no se cumplen. La
+incertidumbre se conserva en vez de pedirle al LLM que complete lo que falta.
 
-### Analista senior
+La especificación, ecuaciones, thresholds e invariantes viven en VIGÍA y en la
+documentación técnica; este README resume las propiedades que afectan la
+frontera de autoridad.
 
-La vista técnica conserva artefactos congelados, provenance, timeline,
-fracturas, hipótesis, referencias de evidencia, estado del veredicto, contexto
-MITRE/NIST, auditoría y preguntas abiertas.
+**Profundizar:** [VIGÍA](https://github.com/annatchijova/vigia-intent-analysis) ·
+[`docs/technical-details.md`](./docs/technical-details.md) ·
+[scorer](./vendor/vigia_engine/vigia_scorer.py) ·
+[tests de aritmética exacta](./tests/test_vigia_scorer_fraction.py)
 
-### Responsable del incidente
+## Investigación local
 
-La vista ejecutiva resume el resultado sellado, la secuencia respaldada, la
-incertidumbre material, el contexto de frameworks y las acciones defensivas
-propuestas. Las acciones aparecen como `PROPOSED` y `NOT EXECUTED`.
-
-## Caso de demostración
-
-La demo DFIR utiliza `INC-2026-DEMO-001`, un incidente Linux simulado en
-[`scenarios/inc-2026-demo-001/`](./scenarios/inc-2026-demo-001/):
+El camino de chat es:
 
 ```text
-login privilegiado desde un dispositivo desconocido
-    -> sesión SSH en srv-files-01
-    -> proceso que crea collection.zip
-    -> cambio de metadata temporal
-    -> conexión saliente relacionada
-    -> nota operativa que intenta manipular al investigador
+OpenWebUI → API ZAYNOR → resultado sellado verificado → Ollama → guard → respuesta segura
 ```
 
-El sistema debe mostrar tanto lo que puede establecer como lo que no puede
-establecer. La identidad de la persona frente al teclado, el origen de la
-credencial y la transferencia completa del archivo permanecen desconocidos si
-la evidencia congelada no los prueba.
+La API no vuelve a ejecutar VIGÍA desde chat, no acepta un veredicto elegido
+por el request y no presenta errores operativos como contenido exitoso del
+assistant. MCP aporta capacidades limitadas por rol, recurso y efecto; sus
+salidas no tienen autoridad sobre `result.json` ni `result.seal.json`.
 
-El fixture o replay sintético sirve para poner en pantalla un caso ya formado.
-El laboratorio también ejercita una ruta acotada de adquisición local con
-Velociraptor. Esa ruta sólo produce evidencia y provenance: no es monitoreo
-continuo de SIEM/EDR y no puede asignar un veredicto antes del freeze y el
-reanálisis determinista.
-Hay un segundo escenario, [`scenarios/inc-2026-aiops-001/`](./scenarios/inc-2026-aiops-001/),
-para la ruta AIOps (alertas sintéticas de error rate y latencia). El fixture
-sirve para poner en pantalla un caso ya formado. No representa monitoreo real
-ni convierte a Zaynor en un SIEM.
+Contratos y herramientas: [`docs/mcp-locales.md`](./docs/mcp-locales.md) y
+[`docs/adr/0001-separate-mcp-capability-planes.md`](./docs/adr/0001-separate-mcp-capability-planes.md).
 
-## Demo de tres minutos
+## Agentes y capabilities locales
 
-La explicación recomendada para el jurado es:
+Los agentes locales operan bajo contratos explícitos de capability:
+`READ`, `DERIVE`, `ACQUIRE`, `MUTATE` y `AUTHORIZE`, verificados contra
+manifests. Ningún agente registrado posee `MUTATE` ni `AUTHORIZE`: puede
+consultar, derivar o adquirir evidencia dentro de su policy, pero no modificar
+el resultado autoritativo ni autorizar un veredicto.
 
-1. **Problema:** evidencia dispersa, contradictoria y potencialmente
-   manipulable.
-2. **Veredicto sellado:** el motor determinista produce una etiqueta pública
-   antes de llamar al LLM.
-3. **Investigación:** el LLM local elige una pregunta discriminante y solo
-   puede usar herramientas read-only.
-4. **Manipulación:** aparece una instrucción dentro de un artefacto; se registra
-   como dato no confiable y no cambia permisos, herramientas ni veredicto.
-5. **Explicación:** el perito junior pregunta al chat local por el resultado y
-   por lo que falta investigar.
-6. **Cierre:** se muestran hechos respaldados, incertidumbres, contexto
-   MITRE/NIST y acciones propuestas.
+### Agentes locales (Ollama), por rol
 
-> **La IA investiga. La evidencia y el motor determinista deciden.**
+| Rol | Estado | Qué hace de verdad |
+|---|---|---|
+| **MENTOR** | conectado | Explica un resultado sellado mediante `zaynor chat` / `zaynor serve`; lee `ZaynorAuthoritativeResult` y nunca vuelve a invocar VIGÍA. |
+| **CONSULT** | conectado | `zaynor consult`: vista read-only del paquete sellado, sin LLM. |
+| **DISPATCHER** | conectado | `zaynor hunts`: catálogo de tipos de evidencia que Mode 1 sabe analizar. |
+| **INVESTIGATOR** | implementado, sin caller de producción | `collect_window` / `verify_custody` llaman al bridge MCP de VIGÍA; ningún comando CLI/API los invoca hoy. |
+| **FLEET_COMMANDER** | implementado, sin caller de producción | Escribe en el log de investigación; ningún comando lo invoca hoy. |
+| **DETECTION_ENGINEER** | implementado, sin caller de producción | `draft_sigma_rule` genera candidatos Sigma anclados a un finding sellado; ningún comando lo invoca hoy. |
+| **ENDPOINT_HUNTER / PERSISTENCE_HUNTER** | fuera de alcance | Requerirían recolección en vivo; VIGÍA analiza evidencia congelada. |
+| **THREAT_INTEL** | fuera de alcance, por ahora | Existe una implementación portable de VirusTotal/GTI, no incorporada porque implicaría red externa. |
 
-## Cómo empezar
+Las capacidades externas están separadas por MCP:
 
-Zaynor integra el motor matemático determinista de VIGÍA vendorizado dentro
-de este mismo repositorio (`vendor/vigia_engine/`) en vez de reimplementarlo
-— es una decisión de arquitectura, no un accidente (ver
-[Terceros](#terceros-y-originalidad)). **Un solo `git clone` alcanza**: no
-hace falta clonar ni instalar un segundo repositorio para que
-`analyze`/`audit` funcionen.
+- **VIGÍA MCP:** operaciones forenses acotadas sobre evidencia;
+- **CRONOS:** trazas, hipótesis y audit trail de razonamiento;
+- **MNEME:** memoria, custodia y verificación de bundles;
+- **ZAYNOR MCP:** herramientas case-bound y read-only del proyecto.
 
-La guía paso a paso, extras opcionales y problemas comunes están en
-[`INSTALL.md`](./INSTALL.md).
+Estado detallado y contratos: [`src/zaynor/agents/README.md`](./src/zaynor/agents/README.md),
+[`docs/mcp-locales.md`](./docs/mcp-locales.md) y
+[`docs/adr/0001-separate-mcp-capability-planes.md`](./docs/adr/0001-separate-mcp-capability-planes.md).
 
-### Requisitos
+Para ver el laboratorio de adquisición y observabilidad:
+[`docs/demo-lab/`](./docs/demo-lab/).
 
-- Python 3.12 o superior, Git.
-- [Ollama](https://ollama.com) (u otro backend local equivalente) solo para
-  `chat`/`serve` y para la interfaz web en modo HTTP. `freeze`, `analyze`,
-  `audit`, `audit-trail`, `consult` y `report` no lo necesitan.
+Para auditar o intentar romper estas fronteras:
+[`docs/red-team/`](./docs/red-team/).
 
-### Instalación
+Para la referencia visual de las decisiones matemáticas:
+[diagramas publicados de VIGÍA](https://annatchijova.github.io/vigia/vigia_diagrams.html).
+
+## Caso reproducible: NITROBA
+
+NITROBA es un caso de atribución de identidad sobre captura de red del desafío
+M57 Patents / DFRWS 2009. El bundle documenta sesiones Gmail/AIM, cookies,
+artefactos de red y explicaciones alternativas.
+
+```text
+SOURCE    M57 Patents / DFRWS 2009
+INPUT     casos/VIGIA-NITROBA-M57-001.json
+FREEZE    manifest + artifact hashes
+VIGÍA     SUSPICION
+SEAL      result.json + result.seal.json
+AUDIT     VERIFIED
+OUTPUTS   JSON · MD · HTML · PDF
+```
+
+La ejecución completa está en [`GUIA_PERITOS.md`](./GUIA_PERITOS.md). La
+secuencia mínima es:
+
+```bash
+CASE_FILE="VIGIA-NITROBA-M57-001.json"
+CASE_ID="NITROBA"
+mkdir -p /tmp/perito-cases /tmp/perito-outputs
+echo "{\"caso\": [\"$CASE_FILE\"]}" > /tmp/perito-profile.json
+
+zaynor freeze --case-id "$CASE_ID" --evidence-profile caso \
+  --profile-map /tmp/perito-profile.json --source-root casos \
+  --cases-root /tmp/perito-cases --json
+
+zaynor analyze --case-id "$CASE_ID" --cases-root /tmp/perito-cases \
+  --engine-repo vendor/vigia_engine \
+  --output-root /tmp/perito-outputs --json
+
+zaynor audit --case-id "$CASE_ID" --cases-root /tmp/perito-cases \
+  --output-root /tmp/perito-outputs --json
+```
+
+Después se pueden generar los reportes:
+
+```bash
+zaynor report --case-id "$CASE_ID" --output-root /tmp/perito-outputs --format md
+zaynor report --case-id "$CASE_ID" --output-root /tmp/perito-outputs --format html
+zaynor report --case-id "$CASE_ID" --output-root /tmp/perito-outputs --format pdf
+```
+
+## Dataset y provenance
+
+La evaluación reutiliza el corpus público de
+[VIGÍA Intent Analysis](https://github.com/annatchijova/vigia-intent-analysis),
+con **más de 200 casos independientes** diseñados para evaluar el motor bajo
+escenarios forenses, benignos, maliciosos y adversariales.
+
+Incluye:
+
+- casos forenses reales y públicamente documentados;
+- casos maliciosos y benignos;
+- falsos positivos y formas de falsos negativos;
+- casos adversariales;
+- casos `BREAK`, diseñados para romper supuestos e invariantes;
+- vectores canónicos y fixtures sintéticos de regresión.
+
+El índice de casos y sus fuentes está en [`casos/README.md`](./casos/README.md).
+Los manifests conservan dataset, URLs, hashes y notas de provenance cuando
+están disponibles. Entre las fuentes públicas documentadas aparecen
+[Digital Corpora](https://digitalcorpora.org/) y muestras de memoria de la
+[Volatility Foundation](https://github.com/volatilityfoundation/volatility/wiki/Memory-Samples).
+VIGÍA también se desarrolló y documentó en el contexto de SANS FIND EVIL; la
+provenance concreta de cada artefacto prevalece sobre cualquier etiqueta global.
+
+Los casos locales de ZAYNOR son una selección ejecutable del corpus, no una
+redefinición de sus unidades.
+
+## Red team y validación
+
+El repositorio contiene 24 documentos de rondas red-team numeradas o
+relacionadas sobre autoridad, CLI, path traversal, TOCTOU, sellos, MCP,
+Ollama, OpenWebUI, prompt injection y contratos de agentes.
+
+La última resolución de arquitectura registra el comando que produjo
+`362 passed, 1 skipped`. La corrida completa actual no se presenta como un
+resultado verde: en este entorno el sandbox bloquea sockets locales usados por
+fixtures de Ollama. Una corrida focalizada produjo `44 passed, 3 errors`; esos
+errores no se cuentan como tests pasados.
+
+- [Auditoría unificada de seguridad](./docs/red-team/2026-09-17-unified-audit.md)
+- [Resolución de la ronda backend](./docs/red-team/2026-09-17-round-22-resolution.md)
+- [Resolución de la auditoría de arquitectura](./docs/red-team/2026-09-17-round-23-architecture-audit-resolution.md)
+- [Auditoría Ollama/OpenWebUI](./docs/red-team/2026-09-16-round-15-ollama-openwebui.md)
+- [Resolución de la ronda 21](./docs/red-team/2026-09-17-round-21-resolution.md)
+- [Suite de tests](./tests/)
+
+## Lineage: VIGÍA, ANNACONDA y ZAYNOR
+
+| Línea previa | Qué aporta a ZAYNOR |
+|---|---|
+| **VIGÍA** | Autoridad determinista, hipótesis, causalidad, provenance, incertidumbre, scoring y abstención. |
+| **ANNACONDA** | Adquisición DFIR, adapter Velociraptor, transportes, normalización de rows, evidence windows, window hash, manifest/custody y patrones de investigación agentic. |
+| **ZAYNOR** | Contrato común, freeze/seal/audit, trusted boundary, Ollama, MCP, API, CLI, web y loop de reanálisis. |
+
+La reutilización está documentada en [`NOTICE.md`](./NOTICE.md),
+[`AGENTS.md`](./AGENTS.md), [`docs/technical-details.md`](./docs/technical-details.md)
+y [`src/zaynor/hybrid_integrations.py`](./src/zaynor/hybrid_integrations.py).
+
+## Límites
+
+ZAYNOR no es un SIEM o EDR de monitoreo continuo y no ejecuta remediación
+autónoma. Los colectores producen evidencia y provenance; la conclusión sólo
+aparece después de freeze y análisis determinista. Las integraciones externas
+de threat intelligence son opcionales y no forman parte del runtime local por
+defecto.
+
+Para vulnerabilidades, seguir [`SEGURIDAD.md`](./SEGURIDAD.md) y reportar de
+forma privada.
+
+## Quickstart
 
 ```bash
 git clone https://github.com/annatchijova/zaynor.git
 cd zaynor
-
-python3 -m venv .venv && source .venv/bin/activate
-pip install -e .
-```
-
-Extras opcionales:
-
-```bash
-pip install -e ".[api]"        # zaynor serve
-pip install -e ".[report]"     # zaynor report --format pdf
-pip install -e ".[api,report]" # ambos
-```
-
-### Pipeline determinista (sin LLM)
-
-```bash
-zaynor freeze --case-id CASO-001 --evidence-profile admin-session-investigation \
-  --profile-map scenarios/inc-2026-demo-001/evidence_profile.json \
-  --source-root scenarios/inc-2026-demo-001 --cases-root ./cases
-
-zaynor analyze --case-id CASO-001 --cases-root ./cases --output-root ./outputs
-
-zaynor audit --case-id CASO-001 --cases-root ./cases --output-root ./outputs
-```
-
-`--engine-repo` sigue existiendo por si alguien quiere apuntar a un checkout
-de VIGÍA propio: es un override, no un requisito.
-
-### Narración y reporte (después del sello)
-
-```bash
-zaynor chat --case-id CASO-001 --output-root ./outputs \
-  --question "¿Qué sostiene el veredicto?"
-
-zaynor report --case-id CASO-001 --output-root ./outputs --format md
-```
-
-`report` acepta `md`, `html` y `pdf` (`pdf` requiere el extra `report`).
-
-### Comandos CLI
-
-| Comando | Qué hace |
-|---|---|
-| `zaynor freeze` | Congela evidencia: manifest, hashes, `case_id` inmutable. |
-| `zaynor analyze` | Corre el motor VIGÍA vendorizado y sella el resultado. |
-| `zaynor audit` | Re-verifica manifest, snapshot, resultado y sello desde cero. |
-| `zaynor audit-trail` | Muestra la cadena de auditoría con hash chain. |
-| `zaynor case` | Pipeline propio de Zaynor (replay/detect/case) sobre un fixture. |
-| `zaynor replay` / `zaynor detect` | Pasos inferiores del mismo pipeline. |
-| `zaynor chat` | Narrador local (MENTOR). Requiere Ollama. |
-| `zaynor consult` | Vista de solo lectura del paquete sellado. Sin LLM. |
-| `zaynor hunts` | Catálogo DISPATCHER de tipos de evidencia que Mode 1 sabe analizar. |
-| `zaynor report` | Informe `md` / `html` / `pdf`. |
-| `zaynor serve` | API local compatible con OpenAI, puerto por defecto `127.0.0.1:8420`. Extra `api`. |
-| `zaynor models` | Lista modelos Ollama instalados y sugeridos. |
-| `zaynor reindex` | Reconstruye el índice derivado de casos (no autoritativo). |
-| `zaynor-mcp` | Servidor MCP stdio propio. Ver [`docs/mcp-locales.md`](./docs/mcp-locales.md). |
-
-## Interfaz web
-
-`frontend/` es una aplicación [Next.js](https://nextjs.org/) 16 / React 19
-con las tres audiencias: chat junior, consola senior y vista ejecutiva.
-Contrato de las vistas: [`docs/architecture-for-frontend.md`](./docs/architecture-for-frontend.md).
-
-Modo mock (fixtures locales, sin backend):
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-Modo HTTP, contra un caso ya analizado:
-
-```bash
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -e ".[api]"
-zaynor serve --output-root ./outputs --cases-root ./cases --port 8420
-
-cd frontend
-NEXT_PUBLIC_ZAYNOR_API_MODE=http \
-NEXT_PUBLIC_ZAYNOR_API_BASE_URL=http://127.0.0.1:8420 \
-npm run dev
 ```
 
-La UI queda en `http://127.0.0.1:3000`. El backend escucha solo en loopback.
+Después, reproducí NITROBA con la secuencia de arriba. Para Ollama, API,
+Velociraptor, OpenWebUI y laboratorio, consultá [`INSTALL.md`](./INSTALL.md),
+[`GUIA_PERITOS.md`](./GUIA_PERITOS.md) y
+[`docs/demo-lab/README.md`](./docs/demo-lab/README.md).
 
-## Laboratorio de demostración
+## Seguir leyendo
 
-Dos caminos alimentan el mismo pipeline `freeze` → `analyze` → `audit`.
-Instrucciones verificadas: [`docs/demo-lab/README.md`](./docs/demo-lab/README.md).
+### Quiero entender el modelo matemático
 
-```bash
-# DFIR offline (Velociraptor simulado sobre INC-2026-DEMO-001)
-python3 scripts/demo_dfir.py --mode mock
+- [VIGÍA Intent Analysis](https://github.com/annatchijova/vigia-intent-analysis) — motor determinista, scorer, metodología y corpus.
+- [`docs/technical-details.md`](./docs/technical-details.md) — cómo ZAYNOR incorpora esa autoridad y la vincula al seal.
+- [`vendor/vigia_engine/vigia_scorer.py`](./vendor/vigia_engine/vigia_scorer.py) — scorer utilizado por ZAYNOR.
 
-# AIOps offline (alertas sintéticas de INC-2026-AIOPS-001)
-python3 scripts/demo_aiops.py --mode file
-```
+### Quiero reproducir un análisis forense
 
-Los modos `live` / `bundle` levantan Velociraptor u OpenTelemetry /
-Prometheus / Loki / Tempo / Grafana; siguen siendo laboratorio, no
-monitoreo de producción.
+- [`GUIA_PERITOS.md`](./GUIA_PERITOS.md) — evidencia, resultado, audit y report.
+- [`casos/README.md`](./casos/README.md) — casos, fuentes y provenance.
+- [`docs/demo-lab/README.md`](./docs/demo-lab/README.md) — laboratorio Velociraptor/AIOps.
 
-## Agentes locales (Ollama), por rol
+### Quiero entender la arquitectura
 
-`src/zaynor/agents/` define roles con contratos de capability explícitos
-(`READ`/`DERIVE`/`ACQUIRE`/`MUTATE`/`AUTHORIZE`), verificados por hash de
-manifest. Ningún rol del registro tiene `MUTATE` ni `AUTHORIZE`. Estado
-real, contrastado con [`src/zaynor/agents/README.md`](./src/zaynor/agents/README.md):
+- [Diagrama interactivo](https://annatchijova.github.io/zaynor/architecture.html)
+- [`docs/mcp-locales.md`](./docs/mcp-locales.md)
+- [`AGENTS.md`](./AGENTS.md)
+- [`docs/adr/0001-separate-mcp-capability-planes.md`](./docs/adr/0001-separate-mcp-capability-planes.md)
 
-| Rol | Estado | Qué hace de verdad |
-|-----|--------|---------------------|
-| MENTOR | conectado | Explica un resultado ya sellado vía `zaynor chat` / `zaynor serve`. Lee `ZaynorAuthoritativeResult`; nunca vuelve a invocar a VIGÍA. |
-| CONSULT | conectado | `zaynor consult`: vista de solo lectura del paquete sellado. Sin LLM. |
-| DISPATCHER | conectado | `zaynor hunts`: catálogo de tipos de evidencia que Mode 1 sabe analizar (registro, prefetch, browser, event log, memoria, MFT, EBS-JSON). |
-| INVESTIGATOR | implementado, sin caller de producción | `collect_window` / `verify_custody` llaman al bridge MCP de VIGÍA. Ningún comando CLI/API los invoca hoy. |
-| FLEET_COMMANDER | implementado, sin caller de producción | Escribe en el log de investigación. Ningún comando lo invoca hoy. |
-| DETECTION_ENGINEER | implementado, sin caller de producción | `draft_sigma_rule` genera candidatos Sigma anclados a un finding del resultado sellado. Ningún comando lo invoca hoy. |
-| ENDPOINT_HUNTER / PERSISTENCE_HUNTER | fuera de alcance | Requerirían recolección en vivo. VIGÍA analiza evidencia ya congelada. |
-| THREAT_INTEL | fuera de alcance, por ahora | Existe una implementación portable (VirusTotal/GTI) no incorporada: implicaría red externa. |
+### Quiero auditarlo o romperlo
 
-La integración debe conservar estas propiedades:
-
-- el mismo caso congelado y la misma configuración producen el mismo resultado
-  autoritativo;
-- activar o desactivar el LLM no cambia el resultado sellado;
-- todo finding tiene referencias trazables;
-- las referencias inventadas son rechazadas;
-- path traversal, herramientas no autorizadas y escrituras son rechazados;
-- el artefacto adversarial no puede modificar el estado de autoridad;
-- la evidencia faltante o ambigua permanece como `UNKNOWN`;
-- el contexto de MITRE y NIST no promueve un finding;
-- el chat del perito junior solo explica hechos autorizados.
-
-## Requisitos y soberanía
-
-- Todo el procesamiento ocurre localmente.
-- La inferencia utiliza Ollama u otro backend local equivalente.
-- Ningún dato del caso se envía a un servicio externo.
-- Solo se utilizan datos simulados o públicos autorizados.
-- El modelo trabaja con operaciones explícitas, read-only y con límites de
-  pasos, tiempo, bytes y resultados.
-- No se realizan pruebas sobre sistemas reales.
-
-## Modelo de amenazas, riesgos y limitaciones
-
-Zaynor asume un operador local, evidencia ya recolectada y un atacante que
-puede haber escrito texto dentro de artefactos (logs, tickets, notas). El
-control principal es la frontera de autoridad: el LLM no escribe el
-veredicto, las herramientas no allowlisted no corren, y un artefacto no
-puede convertirse en instrucción.
-
-| Superficie | Control |
-|---|---|
-| Prompt injection en evidencia | La evidencia es dato, nunca control. Tripwire semántico en el narrador. |
-| Alucinación de hechos | El sello es anterior al LLM; las referencias inventadas se rechazan. |
-| Escritura o red arbitraria | Registro hardcoded de herramientas read-only; sin shell. |
-| Tampering del resultado | Manifest con SHA-256, sello, audit trail con hash chain y ancla HMAC opcional. |
-| Path traversal / symlink | Guards de ruta en freeze, snapshot y worker. Ver [`docs/SANDBOX.md`](./docs/SANDBOX.md). |
-| Datos que salen de la máquina | Loopback only; sin backend remoto de inferencia. |
-
-Limitaciones conocidas, numeradas y con impacto forense:
-[`LIMITACIONES_CONOCIDAS.md`](./LIMITACIONES_CONOCIDAS.md).
-Cómo reportar una vulnerabilidad: [`SEGURIDAD.md`](./SEGURIDAD.md).
-Auditorías adversariales (hallazgos confirmados por inducción, no solo por
-lectura de código): [`docs/red-team/`](./docs/red-team/).
-
-## Pruebas, evidencias y datos de prueba
-
-```bash
-python3 -m pytest tests/ -q
-python3 scripts/run_lab_tests.py
-python3 scripts/demo_dfir.py --mode mock
-python3 scripts/demo_aiops.py --mode file
-```
-
-| Qué | Dónde |
-|---|---|
-| Suite unitaria e de integración | `tests/` (CLI, sello, adapter, agentes, sandbox, API, reportes) |
-| Tests del laboratorio (stdlib, sin deps) | `python3 scripts/run_lab_tests.py` |
-| Fixture DFIR de la demo | [`scenarios/inc-2026-demo-001/`](./scenarios/inc-2026-demo-001/) |
-| Fixture AIOps | [`scenarios/inc-2026-aiops-001/`](./scenarios/inc-2026-aiops-001/) |
-| Casos canónicos adicionales | [`casos/`](./casos/), [`casos-samuel/`](./casos-samuel/) |
-| Ground truth del caso demo (fuera del freeze) | [`docs/ground-truth-inc-2026-demo-001.md`](./docs/ground-truth-inc-2026-demo-001.md) |
-| Guía de peritos con comandos verificados | [`GUIA_PERITOS.md`](./GUIA_PERITOS.md) |
-
-El ground truth se guarda fuera de `scenarios/` para que el freezer no lo
-lea y las pruebas puedan afirmar la reconstrucción sin filtrarlo al motor.
-
-## Privacidad, ética, accesibilidad y continuidad
-
-**Privacidad.** El caso no sale de la máquina. Ollama se habla por
-loopback (`127.0.0.1:11434` por defecto). No hay telemetría de producto
-hacia terceros. El extra `telemetry` (OpenTelemetry) es opcional y local.
-
-**Ética y uso dual.** Solo datos simulados o públicos autorizados. No se
-prueba contra sistemas reales. Las acciones de respuesta se emiten como
-`PROPOSED` / `NOT EXECUTED`; Zaynor no remedia. Las reglas Sigma que genera
-el rol DETECTION_ENGINEER, cuando se invoque, quedan marcadas
-`experimental`.
-
-**Accesibilidad.** La vista junior usa lenguaje llano; la interfaz web
-incluye tema claro/oscuro. No hay todavía una auditoría formal de
-accesibilidad (WCAG). Los informes `md`/`html` se pueden leer con
-herramientas de asistencia; el `pdf` es un extra.
-
-**Continuidad.** Versionado SemVer, [`CHANGELOG.md`](./CHANGELOG.md),
-licencia Apache 2.0, CI en cada PR (`lint`, `test`, `docs-sync`). El
-resultado autoritativo se puede regenerar sin LLM: desactivar el narrador
-no cambia el sello para la misma evidencia.
-
-## Terceros y originalidad
-
-Zaynor es trabajo original para CyberAr 2026. No se presentó antes en una
-competencia equivalente. Reutiliza, sin reimplementarlos, mecanismos
-existentes que se declaran aquí como antecedente:
-
-| Componente | Rol | Dónde |
-|---|---|---|
-| VIGÍA | Motor determinista vendorizado | `vendor/vigia_engine/` ([`NOTICE.md`](./vendor/vigia_engine/NOTICE.md)) |
-| ANNACONDA | Log de investigación y separación hecho/narrativa | adaptado en el árbol Zaynor |
-| MCP SDK, Trio | Transporte local de herramientas | `pyproject.toml` |
-| FastAPI, Uvicorn, Pydantic | Extra `api` (`zaynor serve`) | opcional |
-| ReportLab | Extra `report` (PDF) | opcional |
-| Next.js, React | Interfaz web | `frontend/` |
-| Ollama | Inferencia local (no es dependencia Python) | runtime |
-| Velociraptor | Laboratorio DFIR | `tools/velociraptor/`, demo-lab |
-| OpenTelemetry, Prometheus, Loki, Tempo, Grafana | Laboratorio AIOps | `tools/aiops/` |
-| MITRE ATT&CK / D3FEND, NIST | Anotación, nunca evidencia | módulos de contexto |
-
-Patrones de diseño (K8sGPT, HolmesGPT, Keep, Forge):
-[`docs/design-references.md`](./docs/design-references.md).
-Autores humanos y asistentes de IA: [`AUTHORS.md`](./AUTHORS.md).
-Código, documentación y motor vendorizado: Apache License 2.0.
-
-## Estado y alcance
-
-El repositorio integra capacidades existentes; no construye una plataforma
-desde cero. El árbol actual incluye: congelamiento de casos con doble hash
-(uno determinista sobre el contenido, otro que pliega el timestamp de
-sellado); dos audit trails con hash chain y ancla HMAC opcional; el
-ejecutor real de VIGÍA Mode 1 (subprocess, no simulado); un cliente MCP
-local hacia el bridge de VIGÍA; el módulo de enriquecimiento ATT&CK →
-D3FEND (anotación pura; el corpus actual de `casos/` no trae mappings
-MITRE/NIST poblados); candidatos Sigma y una matriz de acciones
-`PROPOSED`; el log de investigación adaptado de ANNACONDA; la interfaz
-web; y los escenarios sintéticos DFIR y AIOps.
-
-### Agentes locales (Ollama), por rol
-
-`agents/` define ocho roles con contratos de capability explícitos
-(`READ`/`DERIVE`/`ACQUIRE`/`MUTATE`/`AUTHORIZE`), verificados por hash de
-manifest. Su estado real, no aspiracional:
-
-| Rol | Estado | Qué hace de verdad |
-|-----|--------|---------------------|
-| MENTOR | conectado | Explica un resultado ya sellado — lee `ZaynorAuthoritativeResult`, nunca vuelve a invocar a VIGÍA. |
-| INVESTIGATOR | conectado | `collect_window`/`verify_custody` llaman de verdad al bridge MCP de VIGÍA (`read_evidence`/`generate_forensic_hash`); el resto reutiliza la misma vista de solo-lectura que MENTOR. |
-| FLEET_COMMANDER | conectado | Escribe en el log de investigación (hipótesis, tareas, escalamiento) — nunca produce un veredicto ni dispara un loop autónomo. |
-| DETECTION_ENGINEER | conectado | `draft_sigma_rule` genera candidatos Sigma anclados a un finding real del resultado sellado. |
-| DISPATCHER | conectado | Catálogo de los tipos de evidencia que Mode 1 realmente sabe analizar (registro, prefetch, browser, event log, memoria, MFT, EBS-JSON). |
-| ENDPOINT_HUNTER / PERSISTENCE_HUNTER | laboratorio acotado | La adquisición DFIR local usa la ruta de Velociraptor y sólo produce evidencia/provenance; no es un EDR ni asigna veredictos durante la colección. |
-| THREAT_INTEL | fuera de alcance, por ahora | Existe una implementación portable (enriquecimiento vía VirusTotal/GTI con degradación honesta sin API key) evaluada y no incorporada todavía: implica una dependencia de red externa, una decisión de producto pendiente. |
-
-La integración final debe conservar estas propiedades:
-
-- el mismo caso congelado y la misma configuración producen el mismo resultado
-  autoritativo;
-- activar o desactivar el LLM no cambia el resultado sellado;
-- todo finding tiene referencias trazables;
-- las referencias inventadas son rechazadas;
-- path traversal, herramientas no autorizadas y escrituras son rechazados;
-- el artefacto adversarial no puede modificar el estado de autoridad;
-- la evidencia faltante o ambigua permanece como `UNKNOWN`;
-- el contexto exhaustivo de MITRE y NIST no promueve un finding;
-- el chat del perito junior solo explica hechos autorizados.
-
-## Fuera del alcance actual
-
-No forman parte de la demostración actual:
-
-- monitoreo continuo de escala SIEM/EDR;
-- adquisición operacional sin freeze, manifest y provenance verificables;
-- remediación autónoma;
-- shell, red arbitraria o escritura para el LLM;
-- un SIEM, EDR o producto de escala operacional;
-- los roles ENDPOINT_HUNTER, PERSISTENCE_HUNTER y THREAT_INTEL.
-
-El monitoreo continuo, nuevos formatos de reporte y conectores operacionales
-quedan como mejoras posteriores. La adquisición local de laboratorio, el chat
-local y el contexto MITRE/NIST forman parte del producto que se está
-integrando.
-El monitoreo en tiempo real, conectores operacionales y una auditoría
-formal de accesibilidad quedan como trabajo posterior. El chat local, el
-reporte `md`/`html`/`pdf` y la interfaz web sí forman parte del prototipo
-actual.
-
-## Documentación
-
-- [`INSTALL.md`](./INSTALL.md) — instalación paso a paso, Ollama, extras y
-  flujo completo de un caso.
-- [`GUIA_PERITOS.md`](./GUIA_PERITOS.md) — dos caminos de evidencia con
-  comandos verificados.
-- [`docs/demo-lab/README.md`](./docs/demo-lab/README.md) — laboratorio DFIR
-  (Velociraptor) y AIOps (OpenTelemetry/Prometheus/Loki/Tempo/Grafana).
-- [`docs/architecture-for-frontend.md`](./docs/architecture-for-frontend.md)
-  — contrato de las vistas junior / senior / ejecutiva.
-- [`docs/extra_arenaai.md`](./docs/extra_arenaai.md) — posición formal del
-  producto, usuarios, demo, alcance y criterios de aceptación.
-- [`docs/technical-details.md`](./docs/technical-details.md) — contratos de
-  autoridad, flujo técnico y aritmética exacta del sello.
-- [`AGENTS.md`](./AGENTS.md) — contratos de integración con VIGÍA y límites
-  de autoridad entre evidencia, motor determinista y LLM.
-- [`docs/proposal.en.md`](./docs/proposal.en.md) — propuesta de arquitectura.
-- [`docs/implementation-plan.en.md`](./docs/implementation-plan.en.md) —
-  plan de integración y matriz de capacidades.
-- [`docs/hackathon/`](./docs/hackathon/) — bases, reglamento y material de
-  investigación del Hackathon CyberAr.
-- [`docs/SANDBOX.md`](./docs/SANDBOX.md) — límites del worker de evidencia.
-- [`docs/mcp-locales.md`](./docs/mcp-locales.md) — servidor y cliente MCP.
-- [`docs/red-team/`](./docs/red-team/) — rondas de auditoría adversarial.
-
-## Contribuir
-
-Ver [`CONTRIBUYENDO.md`](./CONTRIBUYENDO.md) y el
-[`código de conducta`](./CODIGO_DE_CONDUCTA.md).
-
-Commits en formato [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/)
-(validado por `scripts/commitlint.py`); releases con
-[SemVer](https://semver.org/spec/v2.0.0.html) y
-[Keep a Changelog](./CHANGELOG.md); lint con
-[`ruff`](https://docs.astral.sh/ruff/). Los badges de formato/tipos son
-informativos hasta que el árbol converja.
-
-Compuerta de sincronización de docs (`scripts/docs_check.py`): un cambio de
-código que un documento contrata debe actualizar ese documento en la misma
-rama. Lo aplica el hook `pre-push` y el job `docs-sync` de CI.
-
-## Autores
-
-Ivan Sarapura, Anna Tchijova, Samuel Ramos y Sergei Solovev. Lista
-completa y atribución de asistentes de IA: [`AUTHORS.md`](./AUTHORS.md).
+- [`docs/red-team/`](./docs/red-team/)
+- [`tests/`](./tests/)
+- [`LIMITACIONES_CONOCIDAS.md`](./LIMITACIONES_CONOCIDAS.md)
+- [`SEGURIDAD.md`](./SEGURIDAD.md)
+- [`CONTRIBUTING.md`](./CONTRIBUTING.md)
+- [`AUTHORS.md`](./AUTHORS.md)
 
 ## Licencia
 
-Apache License 2.0 — ver [`LICENSE`](./LICENSE).
-
-Vulnerabilidades: no abrir un issue público. Ver [`SEGURIDAD.md`](./SEGURIDAD.md).
+Apache License 2.0. Ver [`LICENSE`](./LICENSE).
