@@ -285,7 +285,9 @@ def _audit_status_payload(audit_report: dict[str, Any]) -> dict[str, Any]:
         "seal": _verification_status(audit_report["seal"]),
         "provenance": audit_report["provenance"] if audit_report["provenance"] in ("PRESENT", "EMPTY") else "UNKNOWN",
         "checked_at": None,
-        "detail": None if overall == "VERIFIED" else audit_report.get("error"),
+        # Keep filesystem/parser details in the local CLI/log path only. The
+        # HTTP contract exposes state, not exception text.
+        "detail": None if overall == "VERIFIED" else "audit verification failed",
     }
 
 
