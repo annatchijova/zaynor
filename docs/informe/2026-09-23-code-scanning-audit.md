@@ -18,10 +18,45 @@ sobreviven como vulnerabilidad demostrada en el HEAD actual:
 
 | ID | Alertas | Nivel actual | Clasificación | Conclusión |
 |---|---:|---|---|---|
-| A1 | 23–24 | CODE FACT / PLAUSIBLE | exposición de detalles de excepción | Hay respuestas que interpolan `str(exc)`; impacto demostrado todavía no medido con una instancia HTTP completa. |
+| A1 | 23–24 | CONFIRMED BY INDUCTION (payload) | exposición de detalles de excepción | `compute_case_audit()` devuelve al payload un path interno capturado desde una excepción; los endpoints de overview/audit exponen ese reporte. |
 | A2 | 25 | CODE FACT / PLAUSIBLE | temporary file inseguro | `tempfile.mktemp()` existe en un script de demostración; es una carrera local, no un RCE demostrado del servidor. |
 | A3 | 1–21 | CODE FACT / no confirmado como bypass remoto | path injection | El scanner ve paths derivados de datos; los consumidores revisados validan `case_id`, symlinks, `..`, tipo y tamaño, o son rutas elegidas explícitamente por el operador local. |
-| A4 | 22 | FALSIFIED para la ubicación actual | sanitización URL | La ubicación reportada no corresponde al código URL esperado en el HEAD actual; requiere una nueva corrida CodeQL antes de actuar. |
+| A4 | 22 | CODE FACT / FALSO POSITIVO SEMÁNTICO | sanitización URL | La alerta trata `gmail.com` dentro de un nombre de cuenta Android como URL sanitization; el valor se usa como señal forense, no para validar una URL. |
+
+## Ledger individual de las 25 alertas
+
+La siguiente tabla no agrupa decisiones: cada número del dashboard tiene una
+revisión propia. “No confirmado” significa que el scanner encontró un flujo de
+datos, pero la prueba del impacto de seguridad no sobrevivió al boundary
+observado; no significa que el warning de CodeQL haya sido ignorado.
+
+| Alerta | Ubicación reportada | Revisión individual | Decisión actual |
+|---:|---|---|---|
+| 1 | `api.py:682` columna 12 | `case_id` llega a `cases_root / case_id`; la ruta sólo se usa después de `_SAFE_CASE_ID.fullmatch()`. | No confirmado como traversal remoto. |
+| 2 | `api.py:682` columna 41 | Segundo flujo a la misma expresión `case_dir`; la ruta permanece bajo el mismo guard de `case_id` y se rechaza si es symlink/no-directory. | No confirmado como traversal remoto. |
+| 3 | `audit_log.py:105` | `_reject_symlink(path)` recibe un `Path` derivado del log, pero sólo inspecciona el objeto; no abre una ruta atacante. | No confirmado; guard observado. |
+| 4 | `audit_log.py:119` | `_reject_oversized(path)` hace `stat()` después de los callers que construyen/validan el log; el límite evita DoS de parseo, no es un sink de lectura arbitraria remoto. | No confirmado como path injection explotable. |
+| 5 | `audit_log.py:283` | `load_entries()` vuelve a rechazar symlink antes de `exists()`/lectura; el caller API valida el identificador. | No confirmado. |
+| 6 | `audit_log.py:287` | El `open()` está precedido por `_reject_symlink` y `_reject_oversized`; no se demostró control remoto del path fuera del case autorizado. | No confirmado. |
+| 7 | `audit_log.py:320` | `verify_with_report()` aplica el mismo rechazo de symlink antes de leer. | No confirmado. |
+| 8 | `audit_log.py:332` | El `open()` de verificación sólo ocurre después de existencia, symlink y límite de tamaño. | No confirmado. |
+| 9 | `audit_log.py:380` | El sidecar `.tail` se deriva del log ya validado y también pasa por `_reject_symlink`. | No confirmado. |
+| 10 | `audit_log.py:385` | `tail_path.read_text()` está detrás del mismo guard; el parser no recibe un path HTTP arbitrario. | No confirmado. |
+| 11 | `cli.py:55` | `_fixture_path()` acepta un path explícito del operador local, rechaza symlinks y resuelve un archivo regular. | Input local intencional; no vulnerabilidad remota demostrada. |
+| 12 | `cli.py:56` | `stat()` opera sobre el path resuelto y el archivo está limitado a `_MAX_FIXTURE_BYTES`. | No confirmado como bypass; hardening existente. |
+| 13 | `cli.py:59` | La condición `is_file()` impide convertir un directorio en fixture; el path sigue siendo una selección local del CLI. | No confirmado. |
+| 14 | `cli.py:254` | El manifest se lee mediante `_fixture_path()` desde un `case_dir` ya seleccionado/validado; no acepta un path HTTP independiente. | No confirmado. |
+| 15 | `frozen_snapshot.py:52` | `_inventory(root)` recorre `root`, pero sus callers pasan `evidence_dir` después de validarlo como directorio no symlink. | No confirmado en el flujo alcanzable. |
+| 16 | `frozen_snapshot.py:63` | `evidence_dir.is_dir()` y `is_symlink()` son precisamente el guard de frontera antes de inspeccionar entries. | No confirmado; guard observado. |
+| 17 | `frozen_snapshot.py:63` | Segundo flujo hacia el mismo guard de `evidence_dir`; no agrega una ruta de ataque distinta. | No confirmado. |
+| 18 | `frozen_snapshot.py:74` | `path = evidence_dir / relative` se ejecuta después de rechazar paths absolutos y componentes `..`. | No confirmado como traversal. |
+| 19 | `frozen_snapshot.py:74` | Segundo flujo al mismo `path`; además se rechazan symlinks y archivos no regulares. | No confirmado. |
+| 20 | `frozen_snapshot.py:76` | `stat()`/`sha256_file()` sólo verifican el archivo manifestado, tras validación de path, tamaño y symlink. | No confirmado. |
+| 21 | `hash_utils.py:22` | `sha256_file()` es una primitive genérica que acepta `Path`; sus callers auditados le pasan paths ya validados. | Hardening potencial, no vulnerabilidad remota demostrada. |
+| 22 | `android_forensics.py:777` | CodeQL ve `gmail.com` dentro de `name.lower()` como substring URL; aquí `name` es el nombre de una cuenta Android y la comparación es detección forense. | Falso positivo semántico. |
+| 23 | `api.py:650–663` ← source `cli.py:605–606` | `compute_case_audit()` captura `str(exc)` en `report["error"]`; `get_case()` devuelve el reporte de auditoría. Experimento controlado observó un path `/tmp/.../manifest.json` en ese campo. | Confirmado como exposición de detalle interno; no se observó stack trace completo ni secreto. |
+| 24 | `api.py:673` ← source `cli.py:605–606` | El mismo `report["error"]` llega a `_audit_status_payload()` desde `get_case_audit()`. Es un segundo sink HTTP del mismo defecto, no un hallazgo independiente. | Confirmado como misma clase; corregir junto con 23. |
+| 25 | `audit_chain.py:174` | `tempfile.mktemp()` separa nombrar y crear la base SQLite; existe una ventana de carrera para otro proceso local con acceso al directorio. | Code fact; candidato de hardening local, impacto remoto no demostrado. |
 
 ## Threat model
 
@@ -63,8 +98,9 @@ produce un body HTTP que contiene el detalle interno. La prueba debe usar un
 case de fixture controlado, comparar el body observado con el mensaje
 genérico esperado y repetirla con un path sensible simulado.
 
-**No se ejecutó aún la inducción HTTP completa; el nivel queda limitado a
-CODE FACT / PLAUSIBLE.**
+La inducción confirma el detalle en el payload de auditoría. No se ejecutó aún
+un servidor HTTP completo ni se demostró exposición de secretos; el alcance
+confirmado es información de filesystem/implementación.
 
 ### Fix completo
 
@@ -132,12 +168,13 @@ por red, la clasificación cambia y debe volver a probarse.
 ## A4 — sanitización URL
 
 **Alerta:** [22](https://github.com/annatchijova/zaynor/security/code-scanning/22).  
-El finding reporta `vendor/vigia_engine/vigia/sift/android_forensics.py:777`.
-En el HEAD actual, esa ubicación corresponde a una comparación de
-`"gmail.com" in name.lower()` al extraer cuentas Android, no a una validación
-de URL. La instancia es stale o el reporte quedó asociado a una revisión
-distinta. No se debe parchear esa línea a ciegas; primero hay que generar un
-nuevo análisis CodeQL contra el commit actual.
+El finding reporta `vendor/vigia_engine/vigia/sift/android_forensics.py:777` y
+describe `gmail.com` como substring de una URL sanitizada. En el HEAD actual,
+esa ubicación es `"gmail.com" in name.lower()` al extraer cuentas Android.
+`name` es un dato forense y la comparación intencionalmente busca cuentas
+Gmail; no decide si una URL es segura ni habilita una navegación. La alerta es
+un falso positivo semántico del modelado de CodeQL y no debe recibir un fix
+de sanitización URL.
 
 ## Vectores descartados durante esta ronda
 
@@ -147,7 +184,7 @@ nuevo análisis CodeQL contra el commit actual.
 | symlink en evidencia o log | No confirmado en rutas revisadas | hay checks explícitos antes de leer/escribir y revalidación del inventario. |
 | path absoluto/`..` dentro del manifest | No confirmado | `_validated_entries` lo rechaza antes de `sha256_file` o snapshot. |
 | stack trace genérico desde narración | No confirmado como exposición directa | el handler captura excepciones inesperadas y devuelve `internal server error`; debe probarse por endpoint, no generalizarse. |
-| URL sanitization en la línea alertada | Stale en el HEAD actual | el código actual de esa línea no procesa URLs. |
+| URL sanitization en la línea alertada | Falso positivo semántico | el código actual trata un nombre de cuenta como señal forense, no como URL. |
 
 ## Cobertura no realizada
 
