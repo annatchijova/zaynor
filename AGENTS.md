@@ -28,7 +28,7 @@ demonstrates resistance to manipulation attempts. Only simulated or public
 data is allowed; no testing against real systems. Deliverable is source code
 + README, demoed as a 3-minute pitch + functional demo, then 1 minute of
 jury questions — that time budget is why the architecture below is
-deliberately small (§ "Scope: the postmortem pipeline").
+deliberately small (§ "Scope: the hybrid pipeline").
 
 Source material, in `docs/hackathon/`:
 
@@ -51,44 +51,50 @@ Source material, in `docs/hackathon/`:
   competing incident fixtures), that is an open decision, not an
   inconsistency to silently pick a side on.
 
-ZAYNOR is a postmortem DFIR system built around VIGÍA, an existing
-deterministic forensic engine — it does not reimplement VIGÍA's mechanisms
-from scratch, and it does not detect, correlate, or replay telemetry
-itself. ZAYNOR starts from an incident that is already declared and
-evidence that is already collected — both out of scope for this repo (see
-"Scope: the postmortem pipeline"). The case is frozen and handed through an
-explicit adapter to VIGÍA, which performs the authoritative deterministic
-forensic analysis. ZAYNOR then maps supported findings into applicable
-frameworks (MITRE ATT&CK, NIST) and seals an authoritative result. A local
-LLM consumes that sealed state to explain, summarize, and generate reports
-and postmortems for different analyst audiences; it may optionally suggest
-further read-only investigative queries, but any resulting evidence has no
-effect on the authoritative result until it has crossed back through the
+ZAYNOR is a hybrid DFIR system built around VIGÍA, an existing deterministic
+forensic engine — it does not reimplement VIGÍA's mechanisms from scratch.
+It supports both postmortem cases that arrive with evidence already collected
+and bounded live acquisition/telemetry windows from local collectors such as
+Velociraptor and OTel/AIOps. Both paths converge on the same explicit
+normalization, freeze, provenance, and authority boundary before VIGÍA performs
+the deterministic forensic analysis. ZAYNOR then maps supported findings into
+applicable frameworks (MITRE ATT&CK, NIST) and seals an authoritative result.
+A local LLM consumes that sealed state to explain, summarize, and generate
+reports and postmortems for different analyst audiences; it may optionally
+suggest further read-only investigative queries, but any resulting evidence
+has no effect on the authoritative result until it has crossed back through the
 deterministic authority boundary. Keep both boundaries in mind — the
 ZAYNOR↔VIGÍA integration boundary and the deterministic↔LLM authority
-boundary — they shape almost every rule below. See "Scope: the postmortem
+boundary — they shape almost every rule below. See "Scope: the hybrid
 pipeline" for the full picture and §2 for the boundary rules.
 
-## Scope: the postmortem pipeline
+## Scope: the hybrid pipeline
 
-ZAYNOR is postmortem, full stop. It does not ingest live or synthetic
-telemetry, does not run a detection rule, and does not correlate alerts
-into an incident — an incident arriving already declared, with its
-evidence already collected, is the input, not something ZAYNOR produces.
-Whatever system or process declared the incident and collected the
-evidence is out of scope here. ZAYNOR's own pipeline starts at the case
-freeze:
+ZAYNOR supports two bounded entry paths. In the postmortem path, an incident
+arrives already declared with evidence already collected. In the hybrid live
+path, a local collector or telemetry aggregator supplies a bounded observation
+window. ZAYNOR does not claim to be a continuous SIEM/EDR, and it does not
+perform autonomous remediation or turn an unsealed stream directly into a
+verdict.
+
+Both paths converge at the case freeze:
 
 ```
-incident declared (external — a ticket, an alert, an analyst referral;
-   out of scope for ZAYNOR) + evidence already collected (out of scope)
-   ->  case freeze (manifest + SHA-256, immutable case_id)
+postmortem: incident declared + evidence already collected
+live: bounded collector/telemetry window + provenance
+   ->  normalization + case freeze (manifest + SHA-256, immutable case_id)
    ->  VIGÍA adapter  ->  deterministic forensic analysis (VIGÍA)
    ->  authoritative ZAYNOR result  ->  MITRE ATT&CK / NIST contextualization
    ->  seal  ->  local LLM narration  ->  incident report / postmortem
 ```
 
-Optional, read-only branch back into the deterministic side (§2.2):
+The live path is acquisition in a bounded window, not continuous monitoring.
+The collector's output is evidence and provenance, not an authoritative
+verdict. A window must be normalized and frozen before it reaches VIGÍA, so
+postmortem and live observations receive the same integrity and authority
+guarantees.
+
+Optional, read-only investigation branch back into the deterministic side (§2.2):
 
 ```
 authoritative ZAYNOR result
@@ -98,12 +104,12 @@ authoritative ZAYNOR result
 ```
 
 - **The case-freeze boundary:** the dedicated step (the case freezer) that
-  selects an already-declared incident's already-collected evidence records,
-  hashes every artifact, writes a manifest, and closes the bundle to writes
-  before handing it to VIGÍA. This is not a metaphor — it's a real, small
-  piece of code, and it's what "the evidence is frozen" actually means in
-  this repo. It is ZAYNOR's first stage, not the tail end of a detection
-  pipeline.
+  selects postmortem evidence or a bounded live evidence window, hashes every
+  artifact, writes a manifest, and closes the bundle to writes before handing
+  it to VIGÍA. This is not a metaphor — it's a real, small piece of code, and
+  it's what "the evidence is frozen" actually means in this repo. It is
+  ZAYNOR's first authoritative stage, whether acquisition happened before the
+  investigation or immediately upstream of it.
 - **Everything after the freeze (VIGÍA adapter → … → postmortem):** the DFIR
   and reporting core. Authoritative forensic analysis is deterministic and
   lives in VIGÍA; ZAYNOR owns the adapter, the MITRE/NIST

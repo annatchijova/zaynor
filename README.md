@@ -52,9 +52,36 @@ nueva evidencia
    └──────────────→ análisis nuevamente
 ```
 
-ZAYNOR funciona localmente y admite evidencia forense estructurada, bundles,
-raw evidence, casos postmortem y adquisición acotada con Velociraptor. Incluye
-CLI, web, API compatible con OpenAI, Ollama, OpenWebUI y MCP.
+ZAYNOR funciona localmente y admite un flujo híbrido: puede recibir bundles y
+raw evidence ya recolectados para casos postmortem, o consumir ventanas de
+telemetría y adquisiciones acotadas desde colectores locales como Velociraptor
+y OTel/AIOps. En ambos casos la evidencia se normaliza, se congela y se sella
+antes de la decisión determinista; lo que cambia es la fuente y el momento de
+la adquisición, no la autoridad del veredicto. Incluye CLI, web, API
+compatible con OpenAI, Ollama, OpenWebUI y MCP.
+
+## Postmortem y análisis híbrido en vivo
+
+ZAYNOR no está limitado a evidencia histórica. Tiene dos caminos de entrada
+que convergen en la misma frontera autoritativa:
+
+```mermaid
+flowchart LR
+    P[Bundle / evidencia recolectada] --> F[Freeze + provenance]
+    L[Ventana live acotada<br/>Velociraptor / OTel-AIOps] --> N[Normalización + window hash]
+    N --> F
+    F --> V[VIGÍA determinista]
+    V --> S[Seal + resultado verificable]
+    S --> A[IA local / reportes]
+```
+
+El modo live significa adquisición o agregación acotada de una ventana de
+observaciones, no monitoreo continuo de un SIEM/EDR ni respuesta autónoma.
+Las observaciones live tampoco pueden cambiar un resultado por sí solas:
+deben cruzar el mismo freeze, provenance, análisis determinista y seal que un
+caso postmortem. Así, ZAYNOR puede participar en flujos de investigación en
+tiempo real sin convertir datos no congelados o una narración del LLM en un
+veredicto.
 
 **[Probar ZAYNOR en Vercel](https://zaynor-demo.vercel.app) · [Ver un caso reproducible](#caso-reproducible-nitroba) · [Arquitectura ZAYNOR](https://annatchijova.github.io/zaynor/architecture.html) · [Decisiones matemáticas de VIGÍA](https://annatchijova.github.io/vigia/vigia_diagrams.html) · [Instalar](./INSTALL.md)**
 
@@ -371,11 +398,11 @@ y [`src/zaynor/hybrid_integrations.py`](./src/zaynor/hybrid_integrations.py).
 
 ## Límites
 
-ZAYNOR no es un SIEM o EDR de monitoreo continuo y no ejecuta remediación
-autónoma. Los colectores producen evidencia y provenance; la conclusión sólo
-aparece después de freeze y análisis determinista. Las integraciones externas
-de threat intelligence son opcionales y no forman parte del runtime local por
-defecto.
+ZAYNOR no reemplaza un SIEM o EDR de monitoreo continuo y no ejecuta
+remediación autónoma. Puede consumir ventanas live producidas por colectores
+locales o agregadores de telemetría, pero la conclusión sólo aparece después
+de freeze y análisis determinista. Las integraciones externas de threat
+intelligence son opcionales y no forman parte del runtime local por defecto.
 
 Para vulnerabilidades, seguir [`SEGURIDAD.md`](./SEGURIDAD.md) y reportar de
 forma privada.
