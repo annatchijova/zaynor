@@ -169,22 +169,22 @@ def verify_chain(entries_desc: List[Dict[str, Any]]) -> Dict[str, Any]:
 
 
 if __name__ == "__main__":
-    import tempfile, os
+    import tempfile
 
-    path = tempfile.mktemp(suffix=".db")
-    conn = connect(path)
-    for i in range(5):
-        append(conn, op="event", body={"i": i, "msg": f"entry {i}"},
-               content_hashes=[hashlib.sha256(str(i).encode()).hexdigest()])
+    with tempfile.TemporaryDirectory(prefix="audit-chain-") as directory:
+        path = f"{directory}/audit.db"
+        conn = connect(path)
+        for i in range(5):
+            append(conn, op="event", body={"i": i, "msg": f"entry {i}"},
+                   content_hashes=[hashlib.sha256(str(i).encode()).hexdigest()])
 
-    clean = verify_chain(fetch_all_desc(conn))
-    print("after honest build:", clean)
+        clean = verify_chain(fetch_all_desc(conn))
+        print("after honest build:", clean)
 
-    # Tamper one row in place; integrity must catch it, linkage stays intact.
-    conn.execute("UPDATE audit_chain SET body=? WHERE id=3",
-                 (json.dumps({"i": 2, "msg": "EDITED"}),))
-    conn.commit()
-    tampered = verify_chain(fetch_all_desc(conn))
-    print("after in-place edit:", tampered)
-
-    os.unlink(path)
+        # Tamper one row in place; integrity must catch it, linkage stays intact.
+        conn.execute("UPDATE audit_chain SET body=? WHERE id=3",
+                     (json.dumps({"i": 2, "msg": "EDITED"}),))
+        conn.commit()
+        tampered = verify_chain(fetch_all_desc(conn))
+        print("after in-place edit:", tampered)
+        conn.close()
