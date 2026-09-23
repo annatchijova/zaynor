@@ -6,6 +6,10 @@
 **Método:** `attack-surface-triage` + `red-team-auditing` + revisión de código actual  
 **Estado:** informe previo a remediación; no se aplicaron fixes en esta ronda.
 
+**Revisión solicitada:** `@dahgoth` — revisar la clasificación individual de
+las alertas, la reproducción de A1 y la decisión sobre A2 antes de cerrar o
+remediar cualquier finding.
+
 ## Resumen ejecutivo
 
 GitHub muestra **25 alertas CodeQL abiertas**. El número de alertas no equivale
