@@ -103,6 +103,17 @@ and SANS forensic material, alongside the canonical intentionality corpus.
 Synthetic fixtures in this repository support deterministic demos and
 regression tests; they are not the only evaluation source.
 
+## FreeBSD offline evidence import
+
+The repository-local `freebsd_evidence` module imports already acquired,
+size-bounded FreeBSD files with an acquisition manifest. It verifies source
+hashes and provenance, freezes original bytes and typed observations through
+the existing case freezer, and preserves acquisition lineage. Its current
+output explicitly reports `analysis_unsupported`; it does not assert a
+FreeBSD rootkit finding or parse kernel memory. See the
+[import contract](./tools/freebsd_evidence/README.md) and the
+[two-module proposal](./docs/freebsd-rootkit-dfir-proposal.md).
+
 ## Interfaces
 
 - **CLI:** acquire or import evidence, freeze cases, analyze, verify seals,

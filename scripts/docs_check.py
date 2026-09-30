@@ -148,6 +148,12 @@ DOCS_MAP: tuple[Rule, ...] = (
         ("docs/architecture-for-frontend.md",),
     ),
     Rule(
+        "freebsd-evidence",
+        ("tools/freebsd_evidence/*",),
+        ("tools/freebsd_evidence/README.md", "docs/freebsd-rootkit-dfir-proposal.md"),
+        require_all=True,
+    ),
+    Rule(
         "sdlc",
         (
             ".github/workflows/*",
