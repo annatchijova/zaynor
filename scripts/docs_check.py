@@ -143,6 +143,24 @@ DOCS_MAP: tuple[Rule, ...] = (
     Rule("scorer", ("src/zaynor/ebs_artifact_scorer.py",), ("docs/adr/*",)),
     Rule("vendor", ("vendor/*",), ("AGENTS.md", "docs/adr/*")),
     Rule(
+        "freebsd-evidence-importer",
+        ("tools/offline_evidence.py", "tools/freebsd_evidence/*"),
+        (
+            "tools/freebsd_evidence/README.md",
+            "docs/adr/0004-freebsd-offline-evidence-importers.md",
+        ),
+        require_all=True,
+    ),
+    Rule(
+        "rootkit-scanner-report-importer",
+        ("tools/offline_evidence.py", "tools/rootkit_scanner_reports/*"),
+        (
+            "tools/rootkit_scanner_reports/README.md",
+            "docs/adr/0004-freebsd-offline-evidence-importers.md",
+        ),
+        require_all=True,
+    ),
+    Rule(
         "frontend-architecture",
         ("frontend/src/*",),
         ("docs/architecture-for-frontend.md",),

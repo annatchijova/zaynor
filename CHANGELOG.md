@@ -19,6 +19,15 @@ the git log; this file curates it.
 
 ### Added
 
+- Offline FreeBSD evidence and rootkit-scanner report importers
+  (`tools/freebsd_evidence/`, `tools/rootkit_scanner_reports/`) with a
+  shared bounded staging contract. They preserve digest-verified originals,
+  provenance, lineage, typed observations, unknowns, and limitations through
+  the existing case freezer. Strict JSON package loaders, canonical frozen
+  package records, and `python -m` entrypoints make both boundaries usable from
+  an acquisition directory. Scanner labels remain tool observations and the
+  bundle reports `analysis_unsupported` until a calibrated VIGIA adapter is
+  validated (ADR 0004).
 - Demo lab: local, fully synthetic DFIR and AIOps demonstration
   environments feeding the existing `freeze` / `analyze` / `audit`
   pipeline (`docs/demo-lab/README.md`). DFIR path: adapted

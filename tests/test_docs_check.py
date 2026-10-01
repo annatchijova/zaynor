@@ -84,6 +84,27 @@ def test_waiver_is_per_rule():
     assert not sdlc.waived and sdlc.violated
 
 
+def test_freebsd_importer_requires_its_readme_and_adr():
+    code_only = ["tools/freebsd_evidence/importer.py"]
+    assert violated_ids(code_only) == ["freebsd-evidence-importer"]
+    complete = [
+        *code_only,
+        "tools/freebsd_evidence/README.md",
+        "docs/adr/0004-freebsd-offline-evidence-importers.md",
+    ]
+    assert not any(outcome.violated for outcome in docs_check.evaluate(complete))
+
+
+def test_shared_import_contract_requires_both_module_docs():
+    files = [
+        "tools/offline_evidence.py",
+        "tools/freebsd_evidence/README.md",
+        "tools/rootkit_scanner_reports/README.md",
+        "docs/adr/0004-freebsd-offline-evidence-importers.md",
+    ]
+    assert not any(outcome.violated for outcome in docs_check.evaluate(files))
+
+
 # --- map integrity ----------------------------------------------------------
 
 
