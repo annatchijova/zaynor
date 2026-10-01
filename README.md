@@ -120,7 +120,12 @@ ZAYNOR reúne tres capacidades que suelen estar separadas:
 - resultado sellado; audit trail encadenado por hash con timestamps incluidos
   en las entradas hasheadas; cadena de custodia del reporte con
   `result_sha256` determinista y `report_hash` con marca temporal; e informes;
-- adquisición local acotada con Velociraptor y observaciones OTel ([demo lab reproducible](./docs/demo-lab/README.md)).
+- adquisición local acotada con Velociraptor y observaciones OTel ([demo lab reproducible](./docs/demo-lab/README.md));
+- importadores offline acotados y verificados por digest para evidencia
+  FreeBSD y reportes de chkrootkit/rkhunter (`tools/freebsd_evidence/`,
+  `tools/rootkit_scanner_reports/`), que cruzan el mismo freeze de caso con
+  resultado `analysis_unsupported` hasta que exista un adapter VIGÍA
+  calibrado ([ADR 0004](./docs/adr/0004-freebsd-offline-evidence-importers.md)).
 
 ### Investigación asistida
 
@@ -371,7 +376,7 @@ relacionadas sobre autoridad, CLI, path traversal, TOCTOU, sellos, MCP,
 Ollama, OpenWebUI, prompt injection y contratos de agentes.
 
 Backend: `PYTHONPATH=src pytest -q --ignore=tests/test_real_forensic_image_evidence.py`
-produce `416 passed, 1 skipped` (el único test excluido es un hang
+produce `432 passed, 1 skipped` (el único test excluido es un hang
 preexistente y documentado, en investigación aparte — no se cuenta como
 passed). Frontend: `npm test` en `frontend/` produce `19 passed`. Ninguna
 corrida se presenta como verde si no lo fue: si un test falla, se documenta
@@ -473,7 +478,8 @@ ZAYNOR
 │   ├── PCAP
 │   ├── browser, Android, iOS y macOS
 │   ├── reconstrucción de timelines
-│   └── normalización de artefactos
+│   ├── normalización de artefactos
+│   └── importadores offline de evidencia FreeBSD + reportes chkrootkit/rkhunter
 │
 ├── Integridad de evidencia
 │   ├── freeze y canonicalización

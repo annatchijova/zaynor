@@ -91,7 +91,11 @@ the deterministic engine again.
 
 ZAYNOR supports forensic bundles, raw evidence, postmortem evidence, bounded
 Velociraptor acquisition, local AIOps/OTel observations, and reproducible case
-replays.
+replays. Offline FreeBSD evidence and chkrootkit/rkhunter scanner reports can
+also be staged through bounded, digest-verified importers
+(`tools/freebsd_evidence/`, `tools/rootkit_scanner_reports/`) that cross the
+same case-freeze boundary; the result is `analysis_unsupported` until a
+calibrated VIGÍA adapter exists ([ADR 0004](./docs/adr/0004-freebsd-offline-evidence-importers.md)).
 
 Evaluation uses the reusable
 [VIGÍA Intent Analysis corpus](https://github.com/annatchijova/vigia-intent-analysis).
@@ -173,7 +177,7 @@ covering authority boundaries, the CLI, path traversal, TOCTOU, seals, MCP,
 Ollama, OpenWebUI, prompt injection, and agent contracts.
 
 Backend: `PYTHONPATH=src pytest -q --ignore=tests/test_real_forensic_image_evidence.py`
-produces `416 passed, 1 skipped` (the one excluded test is a preexisting,
+produces `432 passed, 1 skipped` (the one excluded test is a preexisting,
 documented hang under separate investigation — not counted as passed).
 Frontend: `npm test` in `frontend/` produces `19 passed`. No run is
 presented as green if it wasn't: a failing test gets documented, not
@@ -230,7 +234,8 @@ ZAYNOR
 │   ├── PCAP
 │   ├── browser, Android, iOS, and macOS
 │   ├── timeline reconstruction
-│   └── artifact normalization
+│   ├── artifact normalization
+│   └── offline FreeBSD evidence + chkrootkit/rkhunter report importers
 │
 ├── Evidence integrity
 │   ├── freeze and canonicalization

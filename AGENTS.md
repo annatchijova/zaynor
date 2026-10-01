@@ -117,6 +117,21 @@ authoritative ZAYNOR result
   investigation-assistant role. §2's authority boundaries apply in full
   here — which, for ZAYNOR, is everything past the freeze.
 
+- **Bounded offline evidence importers** (`tools/offline_evidence.py`,
+  `tools/freebsd_evidence/`, `tools/rootkit_scanner_reports/`): a narrower,
+  read-only postmortem entry for already-acquired FreeBSD evidence and
+  chkrootkit/rkhunter reports. They validate provenance, reject symlinks
+  and path escapes, enforce size/depth/observation bounds, and stage typed
+  observations and preserved originals through the *same* case-freeze
+  boundary as any other postmortem evidence — they do not add a second
+  freeze path. Their output status is always `analysis_unsupported`: no
+  VIGÍA score, finding, or LLM narrative is produced from these records in
+  this increment. See
+  [ADR 0004](./docs/adr/0004-freebsd-offline-evidence-importers.md) for the
+  full security and epistemic constraints, and
+  [the branch audit](./docs/audits/2026-10-01-freebsd-evidence-importers-audit.md)
+  for the adversarial review that preceded merge.
+
 A task that proposes telemetry replay, a detection rule, or a correlation
 step is out of scope by construction, no matter how small — that is a
 different system's job, upstream of ZAYNOR's input.
