@@ -40,7 +40,7 @@ CODE FACT · PLAUSIBLE HYPOTHESIS · CONFIRMED BY INDUCTION · FALSIFIED
 
 | ID | Severity | Level | Module | Finding |
 |----|----------|-------|--------|---------|
-| F-1 | Low | PLAUSIBLE HYPOTHESIS | `tools/offline_evidence.py` | Residual TOCTOU window between the pre-open symlink-component check and the final `O_NOFOLLOW` open, on intermediate path components of `source_root` |
+| F-1 | Low | FIXED (was PLAUSIBLE HYPOTHESIS) | `tools/offline_evidence.py` | Residual TOCTOU window between the pre-open symlink-component check and the final `O_NOFOLLOW` open, on intermediate path components of `source_root` — closed with an atomic `dir_fd` component walk |
 | F-2 | Informational | CODE FACT | `tools/offline_evidence.py` | `MAX_OBSERVATIONS` is enforced *after* each append rather than before, so the in-memory list can transiently exceed the limit by one entry before the call aborts |
 | F-3 | Informational | CODE FACT | ADR 0004 / importers | Scope is deliberately narrow (2 scanner dialects, no BSM parsing, `analysis_unsupported` always) — this is a documented design choice, not a gap |
 
@@ -48,9 +48,35 @@ No finding in this audit reached CONFIRMED severity Medium or above. No finding 
 
 ## Findings
 
-### F-1 — Residual TOCTOU on intermediate path components
+### F-1 — Residual TOCTOU on intermediate path components — FIXED
 
-**Severity:** Low **Epistemic level:** PLAUSIBLE HYPOTHESIS (not executed) **Bucket:** threat-model assumption
+**Severity:** Low **Epistemic level:** PLAUSIBLE HYPOTHESIS (not executed) → **CODE FACT (fixed by construction)** **Bucket:** threat-model assumption
+
+> **Update (2026-10-01, same day):** closed in `tools/offline_evidence.py`.
+> `read_original()` now opens `source_root` and every path component through
+> `_open_regular_no_symlinks()`, which walks the path one component at a time
+> with `os.open(part, O_NOFOLLOW, dir_fd=parent_fd)`. Each lookup is relative
+> to an already-open parent directory descriptor, so the "is this a
+> symlink?" check and the open of that same component are a single syscall —
+> there is no longer a separate check-then-open step for an attacker to win a
+> race against, on any platform where `os.open` supports `dir_fd` (Linux,
+> confirmed in this environment; POSIX generally). A component that is a
+> symlink fails with `ELOOP`, mapped back to the same
+> `"source path contains a symlink"` error the tests already assert on. A
+> resolve-then-check fallback (textually identical to the prior
+> implementation, same residual race window) is kept only for a platform
+> where `os.open` does not support `dir_fd`.
+>
+> This is reported as a **CODE FACT**, not as "CONFIRMED BY INDUCTION of a
+> fixed race": per this repository's red-team-auditing discipline, a
+> genuine race-condition PoC was not built (and is not practical to build
+> deterministically for a single-pass CLI invocation). The claim here is
+> narrower and verifiable by reading the code: the check-then-open pattern
+> that created the race no longer exists on the primary path. Full test
+> suite re-run after the change: 39/39 new tests, 434/434 total, 1 skipped —
+> identical to the pre-fix run, no regression.
+>
+> Original finding preserved below for the record.
 
 - **Surprise / expectation violated:** `read_original()` (`tools/offline_evidence.py:262`)
   checks that `source_root` and every intermediate component of the relative path are not

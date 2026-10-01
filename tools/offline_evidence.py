@@ -8,6 +8,7 @@ target, score observations, or translate them into an authoritative finding.
 from __future__ import annotations
 
 import argparse
+import errno
 import hashlib
 import json
 import os
@@ -259,24 +260,76 @@ def _reject_symlink_components(root: Path, relative: Path) -> None:
             raise OfflineEvidenceError(f"source path contains a symlink: {relative.as_posix()}")
 
 
+# ``os.open(..., dir_fd=...)`` lets each path component be opened relative to
+# the already-open parent directory descriptor, so a component check and its
+# open are the same syscall: there is no window between "is this a symlink?"
+# and "open it" where a concurrent rename/symlink swap could win a race.
+# Falls back to a resolve-then-check (with that race window) only on a
+# platform where this is unavailable.
+_SUPPORTS_ATOMIC_WALK = (
+    os.open in os.supports_dir_fd
+    and hasattr(os, "O_DIRECTORY")
+    and hasattr(os, "O_NOFOLLOW")
+)
+
+
+def _raise_for_open_failure(exc: OSError, relative: Path) -> None:
+    if exc.errno == errno.ELOOP:
+        raise OfflineEvidenceError(
+            f"source path contains a symlink: {relative.as_posix()}"
+        ) from exc
+    raise OfflineEvidenceError(f"cannot open source file: {relative.as_posix()}") from exc
+
+
+def _open_regular_no_symlinks(root: Path, relative: Path) -> int:
+    """Open ``root / relative`` and return a file descriptor to it.
+
+    Every component is opened with ``O_NOFOLLOW`` relative to its already-open
+    parent directory, so no symlink anywhere on the path - including a
+    component swapped in after validation - can be followed.
+    """
+    if not _SUPPORTS_ATOMIC_WALK:
+        if root.is_symlink():
+            raise OfflineEvidenceError("source_root cannot be a symlink")
+        resolved_root = root.resolve(strict=True)
+        _reject_symlink_components(resolved_root, relative)
+        candidate = resolved_root / relative
+        resolved = candidate.resolve(strict=True)
+        if resolved_root not in resolved.parents:
+            raise OfflineEvidenceError("source path escapes source_root")
+        flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
+        try:
+            return os.open(candidate, flags)
+        except OSError as exc:
+            _raise_for_open_failure(exc, relative)
+
+    dir_flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW
+    try:
+        current_fd = os.open(root, dir_flags)
+    except OSError as exc:
+        raise OfflineEvidenceError("source_root must be a real, non-symlink directory") from exc
+    try:
+        for part in relative.parts[:-1]:
+            try:
+                next_fd = os.open(part, dir_flags, dir_fd=current_fd)
+            except OSError as exc:
+                _raise_for_open_failure(exc, relative)
+            os.close(current_fd)
+            current_fd = next_fd
+        file_flags = os.O_RDONLY | os.O_NOFOLLOW
+        try:
+            return os.open(relative.parts[-1], file_flags, dir_fd=current_fd)
+        except OSError as exc:
+            _raise_for_open_failure(exc, relative)
+    finally:
+        os.close(current_fd)
+
+
 def read_original(source_root: Path, relative_path: str, expected_sha256: str) -> bytes:
     """Read one regular file once, with bounds and mutation checks."""
-    declared_root = Path(source_root)
-    if declared_root.is_symlink():
-        raise OfflineEvidenceError("source_root cannot be a symlink")
-    root = declared_root.resolve(strict=True)
+    root = Path(source_root)
     relative = Path(validate_relative_path(relative_path, "source_path"))
-    _reject_symlink_components(root, relative)
-    candidate = root / relative
-    resolved = candidate.resolve(strict=True)
-    if root not in resolved.parents:
-        raise OfflineEvidenceError("source path escapes source_root")
-
-    flags = os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0)
-    try:
-        descriptor = os.open(candidate, flags)
-    except OSError as exc:
-        raise OfflineEvidenceError(f"cannot open source file: {relative.as_posix()}") from exc
+    descriptor = _open_regular_no_symlinks(root, relative)
     try:
         before = os.fstat(descriptor)
         if not stat.S_ISREG(before.st_mode):
