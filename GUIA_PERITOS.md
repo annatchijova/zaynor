@@ -4,7 +4,7 @@ Esta guía cubre las dos formas de entrada de evidencia que ZAYNOR sabe
 analizar hoy, con comandos probados de verdad (no ilustrativos) para
 copiar y pegar. EBS v1 no es un tercer camino de análisis: es una
 verificación adicional disponible para los casos JSON del Camino A.
-Requiere el repo instalado (`pip install -e .`, ver README.md) — nada de
+Requiere el repo instalado (`pip install -e .`, ver README_ES.md) — nada de
 esto necesita un segundo repositorio ni conexión a internet.
 
 Hay **dos verificadores independientes, no intercambiables**:

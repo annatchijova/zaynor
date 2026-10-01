@@ -145,7 +145,7 @@ different system's job, upstream of ZAYNOR's input.
   comment in application code (not user-facing demo strings), that's a
   defect — flag it or fix it in the same PR.
 - The demo output and the incident report itself are user-facing and go in
-  Spanish (see `README.md` for the exact split) — don't "fix" that to English.
+  Spanish (see `README_ES.md` for the exact split) — don't "fix" that to English.
 - No emojis in anything committed to the repo.
 
 ## 1. Reasoning discipline

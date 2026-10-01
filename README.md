@@ -1,8 +1,6 @@
-# ZAYNOR
+# ZAYNOR — local, deterministic, traceable DFIR investigation
 
-<img src="./visual/logo-zaynor-full.svg" alt="ZAYNOR" width="260">
-
-*[Read this in English](./README.en.md)*
+**English** · [Español](./README_ES.md) · [Technical README](./AGENTS.md)
 
 [![CI](https://github.com/annatchijova/zaynor/actions/workflows/ci.yml/badge.svg)](https://github.com/annatchijova/zaynor/actions/workflows/ci.yml)
 [![Python 3.12](https://img.shields.io/badge/python-3.12-blue.svg)](./pyproject.toml)
@@ -13,406 +11,135 @@
 [![Keep a Changelog](https://img.shields.io/badge/Keep%20a%20Changelog-1.1.0-orange.svg)](./CHANGELOG.md)
 [![SemVer](https://img.shields.io/badge/SemVer-2.0.0-blueviolet.svg)](https://semver.org/spec/v2.0.0.html)
 
-**Investigación forense asistida por IA sin delegarle a la IA la decisión final.**
+ZAYNOR is a local AI-assisted forensic investigation platform that separates
+investigative autonomy from authority over conclusions.
 
-Investigar un incidente implica reconstruir qué ocurrió a partir de evidencia
-incompleta, contradictoria y potencialmente manipulada. Un modelo de IA puede
-ayudar mucho: correlacionar artefactos, encontrar inconsistencias, formular
-hipótesis y decidir qué conviene investigar después.
+It can ingest forensic bundles and raw evidence, work with postmortem evidence,
+or receive observations from bounded local collectors such as Velociraptor.
+Evidence is normalized, frozen, and analyzed by the deterministic mathematical
+engine of [VIGÍA](https://github.com/annatchijova/vigia-intent-analysis) before
+an authoritative sealed result is produced.
 
-Pero un LLM también puede equivocarse.
+After analysis, local Ollama models may explain the case, formulate
+discriminating questions, and propose read-only queries. The model cannot write
+or modify the verdict: new evidence must return to the deterministic pipeline.
 
-En DFIR, una respuesta convincente no es evidencia. Una alucinación, una
-correlación espuria o una instrucción adversarial escondida dentro de un
-artefacto no deberían convertirse en una conclusión forense.
+The case can be processed locally. ZAYNOR exposes a CLI, OpenAI-compatible API,
+web interface, and MCP integrations for local analysis tools and assistants.
 
-ZAYNOR fue construido alrededor de esa frontera:
+**[Try ZAYNOR on Vercel](https://zaynor-demo.vercel.app) · [Reproduce a case](#reproducible-nitroba-case) · [ZAYNOR architecture](https://annatchijova.github.io/zaynor/architecture.html) · [VIGÍA mathematical decisions](https://annatchijova.github.io/vigia/vigia_diagrams.html) · [Install](./INSTALL.md)**
 
-> **La IA decide qué investigar. La evidencia verificada decide qué puede afirmarse.**
+[![ZAYNOR architecture diagram](./visual/Screenshot%20from%202026-09-18%2007-36-11.png)](https://annatchijova.github.io/zaynor/architecture.html)
 
-El modelo local puede investigar, preguntar y explicar. No puede decidir ni
-modificar el veredicto. La evidencia pasa por
-[VIGÍA](https://github.com/annatchijova/vigia-intent-analysis), un motor
-matemático determinista que evalúa hipótesis, contradicciones, causalidad e
-incertidumbre mediante un scorer reproducible antes de producir un resultado
-verificable.
-Si la IA encuentra evidencia nueva, esa evidencia vuelve al sistema antes de
-que pueda cambiar la conclusión.
+*Interactive diagram — [explore it live](https://annatchijova.github.io/zaynor/architecture.html), with guided views for the authority path, bounded investigation, and analyst audience.*
 
-```text
-evidencia
-   ↓
-análisis determinista
-   ↓
-resultado verificable
-   ↓
-IA local investiga
-   ↓
-nueva evidencia
-   └──────────────→ análisis nuevamente
-```
+## The problem
 
-ZAYNOR funciona localmente y admite un flujo híbrido: puede recibir bundles y
-raw evidence ya recolectados para casos postmortem, o consumir ventanas de
-telemetría y adquisiciones acotadas desde colectores locales como Velociraptor
-y OTel/AIOps. En ambos casos la evidencia se normaliza, se congela y se sella
-antes de la decisión determinista; lo que cambia es la fuente y el momento de
-la adquisición, no la autoridad del veredicto. Incluye CLI, web, API
-compatible con OpenAI, Ollama, OpenWebUI y MCP.
+DFIR investigations combine logs, memory, filesystem, network, browser
+artifacts, tickets, and operator notes. Sources may be incomplete,
+contradictory, or controlled by an attacker. Manual correlation is slow;
+delegating the conclusion to an LLM is unsafe.
 
-## Postmortem y análisis híbrido en vivo
+ZAYNOR addresses this with two explicit separations:
 
-ZAYNOR no está limitado a evidencia histórica. Tiene dos caminos de entrada
-que convergen en la misma frontera autoritativa:
+1. **Acquisition and investigation can be flexible.** Bundles, raw evidence,
+   postmortem replays, and bounded local collectors are supported.
+2. **The conclusion is deterministic.** The result is produced by VIGÍA over a
+   frozen case and cryptographically bound to its evidence.
+
+Local AI helps investigate and explain. It does not calculate, replace, or
+negotiate the verdict.
+
+## What makes ZAYNOR different
+
+- It is not a chatbot that decides: the LLM narrates or proposes bounded
+  queries only after the authoritative result is verified.
+- It is not a SIEM or EDR: local lab acquisition can be received, but
+  collectors produce evidence and do not assign verdicts during collection.
+- It is not only a VIGÍA wrapper: it adds ingestion contracts, freeze, sealed
+  results, a hash-chained audit trail with timestamps included in hashed
+  entries, a report custody chain with deterministic `result_sha256` and a
+  timestamped `report_hash`, safe narration, API, CLI, web, and capability
+  boundaries.
+- Memory is not authority: CRONOS and MNEME may provide auxiliary traces,
+  memory, or custody, but do not replace verification of `result.json` and
+  `result.seal.json`.
+- It is reproducible: the same frozen case and configuration produce the same
+  result whether chat is enabled or not.
+
+## Authority flow
 
 ```mermaid
 flowchart LR
-    P[Bundle / evidencia recolectada] --> F[Freeze + provenance]
-    L[Ventana live acotada<br/>Velociraptor / OTel-AIOps] --> N[Normalización + window hash]
-    N --> F
-    F --> V[VIGÍA determinista]
-    V --> S[Seal + resultado verificable]
-    S --> A[IA local / reportes]
+    A[Bundles / raw evidence / local collectors] --> B[Normalization and provenance]
+    B --> C[Case freeze]
+    C --> D[Deterministic VIGÍA]
+    D --> E[result.json + result.seal.json]
+    E --> F[CLI / API / Web / OpenWebUI]
+    E --> G[Ollama: local narration]
+    G --> H[Hallucination guard]
+    H --> F
+    I[MCP: VIGÍA / CRONOS / MNEME / ZAYNOR] --> B
+    I -. never decides .-> E
 ```
 
-El modo live significa adquisición o agregación acotada de una ventana de
-observaciones, no monitoreo continuo de un SIEM/EDR ni respuesta autónoma.
-Las observaciones live tampoco pueden cambiar un resultado por sí solas:
-deben cruzar el mismo freeze, provenance, análisis determinista y seal que un
-caso postmortem. Así, ZAYNOR puede participar en flujos de investigación en
-tiempo real sin convertir datos no congelados o una narración del LLM en un
-veredicto.
+`result.json` together with `result.seal.json` remains authoritative. The UI,
+Ollama, and MCP cannot mutate them. New evidence must be frozen and analyzed by
+the deterministic engine again.
 
-**[Probar ZAYNOR en Vercel](https://zaynor-demo.vercel.app) · [Ver un caso reproducible](#caso-reproducible-nitroba) · [Arquitectura ZAYNOR](https://annatchijova.github.io/zaynor/architecture.html) · [Decisiones matemáticas de VIGÍA](https://annatchijova.github.io/vigia/vigia_diagrams.html) · [Instalar](./INSTALL.md)**
+## Data and dataset
 
-[![Diagrama de arquitectura de ZAYNOR](./visual/Screenshot%20from%202026-09-18%2007-36-11.png)](https://annatchijova.github.io/zaynor/architecture.html)
+ZAYNOR supports forensic bundles, raw evidence, postmortem evidence, bounded
+Velociraptor acquisition, local AIOps/OTel observations, and reproducible case
+replays. Offline FreeBSD evidence and chkrootkit/rkhunter scanner reports can
+also be staged through bounded, digest-verified importers
+(`tools/freebsd_evidence/`, `tools/rootkit_scanner_reports/`) that cross the
+same case-freeze boundary; the result is `analysis_unsupported` until a
+calibrated VIGÍA adapter exists ([ADR 0004](./docs/adr/0004-freebsd-offline-evidence-importers.md)).
 
-*Diagrama interactivo — [explorarlo en vivo](https://annatchijova.github.io/zaynor/architecture.html), con vistas guiadas por camino de autoridad, investigación acotada y audiencia de analista.*
+Evaluation uses the reusable
+[VIGÍA Intent Analysis corpus](https://github.com/annatchijova/vigia-intent-analysis).
+It includes malicious, real and publicly documented, benign, false-positive,
+false-negative, adversarial, and BREAK cases. The corpus uses public and
+authorized sources including [Digital Corpora](https://digitalcorpora.org/)
+and SANS forensic material, alongside the canonical intentionality corpus.
 
-## No hace falta creerle al README
+Synthetic fixtures in this repository support deterministic demos and
+regression tests; they are not the only evaluation source.
 
-El pipeline se puede ejecutar end-to-end:
+## Interfaces
+
+- **CLI:** acquire or import evidence, freeze cases, analyze, verify seals,
+  query results, and generate reports.
+- **OpenAI-compatible API:** `zaynor serve` exposes the local API for tools and
+  OpenWebUI.
+- **Web:** visual case catalog, MD/HTML/PDF reports, junior and senior views,
+  audit, MITRE/NIST context, and investigation flow.
+- **OpenWebUI:** connects to the ZAYNOR API; it does not bypass the authority
+  boundary or connect the forensic chat directly to an external provider.
+- **MCP:** three local servers — VIGÍA, CRONOS, and MNEME — plus ZAYNOR's own
+  MCP server. Tools are bounded by capability, role, and resource.
+
+The chat path is:
 
 ```text
-ingesta → freeze → VIGÍA → resultado → seal → audit → report
+OpenWebUI → ZAYNOR API → verified sealed result → local Ollama → guard → safe response
 ```
 
-El caso forense NITROBA produce de forma reproducible:
+MCP details: [`docs/mcp-locales.md`](./docs/mcp-locales.md).
 
-**`SUSPICION` · `AUDIT VERIFIED`**
+## Ollama and agents
 
-**[Reproducir NITROBA](#caso-reproducible-nitroba) · [Ver resultado sellado](./frontend/src/lib/api/fixtures/cases/VIGIA-NITROBA-M57-001.json) · [Ver informe PDF](./results/NITROBA.pdf) · [Ver informe MD](./results/NITROBA.md)**
+Generative inference uses Ollama or another compatible local backend, with host,
+model, and timeout configurable. Freeze, analysis, sealing, and verification do
+not require an LLM.
 
-El motor y sus invariantes se ejercitan además sobre el corpus de VIGÍA:
-**más de 200 casos independientes**, entre evidencia forense real documentada,
-casos maliciosos, benignos, adversariales, BREAK, falsos positivos, formas de
-falsos negativos y fixtures de regresión.
+MENTOR explains sealed results; INVESTIGATOR proposes read-only investigation;
+FLEET_COMMANDER records hypotheses and tasks; DETECTION_ENGINEER prepares
+candidates; and DFIR collectors produce evidence and provenance. No agent
+assigns the verdict.
 
-## Qué hace concretamente
-
-ZAYNOR reúne tres capacidades que suelen estar separadas:
-
-### Core forense
-
-- ingesta de bundles, raw evidence y evidencia postmortem;
-- normalización, provenance y freeze del caso;
-- análisis determinista con VIGÍA;
-- resultado sellado; audit trail encadenado por hash con timestamps incluidos
-  en las entradas hasheadas; cadena de custodia del reporte con
-  `result_sha256` determinista y `report_hash` con marca temporal; e informes;
-- adquisición local acotada con Velociraptor y observaciones OTel ([demo lab reproducible](./docs/demo-lab/README.md));
-- importadores offline acotados y verificados por digest para evidencia
-  FreeBSD y reportes de chkrootkit/rkhunter (`tools/freebsd_evidence/`,
-  `tools/rootkit_scanner_reports/`), que cruzan el mismo freeze de caso con
-  resultado `analysis_unsupported` hasta que exista un adapter VIGÍA
-  calibrado ([ADR 0004](./docs/adr/0004-freebsd-offline-evidence-importers.md)).
-
-### Investigación asistida
-
-- Ollama local con modelo, host y timeout configurables;
-- preguntas y consultas read-only con policy gate;
-- tres MCP locales —VIGÍA, CRONOS y MNEME— más el servidor MCP propio;
-- hallucination guard para la narración;
-- nueva evidencia que vuelve al análisis determinista.
-
-### Interfaces
-
-- CLI para ingestión, freeze, análisis, auditoría, chat y reporting;
-- API local compatible con OpenAI;
-- OpenWebUI conectado a la API de ZAYNOR;
-- web con vistas junior/senior y catálogo de casos;
-- reportes MD, HTML y PDF.
-
-## Modelo de autoridad
-
-La arquitectura tiene dos planos:
-
-```mermaid
-flowchart TB
-    subgraph AUTH[PLANO AUTORITATIVO]
-        A[Bundles / raw / Velociraptor] --> B[Normalización]
-        B --> C[Freeze + provenance]
-        C --> D[VIGÍA determinista]
-        D --> E[result.json + result.seal.json]
-    end
-
-    subgraph INVEST[PLANO DE INVESTIGACIÓN]
-        F[Agente local / Ollama] --> G[Policy gate]
-        G --> H[Consulta read-only]
-        H --> I[Nueva evidencia]
-    end
-
-    E -->|proyección verificada| F
-    I --> A
-    J[VIGÍA MCP] --> H
-    K[CRONOS / MNEME] --> F
-    F -. nunca escribe .-> E
-```
-
-**Sólo el plano autoritativo puede cambiar el veredicto.** La API y la CLI
-verifican `result.json` junto con `result.seal.json` antes de narrar. Ollama
-recibe una proyección verificada; el hallucination guard elimina o rechaza
-claims contradictorios. La corrección del resultado no depende de la
-corrección del LLM.
-
-## Qué significa determinista
-
-VIGÍA no es una caja negra que reemplaza un modelo por reglas simples. El motor
-representa propiedades que una narración generativa puede ocultar:
-
-- **Independencia de evidencia:** artefactos dependientes no cuentan como
-  corroboración independiente sólo por ser numerosos.
-- **Cierre causal:** una hipótesis con una cadena causal incompleta puede no
-  sostener un veredicto aunque existan señales fuertes.
-- **Decisión acotada por riesgo:** la incertidumbre puede terminar en `ABSTAIN`
-  o `UNKNOWN` en lugar de ser rellenada por una inferencia generativa.
-- **Aritmética exacta:** la ruta autoritativa no depende de floats ni de una
-  probabilidad fabricada por el modelo.
-
-La implementación y sus invariantes están documentadas en
-[`docs/technical-details.md`](./docs/technical-details.md), el
-[scorer vendorizado](./vendor/vigia_engine/vigia_scorer.py) y los tests de
-[aritmética exacta](./tests/test_vigia_scorer_fraction.py).
-
-Referencia visual del motor y sus decisiones matemáticas:
-[diagramas publicados de VIGÍA](https://annatchijova.github.io/vigia/vigia_diagrams.html).
-
-## Del evidence al veredicto
-
-El resultado autoritativo no nace de una respuesta generativa. Proviene del
-scorer y de las capas matemáticas de VIGÍA.
-
-VIGÍA evalúa la evidencia bajo invariantes explícitos de independencia entre
-fuentes, contradicción, provenance, confianza efectiva, coherencia causal,
-estabilidad y riesgo de decisión. Las hipótesis compiten con la evidencia
-disponible y con explicaciones alternativas; acumular artefactos no aumenta
-automáticamente su soporte.
-
-Entre los mecanismos del motor se encuentran:
-
-- **Composición de evidencia y dependencia:** limita la corroboración falsa
-  cuando varias observaciones derivan de una misma fuente.
-- **Fracturas y contradicciones:** reducen soporte o impiden sostener una
-  conclusión cuando la evidencia rompe los supuestos de una hipótesis.
-- **Causal Closure Score (CCS):** mide si la cadena causal necesaria está
-  suficientemente cerrada; un cierre insuficiente puede imponer abstención.
-- **Risk-Bounded Decision Layer:** combina posterior, drift, estabilidad y
-  consistencia para conservar una zona explícita de `ABSTAIN`.
-- **Confianza efectiva y estabilidad:** separan la fuerza aparente de una
-  señal de la estabilidad del razonamiento que la sostiene.
-- **Aritmética reproducible:** `Fraction` y `Decimal` se usan donde la ruta
-  autoritativa exige resultados exactos y comparables.
-
-El scorer transforma ese estado en una decisión explícita. ZAYNOR conserva
-estados como `MALICE`, `SUSPICION`, `BENIGN`, `UNKNOWN` y `ABSTAIN`, junto con
-confianza, razones, referencias y material de auditoría.
-
-`ABSTAIN` no significa que el sistema haya fallado: significa que las
-condiciones matemáticas para sostener una conclusión no se cumplen. La
-incertidumbre se conserva en vez de pedirle al LLM que complete lo que falta.
-
-La especificación, ecuaciones, thresholds e invariantes viven en VIGÍA y en la
-documentación técnica; este README resume las propiedades que afectan la
-frontera de autoridad.
-
-**Profundizar:** [VIGÍA](https://github.com/annatchijova/vigia-intent-analysis) ·
-[`docs/technical-details.md`](./docs/technical-details.md) ·
-[scorer](./vendor/vigia_engine/vigia_scorer.py) ·
-[tests de aritmética exacta](./tests/test_vigia_scorer_fraction.py)
-
-## Investigación local
-
-El camino de chat es:
-
-```text
-OpenWebUI → API ZAYNOR → resultado sellado verificado → Ollama → guard → respuesta segura
-```
-
-La API no vuelve a ejecutar VIGÍA desde chat, no acepta un veredicto elegido
-por el request y no presenta errores operativos como contenido exitoso del
-assistant. MCP aporta capacidades limitadas por rol, recurso y efecto; sus
-salidas no tienen autoridad sobre `result.json` ni `result.seal.json`.
-
-Contratos y herramientas: [`docs/mcp-locales.md`](./docs/mcp-locales.md) y
-[`docs/adr/0001-separate-mcp-capability-planes.md`](./docs/adr/0001-separate-mcp-capability-planes.md).
-
-## Agentes y capabilities locales
-
-Los agentes locales operan bajo contratos explícitos de capability:
-`READ`, `DERIVE`, `ACQUIRE`, `MUTATE` y `AUTHORIZE`, verificados contra
-manifests. Ningún agente registrado posee `MUTATE` ni `AUTHORIZE`: puede
-consultar, derivar o adquirir evidencia dentro de su policy, pero no modificar
-el resultado autoritativo ni autorizar un veredicto.
-
-### Agentes locales (Ollama), por rol
-
-| Rol | Estado | Qué hace de verdad |
-|---|---|---|
-| **MENTOR** | conectado | Explica un resultado sellado mediante `zaynor chat` / `zaynor serve`; lee `ZaynorAuthoritativeResult` y nunca vuelve a invocar VIGÍA. |
-| **CONSULT** | conectado | `zaynor consult`: vista read-only del paquete sellado, sin LLM. |
-| **DISPATCHER** | conectado | `zaynor hunts`: catálogo de tipos de evidencia que Mode 1 sabe analizar. |
-| **INVESTIGATOR** | implementado, sin caller de producción | `collect_window` / `verify_custody` llaman al bridge MCP de VIGÍA; ningún comando CLI/API los invoca hoy. |
-| **FLEET_COMMANDER** | implementado, sin caller de producción | Escribe en el log de investigación; ningún comando lo invoca hoy. |
-| **DETECTION_ENGINEER** | implementado, sin caller de producción | `draft_sigma_rule` genera candidatos Sigma anclados a un finding sellado; ningún comando lo invoca hoy. |
-| **ENDPOINT_HUNTER / PERSISTENCE_HUNTER** | fuera de alcance | Requerirían recolección en vivo; VIGÍA analiza evidencia congelada. |
-| **THREAT_INTEL** | fuera de alcance, por ahora | Existe una implementación portable de VirusTotal/GTI, no incorporada porque implicaría red externa. |
-
-Las capacidades externas están separadas por MCP:
-
-- **VIGÍA MCP:** operaciones forenses acotadas sobre evidencia;
-- **CRONOS:** trazas, hipótesis y audit trail de razonamiento;
-- **MNEME:** memoria, custodia y verificación de bundles;
-- **ZAYNOR MCP:** herramientas case-bound y read-only del proyecto.
-
-Estado detallado y contratos: [`src/zaynor/agents/README.md`](./src/zaynor/agents/README.md),
-[`docs/mcp-locales.md`](./docs/mcp-locales.md) y
-[`docs/adr/0001-separate-mcp-capability-planes.md`](./docs/adr/0001-separate-mcp-capability-planes.md).
-
-Para ver el laboratorio de adquisición y observabilidad:
-[`docs/demo-lab/`](./docs/demo-lab/).
-
-Para auditar o intentar romper estas fronteras:
-[`docs/red-team/`](./docs/red-team/).
-
-Para la referencia visual de las decisiones matemáticas:
-[diagramas publicados de VIGÍA](https://annatchijova.github.io/vigia/vigia_diagrams.html).
-
-## Caso reproducible: NITROBA
-
-NITROBA es un caso de atribución de identidad sobre captura de red del desafío
-M57 Patents / DFRWS 2009. El bundle documenta sesiones Gmail/AIM, cookies,
-artefactos de red y explicaciones alternativas.
-
-```text
-SOURCE    M57 Patents / DFRWS 2009
-INPUT     casos/VIGIA-NITROBA-M57-001.json
-FREEZE    manifest + artifact hashes
-VIGÍA     SUSPICION
-SEAL      result.json + result.seal.json
-AUDIT     VERIFIED
-OUTPUTS   JSON · MD · HTML · PDF
-```
-
-La ejecución completa está en [`GUIA_PERITOS.md`](./GUIA_PERITOS.md). La
-secuencia mínima es:
-
-```bash
-CASE_FILE="VIGIA-NITROBA-M57-001.json"
-CASE_ID="NITROBA"
-mkdir -p /tmp/perito-cases /tmp/perito-outputs
-echo "{\"caso\": [\"$CASE_FILE\"]}" > /tmp/perito-profile.json
-
-zaynor freeze --case-id "$CASE_ID" --evidence-profile caso \
-  --profile-map /tmp/perito-profile.json --source-root casos \
-  --cases-root /tmp/perito-cases --json
-
-zaynor analyze --case-id "$CASE_ID" --cases-root /tmp/perito-cases \
-  --engine-repo vendor/vigia_engine \
-  --output-root /tmp/perito-outputs --json
-
-zaynor audit --case-id "$CASE_ID" --cases-root /tmp/perito-cases \
-  --output-root /tmp/perito-outputs --json
-```
-
-Después se pueden generar los reportes:
-
-```bash
-zaynor report --case-id "$CASE_ID" --output-root /tmp/perito-outputs --format md
-zaynor report --case-id "$CASE_ID" --output-root /tmp/perito-outputs --format html
-zaynor report --case-id "$CASE_ID" --output-root /tmp/perito-outputs --format pdf
-```
-
-## Dataset y provenance
-
-La evaluación reutiliza el corpus público de
-[VIGÍA Intent Analysis](https://github.com/annatchijova/vigia-intent-analysis),
-con **más de 200 casos independientes** diseñados para evaluar el motor bajo
-escenarios forenses, benignos, maliciosos y adversariales.
-
-Incluye:
-
-- casos forenses reales y públicamente documentados;
-- casos maliciosos y benignos;
-- falsos positivos y formas de falsos negativos;
-- casos adversariales;
-- casos `BREAK`, diseñados para romper supuestos e invariantes;
-- vectores canónicos y fixtures sintéticos de regresión.
-
-El índice de casos y sus fuentes está en [`casos/README.md`](./casos/README.md).
-Los manifests conservan dataset, URLs, hashes y notas de provenance cuando
-están disponibles. Entre las fuentes públicas documentadas aparecen
-[Digital Corpora](https://digitalcorpora.org/) y muestras de memoria de la
-[Volatility Foundation](https://github.com/volatilityfoundation/volatility/wiki/Memory-Samples).
-VIGÍA también se desarrolló y documentó en el contexto de SANS FIND EVIL; la
-provenance concreta de cada artefacto prevalece sobre cualquier etiqueta global.
-
-Los casos locales de ZAYNOR son una selección ejecutable del corpus, no una
-redefinición de sus unidades.
-
-## Red team y validación
-
-El repositorio contiene 27 documentos de rondas red-team numeradas o
-relacionadas sobre autoridad, CLI, path traversal, TOCTOU, sellos, MCP,
-Ollama, OpenWebUI, prompt injection y contratos de agentes.
-
-Backend: `PYTHONPATH=src pytest -q --ignore=tests/test_real_forensic_image_evidence.py`
-produce `432 passed, 1 skipped` (el único test excluido es un hang
-preexistente y documentado, en investigación aparte — no se cuenta como
-passed). Frontend: `npm test` en `frontend/` produce `19 passed`. Ninguna
-corrida se presenta como verde si no lo fue: si un test falla, se documenta
-el fallo, no se lo excluye en silencio.
-
-- [Auditoría unificada de seguridad](./docs/red-team/2026-09-17-unified-audit.md)
-- [Resolución de la ronda backend](./docs/red-team/2026-09-17-round-22-resolution.md)
-- [Resolución de la auditoría de arquitectura](./docs/red-team/2026-09-17-round-23-architecture-audit-resolution.md)
-- [Auditoría Ollama/OpenWebUI](./docs/red-team/2026-09-16-round-15-ollama-openwebui.md)
-- [Resolución de la ronda 21](./docs/red-team/2026-09-17-round-21-resolution.md)
-- [Suite de tests](./tests/)
-
-## Lineage: VIGÍA, ANNACONDA y ZAYNOR
-
-| Línea previa | Qué aporta a ZAYNOR |
-|---|---|
-| **VIGÍA** | Autoridad determinista, hipótesis, causalidad, provenance, incertidumbre, scoring y abstención. |
-| **ANNACONDA** | Adquisición DFIR, adapter Velociraptor, transportes, normalización de rows, evidence windows, window hash, manifest/custody y patrones de investigación agentic. |
-| **ZAYNOR** | Contrato común, freeze/seal/audit, trusted boundary, Ollama, MCP, API, CLI, web y loop de reanálisis. |
-
-La reutilización está documentada en [`NOTICE.md`](./NOTICE.md),
-[`AGENTS.md`](./AGENTS.md), [`docs/technical-details.md`](./docs/technical-details.md)
-y [`src/zaynor/hybrid_integrations.py`](./src/zaynor/hybrid_integrations.py).
-
-## Límites
-
-ZAYNOR no reemplaza un SIEM o EDR de monitoreo continuo y no ejecuta
-remediación autónoma. Puede consumir ventanas live producidas por colectores
-locales o agregadores de telemetría, pero la conclusión sólo aparece después
-de freeze y análisis determinista. Las integraciones externas de threat
-intelligence son opcionales y no forman parte del runtime local por defecto.
-
-Para vulnerabilidades, seguir [`SEGURIDAD.md`](./SEGURIDAD.md) y reportar de
-forma privada.
-
-## Quickstart
+## Quick start
 
 ```bash
 git clone https://github.com/annatchijova/zaynor.git
@@ -420,85 +147,114 @@ cd zaynor
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -e ".[api]"
+
+zaynor analyze --help
+zaynor chat --help
+zaynor serve --output-root ./outputs --cases-root ./casos --port 8420
 ```
 
-Después, reproducí NITROBA con la secuencia de arriba. Para Ollama, API,
-Velociraptor, OpenWebUI y laboratorio, consultá [`INSTALL.md`](./INSTALL.md),
-[`GUIA_PERITOS.md`](./GUIA_PERITOS.md) y
-[`docs/demo-lab/README.md`](./docs/demo-lab/README.md).
+Full installation, Ollama, Velociraptor, OpenWebUI, and lab instructions:
 
-## Seguir leyendo
+- [`INSTALL.md`](./INSTALL.md)
+- [`GUIA_PERITOS.md`](./GUIA_PERITOS.md)
+- [`docs/demo-lab/README.md`](./docs/demo-lab/README.md)
 
-### Quiero entender el modelo matemático
+## Cases and reports
 
-- [VIGÍA Intent Analysis](https://github.com/annatchijova/vigia-intent-analysis) — motor determinista, scorer, metodología y corpus.
-- [`docs/technical-details.md`](./docs/technical-details.md) — cómo ZAYNOR incorpora esa autoridad y la vincula al seal.
-- [`vendor/vigia_engine/vigia_scorer.py`](./vendor/vigia_engine/vigia_scorer.py) — scorer utilizado por ZAYNOR.
+The catalog includes real, adversarial, BREAK, benign, and reproducible fixture
+cases. Nitroba includes its artifacts and downloadable MD, HTML, and PDF
+reports.
 
-### Quiero reproducir un análisis forense
+- [`casos/README.md`](./casos/README.md) — case corpus and provenance.
+- [`results/`](./results/) — generated results and reports.
+- [`frontend/`](./frontend/) — visual interface and public replay.
+- [`docs/architecture-for-frontend.md`](./docs/architecture-for-frontend.md) — view contract.
 
-- [`GUIA_PERITOS.md`](./GUIA_PERITOS.md) — evidencia, resultado, audit y report.
-- [`casos/README.md`](./casos/README.md) — casos, fuentes y provenance.
-- [`docs/demo-lab/README.md`](./docs/demo-lab/README.md) — laboratorio reproducible DFIR + AIOps: Velociraptor, OTel, Prometheus/Loki/Tempo/Grafana y pipeline `freeze → VIGÍA → audit`.
+## Red team and validation
 
-### Quiero entender la arquitectura
+The repository contains 27 numbered or related red-team round documents
+covering authority boundaries, the CLI, path traversal, TOCTOU, seals, MCP,
+Ollama, OpenWebUI, prompt injection, and agent contracts.
 
-- [Diagrama interactivo](https://annatchijova.github.io/zaynor/architecture.html)
+Backend: `PYTHONPATH=src pytest -q --ignore=tests/test_real_forensic_image_evidence.py`
+produces `432 passed, 1 skipped` (the one excluded test is a preexisting,
+documented hang under separate investigation — not counted as passed).
+Frontend: `npm test` in `frontend/` produces `19 passed`. No run is
+presented as green if it wasn't: a failing test gets documented, not
+silently excluded.
+
+- [Unified security audit](./docs/red-team/2026-09-17-unified-audit.md)
+- [Backend round resolution](./docs/red-team/2026-09-17-round-22-resolution.md)
+- [Architecture audit resolution](./docs/red-team/2026-09-17-round-23-architecture-audit-resolution.md)
+- [Ollama/OpenWebUI audit](./docs/red-team/2026-09-16-round-15-ollama-openwebui.md)
+- [Round 21 resolution](./docs/red-team/2026-09-17-round-21-resolution.md)
+- [Test suite](./tests/)
+
+## Security and limits
+
+Security does not depend on model obedience. The result is cryptographically
+verified before narration; contradictory claims are rejected or removed; and
+evidence controlled by a possible adversary remains data, unable to expand
+capabilities or write authoritative state.
+
+ZAYNOR does not claim to replace a continuous SIEM or EDR or to perform
+autonomous remediation. External threat-intelligence integrations are optional
+and are not part of the default local runtime.
+
+Report vulnerabilities privately according to [`SEGURIDAD.md`](./SEGURIDAD.md).
+
+## Selected documentation
+
+- [`docs/technical-details.md`](./docs/technical-details.md)
 - [`docs/mcp-locales.md`](./docs/mcp-locales.md)
 - [`AGENTS.md`](./AGENTS.md)
-- [`docs/adr/0001-separate-mcp-capability-planes.md`](./docs/adr/0001-separate-mcp-capability-planes.md)
-
-### Quiero auditarlo o romperlo
-
-- [`docs/red-team/`](./docs/red-team/)
-- [`tests/`](./tests/)
+- [`docs/architecture.html`](./docs/architecture.html)
 - [`LIMITACIONES_CONOCIDAS.md`](./LIMITACIONES_CONOCIDAS.md)
-- [`SEGURIDAD.md`](./SEGURIDAD.md)
-- [`CONTRIBUTING.md`](./CONTRIBUTING.md)
 - [`AUTHORS.md`](./AUTHORS.md)
+- [`CONTRIBUTING.md`](./CONTRIBUTING.md)
 
-## Superficie técnica de ZAYNOR
+## ZAYNOR technical surface
 
 ```text
 ZAYNOR
-├── Autoridad forense determinista
+├── Deterministic forensic authority
 │   └── VIGÍA
-│       ├── razonamiento abductivo e inductivo
+│       ├── abductive and inductive reasoning
 │       ├── likelihood + ENFSI
-│       ├── cierre causal y estabilidad de grafos
-│       ├── decisión acotada por riesgo
-│       ├── veredicto cuadripartito
-│       ├── aritmética exacta
-│       └── scoring determinista
+│       ├── causal closure and graph stability
+│       ├── risk-bounded decision
+│       ├── quadripartite verdict
+│       ├── exact arithmetic
+│       └── deterministic scoring
 │
-├── Adquisición y análisis forense
+├── Forensic acquisition and analysis
 │   ├── Velociraptor
-│   ├── memoria, disco y red
-│   ├── MFT, Prefetch, Registry y Shellbags
+│   ├── memory, disk, and network
+│   ├── MFT, Prefetch, Registry, and Shellbags
 │   ├── PCAP
-│   ├── browser, Android, iOS y macOS
-│   ├── reconstrucción de timelines
-│   ├── normalización de artefactos
-│   └── importadores offline de evidencia FreeBSD + reportes chkrootkit/rkhunter
+│   ├── browser, Android, iOS, and macOS
+│   ├── timeline reconstruction
+│   ├── artifact normalization
+│   └── offline FreeBSD evidence + chkrootkit/rkhunter report importers
 │
-├── Integridad de evidencia
-│   ├── freeze y canonicalización
+├── Evidence integrity
+│   ├── freeze and canonicalization
 │   ├── provenance
-│   ├── sellos SHA-256
-│   ├── audit hash chain ligada al caso
-│   ├── timestamps en entradas hasheadas
-│   ├── HMAC opcional
-│   ├── verificación de custodia
-│   └── replay determinista
+│   ├── SHA-256 seals
+│   ├── case-bound audit hash chain
+│   ├── timestamps in hashed entries
+│   ├── optional HMAC
+│   ├── custody verification
+│   └── deterministic replay
 │
-├── Investigación agentic
+├── Agentic investigation
 │   ├── Ollama
-│   ├── policy de capabilities: READ / DERIVE / ACQUIRE / MUTATE / AUTHORIZE
+│   ├── capability policy: READ / DERIVE / ACQUIRE / MUTATE / AUTHORIZE
 │   ├── MENTOR
 │   ├── INVESTIGATOR
 │   ├── DISPATCHER
 │   ├── DETECTION_ENGINEER
-│   └── hallucination y authority guards
+│   └── hallucination and authority guards
 │
 ├── MCP
 │   ├── VIGÍA
@@ -506,7 +262,7 @@ ZAYNOR
 │   ├── MNEME
 │   └── ZAYNOR MCP
 │
-├── Observabilidad y laboratorio LIVE
+├── Observability and LIVE laboratory
 │   ├── OpenTelemetry
 │   ├── Prometheus
 │   ├── Loki
@@ -515,76 +271,76 @@ ZAYNOR
 │
 ├── Interfaces
 │   ├── CLI
-│   ├── API compatible con OpenAI
+│   ├── OpenAI-compatible API
 │   ├── OpenWebUI
 │   ├── Web UI
-│   └── reportes MD / HTML / PDF
+│   └── MD / HTML / PDF reports
 │
-└── Verificación
-    ├── suite de tests
-    ├── corpus adversarial
-    ├── rondas Red Team
-    ├── tests de determinismo
-    ├── tests de autoridad
-    └── casos forenses reproducibles
+└── Verification
+    ├── test suite
+    ├── adversarial corpus
+    ├── Red Team rounds
+    ├── determinism tests
+    ├── authority-boundary tests
+    └── reproducible forensic cases
 ```
 
-### Stack y dependencias principales
+### Main stack and dependencies
 
 ```text
 Python 3.12
 ├── ZAYNOR
-│   ├── motor VIGÍA vendorizado
+│   ├── vendored VIGÍA engine
 │   ├── Ollama
 │   ├── MCP
 │   ├── Velociraptor
 │   └── ReportLab / reporting
 ├── DFIR
-│   └── módulos de análisis estilo SIFT
-└── Observabilidad
+│   └── SIFT-style analysis modules
+└── Observability
     └── OpenTelemetry → Prometheus / Loki / Tempo / Grafana
 
 Frontend
-└── Next.js / TypeScript → API ZAYNOR
+└── Next.js / TypeScript → ZAYNOR API
 ```
 
-El árbol físico completo incluye código fuente, casos, tests, documentación y
-artefactos generados. `build/`, caches y dependencias instaladas no forman
-parte de la superficie fuente documentada.
+The physical tree includes source code, cases, tests, documentation, and
+generated artifacts. `build/`, caches, and installed dependencies are not part
+of the documented source surface.
 
-## Evidencia visual de una corrida CLI
+## Visual evidence from a CLI run
 
-Estas capturas documentan una ejecución local reproducible sobre
+These screenshots document a reproducible local run of
 `case_026_ventrilocuo_process_hollowing`:
 
-- [Freeze y análisis](./visual/Screenshot%20from%202026-09-18%2004-20-42.png)
-- [Resultado autoritativo y sello](./visual/Screenshot%20from%202026-09-18%2004-20-44.png)
-- [Audit trail con cadena válida](./visual/Screenshot%20from%202026-09-18%2004-22-41.png)
-- [Chat local y guard de autoridad](./visual/Screenshot%20from%202026-09-18%2004-26-12.png)
+- [Freeze and analysis](./visual/Screenshot%20from%202026-09-18%2004-20-42.png)
+- [Authoritative result and seal](./visual/Screenshot%20from%202026-09-18%2004-20-44.png)
+- [Audit trail with valid chain](./visual/Screenshot%20from%202026-09-18%2004-22-41.png)
+- [Local chat and authority guard](./visual/Screenshot%20from%202026-09-18%2004-26-12.png)
 
-Lo importante:
+The important points:
 
-- freeze correcto;
-- VIGÍA produjo `MALICE`;
+- freeze completed correctly;
+- VIGÍA produced `MALICE`;
 - audit: `overall: VERIFIED`;
-- audit trail válido: `chain_valid: true`;
-- resultado y sello verificados;
-- el modelo intentó introducir `UNKNOWN` como veredicto/confianza;
-- el hallucination guard lo detectó:
+- valid audit trail: `chain_valid: true`;
+- result and seal verified;
+- the model attempted to introduce `UNKNOWN` as a verdict/confidence claim;
+- the hallucination guard detected it:
   - `claims_total: 4`;
   - `claims_verified: 3`;
   - `claims_hallucinated: 1`;
   - `suspicious: true`;
-  - claim rechazada: `UNKNOWN`.
+  - rejected claim: `UNKNOWN`.
 
-El veredicto autoritativo siguió siendo `MALICE`.
+The authoritative verdict remained `MALICE`.
 
-`confidence: UNKNOWN` en el audit no significa que falló: es un campo del
-resultado que no fue calculado o proporcionado para ese fixture.
-`provenance: EMPTY` también es una característica de ese fixture, no una
-falla de integridad.
+`confidence: UNKNOWN` in the audit does not mean that verification failed: it
+is a result field that was not calculated or supplied for this fixture.
+`provenance: EMPTY` is also a characteristic of this fixture, not an
+integrity failure.
 
-La secuencia visible para la demo es:
+The visible demo sequence is:
 
 ```text
 VIGÍA: MALICE
@@ -595,9 +351,9 @@ GUARD: REJECTED
 AUTHORITATIVE VERDICT: MALICE
 ```
 
-Esto demuestra que el LLM puede narrar mal, pero no puede cambiar la
-autoridad.
+This demonstrates that the LLM can narrate incorrectly, but cannot change the
+authoritative result.
 
-## Licencia
+## License
 
-Apache License 2.0. Ver [`LICENSE`](./LICENSE).
+Apache License 2.0. See [`LICENSE`](./LICENSE).
