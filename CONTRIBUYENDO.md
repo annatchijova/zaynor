@@ -167,7 +167,7 @@ Ver [`casos/README.md`](casos/README.md).
 
 Si cambiás comportamiento, empezá por el documento más cercano a ese contrato:
 
-- [`README.md`](README.md) — modelo del producto y frontera de autoridad;
+- [`README_ES.md`](README_ES.md) — modelo del producto y frontera de autoridad;
 - [`INSTALL.md`](INSTALL.md) — instalación y operación;
 - [`GUIA_PERITOS.md`](GUIA_PERITOS.md) — flujo forense reproducible;
 - [`AGENTS.md`](AGENTS.md) — contratos de integración y agentes;

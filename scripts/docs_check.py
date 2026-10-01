@@ -25,7 +25,7 @@ Semantics:
 - A rule triggers when at least one changed file matches its code patterns.
 - An triggered rule is satisfied when the rule's doc patterns are matched by
   the changed set: every pattern when ``require_all`` (the mirrored
-  README.md/README.en.md pair), otherwise at least one.
+  README.md/README_ES.md pair), otherwise at least one.
 - A deliberate waiver is a commit trailer in the checked range: the final
   paragraph of the message, as a contiguous ``key: value`` block (the way
   ``git interpret-trailers`` defines it)::
@@ -76,19 +76,19 @@ DOCS_MAP: tuple[Rule, ...] = (
     Rule(
         "cli-usage",
         ("src/zaynor/cli.py",),
-        ("README.md", "README.en.md"),
+        ("README.md", "README_ES.md"),
         require_all=True,
     ),
     Rule(
         "api-usage",
         ("src/zaynor/api.py",),
-        ("README.md", "README.en.md"),
+        ("README.md", "README_ES.md"),
         require_all=True,
     ),
     Rule(
         "agent-roles",
         ("src/zaynor/agents/*", "src/zaynor/investigation_log.py"),
-        ("README.md", "README.en.md"),
+        ("README.md", "README_ES.md"),
     ),
     Rule(
         "core-pipeline",
@@ -177,7 +177,7 @@ DOCS_MAP: tuple[Rule, ...] = (
             "CONTRIBUTING.md",
             "CONTRIBUYENDO.md",
             "README.md",
-            "README.en.md",
+            "README_ES.md",
             "CHANGELOG.md",
         ),
     ),

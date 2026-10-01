@@ -2,7 +2,7 @@
 
 Guía paso a paso para levantar Zaynor en una máquina local. Todo corre en
 la computadora del perito — nada de esto sale a un servicio externo (ver
-"Requisitos y soberanía" en el [`README.md`](./README.md)).
+"Requisitos y soberanía" en el [`README_ES.md`](./README_ES.md)).
 
 ## 1. Requisitos
 
@@ -10,8 +10,8 @@ la computadora del perito — nada de esto sale a un servicio externo (ver
 - **Git.**
 - **[Ollama](https://ollama.com)** (u otro backend local equivalente) —
   necesario para `chat`/`serve`; los comandos `freeze`/`analyze`/`audit`/
-  `audit-trail`/`consult`/`report` no lo requieren, son puro motor
-  determinista.
+  `audit-trail`/`consult`/`report` no lo requieren y forman parte de la ruta
+  local determinista/auditable.
 - Espacio en disco para casos congelados: la evidencia se copia (no se
   referencia) al congelar un caso.
 
@@ -83,8 +83,8 @@ zaynor case --fixture scenarios/inc-2026-demo-001/telemetry.jsonl --json
 ```
 
 Si esto imprime un JSON con eventos y alertas, la instalación base
-funciona. Este comando no toca Ollama ni el motor VIGÍA — es el pipeline
-propio de detección/correlación de Zaynor sobre un fixture de ejemplo.
+funciona. Es un smoke test local sobre el fixture incluido: no requiere
+Ollama ni ejecuta todavía el análisis autoritativo de VIGÍA.
 
 ## 5. Flujo completo sobre un caso
 
@@ -177,7 +177,7 @@ herramientas expone y con qué garantías de solo-lectura.
 
 ## Próximos pasos
 
-- [`README.md`](./README.md) — qué es Zaynor, el flujo de autoridad
+- [`README_ES.md`](./README_ES.md) — qué es Zaynor, el flujo de autoridad
   completo, alcance y estado real.
 - [`AGENTS.md`](./AGENTS.md) — contratos de integración con VIGÍA y
   límites de autoridad entre evidencia, motor determinista y LLM.
@@ -185,3 +185,8 @@ herramientas expone y con qué garantías de solo-lectura.
   solo a usarlo.
 - [`docs/red-team/`](./docs/red-team/) — rondas de auditoría adversarial,
   para entender qué se verificó y cómo.
+- [`GUIA_PERITOS.md`](./GUIA_PERITOS.md) — reproducción paso a paso de un
+  caso forense completo, desde evidencia hasta resultado sellado, auditoría
+  y reporte.
+- [`docs/demo-lab/README.md`](./docs/demo-lab/README.md) — laboratorio
+  reproducible DFIR + AIOps con Velociraptor, OTel y el pipeline completo.

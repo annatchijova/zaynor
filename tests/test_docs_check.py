@@ -34,11 +34,11 @@ def test_cli_change_without_readmes_is_rejected():
     outcomes = docs_check.evaluate(["src/zaynor/cli.py"])
     assert violated_ids(["src/zaynor/cli.py"]) == ["cli-usage"]
     outcome = next(o for o in outcomes if o.rule.id == "cli-usage")
-    assert outcome.missing_docs == ["README.md", "README.en.md"]
+    assert outcome.missing_docs == ["README.md", "README_ES.md"]
 
 
 def test_cli_change_with_both_readmes_passes():
-    files = ["src/zaynor/cli.py", "README.md", "README.en.md"]
+    files = ["src/zaynor/cli.py", "README.md", "README_ES.md"]
     assert not any(o.violated for o in docs_check.evaluate(files))
 
 
@@ -182,14 +182,14 @@ def test_git_range_rejects_code_without_docs(git_repo: Path):
     result = _run_gate(git_repo, "--git-range", f"{base}..{head}")
     assert result.returncode == 1
     assert "cli-usage" in result.stderr
-    assert "README.en.md" in result.stderr
+    assert "README_ES.md" in result.stderr
 
 
 def test_git_range_accepts_when_docs_updated(git_repo: Path):
     (git_repo / "src" / "zaynor").mkdir(parents=True)
     (git_repo / "src" / "zaynor" / "cli.py").write_text("print(1)\n")
     (git_repo / "README.md").write_text("readme updated\n")
-    (git_repo / "README.en.md").write_text("docs\n")
+    (git_repo / "README_ES.md").write_text("docs\n")
     _git(git_repo, "add", "-A")
     _git(git_repo, "commit", "-qm", "feat(cli): add command with docs")
     base, head = _git(git_repo, "rev-parse", "HEAD~1"), _git(git_repo, "rev-parse", "HEAD")
