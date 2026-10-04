@@ -58,12 +58,17 @@ shows how binary evidence would be scored if it reached VIGIA today:
 Add two read-only importers under the shared ADR-0004 contract. Neither feeds
 VIGIA; both stay `analysis_unsupported`.
 
-1. **`tools/binary_static/`** — the ADR-0003 static slice. For each declared
-   binary it freezes the original and emits exactly one `binary_triage`
-   observation keyed by `content_sha256`: byte histogram and entropy, ELF
-   structures (sections, segments, interpreter, dynamic dependencies, symbol
-   tables, notes, `.comment`) or PE headers (COFF, optional header, data
-   directories, sections, certificate-table location). An optional YARA
+1. **`tools/binary_static/`** — the ADR-0003 static slice, for binaries
+   acquired from FreeBSD, Linux or Windows targets. For each declared binary
+   it freezes the original and emits exactly one `binary_triage` observation
+   keyed by `content_sha256`: byte histogram and entropy, positional strings
+   (ASCII and UTF-16LE), and either ELF structures (sections, segments, entry
+   point, loader-versus-section-table consistency, interpreter, dynamic
+   dependencies, symbol tables, GNU version needs, notes, `.comment`, Linux
+   `.modinfo`) or PE structures (Rich header, COFF and optional headers with
+   a recomputed checksum, data directories, sections, entry point, imports and
+   delay imports, exports, debug/CodeView, TLS callbacks, resources with
+   version information, overlay, certificate-table entries). An optional YARA
    ruleset is frozen under `method/` and produces one `signature_scan`
    observation per binary.
    - It lives at the importer boundary rather than in `DEFAULT_HUNT_CATALOG`
@@ -76,12 +81,26 @@ VIGIA; both stay `analysis_unsupported`.
      recorded as issues, no allocation from declared sizes, unknown
      architectures recorded rather than rejected).
 
-2. **`tools/binary_analysis_reports/`** — the ADR-0003 revisit shape. Reports
+2. **`tools/binary_analysis_reports/`** — the ADR-0003 revisit shape, for the
+   same three target systems. Reports
    from an upstream, isolated pipeline (the PBA chapter 6-13 class of work)
    are frozen raw. Only the exact `zaynor-binary-analysis-report/1` format is
    normalized. Every result is `tool_reported`. The analyzer identity and its
    declared execution environment are recorded and never verified, and
    `dynamic` execution is recorded as a custody fact.
+
+## Target systems
+
+The shared package header now takes a per-importer target-system allowlist
+(`allowed_os` in `tools/offline_evidence.py`, default FreeBSD-only; see the
+amendment to ADR-0004). Both binary importers opt in to `FreeBSD`, `Linux`
+and `Windows`, because ELF and PE are formats, not FreeBSD artifacts: a
+Linux `.ko`, a Windows `.sys` and a FreeBSD UEFI loader are parsed by the
+same code. `freebsd_evidence` and `rootkit_scanner_reports` keep the
+FreeBSD-only default, since their parsers and scanner dialects were
+validated on FreeBSD only. The four `target` fields keep their meaning on
+every system (`kernel_build` is the Linux kernel release or the Windows OS
+build).
 
 ## Security and epistemic constraints
 
@@ -107,7 +126,16 @@ VIGIA; both stay `analysis_unsupported`.
   importer, rule engine or upstream tool on the same bytes is not a second
   source, and upstream reports carry the subject's acquisition lineage.
 - File presence does not establish execution or residence; kernel-module
-  load state stays unknown (as in ADR-0004).
+  and driver load state stays unknown (as in ADR-0004).
+- What a binary says about itself — section names, version-information
+  strings, PDB paths, Rich entries, timestamps, declared imports — was
+  written by whoever built it. Those claims are recorded with their location,
+  never promoted to facts about origin. Ordinal imports stay ordinals: no
+  ordinal-to-name table is applied, because that is an inference from an
+  external, version-specific list.
+- The section table is shown next to the loader's view (program headers),
+  never trusted instead of it: a section that no load segment maps where it
+  claims, or a misaligned table or section, is a recorded parse issue.
 
 ## P2 adapter invariants
 
@@ -127,9 +155,10 @@ Whoever writes the VIGIA adapter for these observations must hold:
    declared benign baseline.
 5. `provenance_chain` has a fixed, documented mapping of at most three
    entries (acquisition, frozen original, transform).
-6. Calibration precedes the adapter: a benign baseline from the same FreeBSD
-   release and `kernel_build` as the target, plus controlled positives
-   (ADR-0004). Header-level features are authored by whoever built the binary
+6. Calibration precedes the adapter, per target system: a benign baseline
+   from the same OS, release and `kernel_build` as the target (a FreeBSD
+   release, a Linux distribution and kernel, a Windows build), plus
+   controlled positives (ADR-0004). Header-level features are authored by whoever built the binary
    (the adversary, in the cases that matter), so they are highly spoofable;
    calibration has to weight them accordingly.
 
@@ -154,18 +183,19 @@ invariants 1-4 rely on and fails when VIGIA changes them.
 
 Accepted now:
 
-- Binaries from a FreeBSD acquisition (kernel modules, boot files including
-  the UEFI loader, executables) can be frozen with structural measurements,
-  unknowns and limitations that an analyst can audit.
+- Binaries from FreeBSD, Linux and Windows acquisitions (kernel modules and
+  drivers, boot files including UEFI loaders, executables, shared libraries)
+  can be frozen with structural measurements, unknowns and limitations that
+  an analyst can audit.
 - An upstream analysis pipeline has a defined, versioned way to hand results
   to a case without gaining verdict authority.
 
 Not provided:
 
-- No verdict, packer or obfuscation judgment, PE import/export/resource walk,
-  Authenticode verification, or string extraction.
-- No Linux targets. The shared package header accepts `FreeBSD` only;
-  generalizing it is a contract change that needs its own review.
+- No verdict, packer or obfuscation judgment, Authenticode verification,
+  imphash or ordinal-to-name resolution, .NET metadata, or walk of the
+  load-config, exception, relocation and bound-import directories.
+- No macOS (Mach-O) targets.
 
 Known limitation:
 
@@ -179,7 +209,9 @@ Known limitation:
 - `tests/test_binary_static_vigia_assumptions.py` fails (VIGIA recalibrated
   binary types or changed their band or role).
 - A P2 adapter is proposed.
-- Linux targets are needed.
+- macOS targets are needed (Mach-O parser and allowlist entry).
+- `rootkit_scanner_reports` should accept Linux runs (its dialects would need
+  Linux validation first).
 - A real isolated analysis or detonation service exists and its report
   dialect should become a second supported format.
 

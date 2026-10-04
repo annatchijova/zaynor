@@ -33,8 +33,9 @@ python3 -m tools.binary_analysis_reports \
   --cases-root cases
 ```
 
-The package uses the shared schema-version `1` header. Its `acquisition` must
-be the acquisition that produced the **subject** binary: analyzing a sample is
+The package uses the shared schema-version `1` header; `target.os` may be
+`FreeBSD`, `Linux` or `Windows`. Its `acquisition` must be the acquisition
+that produced the **subject** binary: analyzing a sample is
 not a new acquisition, so it does not get a new `lineage_id`. It adds:
 
 ```json

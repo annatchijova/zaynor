@@ -132,9 +132,9 @@ authoritative ZAYNOR result
   [the branch audit](./docs/audits/2026-10-01-freebsd-evidence-importers-audit.md)
   for the adversarial review that preceded merge.
 - **Binary importers on the same contract** (`tools/binary_static/`,
-  `tools/binary_analysis_reports/`): static, read-only triage of acquired
-  binaries (hashes, ELF/PE structures, optional YARA with the ruleset frozen
-  as method) and import of reports from an upstream binary-analysis pipeline
+  `tools/binary_analysis_reports/`): static, read-only triage of binaries
+  acquired from FreeBSD, Linux or Windows (hashes, strings, ELF/PE structures,
+  optional YARA with the ruleset frozen as method) and import of reports from an upstream binary-analysis pipeline
   that runs outside ZAYNOR. Nothing is executed or disassembled here
   (ADR-0003); results stay `analysis_unsupported`, upstream results stay
   `tool_reported`, and one binary is one observation keyed by its content

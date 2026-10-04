@@ -251,3 +251,22 @@ def test_module_cli_stages_a_package_file(tmp_path):
     assert output["analysis_status"] == "analysis_unsupported"
     assert output["observation_count"] == 3
     assert output["frozen"] is None
+
+
+@pytest.mark.parametrize(
+    "target",
+    [
+        {"os": "Linux", "release": "Ubuntu 24.04.1 LTS", "arch": "x86_64",
+         "kernel_build": "6.8.0-45-generic"},
+        {"os": "Windows", "release": "Windows 11 23H2", "arch": "AMD64",
+         "kernel_build": "22631.4317"},
+    ],
+)
+def test_reports_from_linux_and_windows_targets_are_accepted(tmp_path, target):
+    source = tmp_path / "source"
+    package = _package(source, [_report()])
+    package["target"] = target
+
+    staged = import_analysis_reports(package, source, tmp_path / "staging")
+
+    assert {o["target"]["os"] for o in _observations(staged.staging_root)} == {target["os"]}

@@ -126,8 +126,9 @@ ZAYNOR reúne tres capacidades que suelen estar separadas:
   `tools/rootkit_scanner_reports/`), que cruzan el mismo freeze de caso con
   resultado `analysis_unsupported` hasta que exista un adapter VIGÍA
   calibrado ([ADR 0004](./docs/adr/0004-freebsd-offline-evidence-importers.md));
-- triage estático y de solo lectura de binarios adquiridos sobre el mismo
-  contrato (`tools/binary_static/`: hashes, estructuras ELF/PE, YARA opcional)
+- triage estático y de solo lectura de binarios adquiridos de FreeBSD, Linux y
+  Windows sobre el mismo contrato (`tools/binary_static/`: hashes, strings,
+  estructuras ELF/PE, YARA opcional)
   e importación de reportes de un pipeline de análisis binario externo como
   evidencia reportada por la herramienta (`tools/binary_analysis_reports/`);
   dentro de ZAYNOR nada se ejecuta ni se desensambla

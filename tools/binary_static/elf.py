@@ -45,6 +45,9 @@ MAX_DYNAMIC_STRINGS = 256
 MAX_COMMENT_STRINGS = 16
 MAX_COMMENT_BYTES = 256
 MAX_ISSUES = 256
+MAX_MODINFO_RECORDS = 256
+MAX_MODINFO_VALUE = 1024
+MAX_VERSION_NEEDS = 256
 
 LIMITS = {
     "max_sections": MAX_SECTIONS,
@@ -57,6 +60,8 @@ LIMITS = {
     "max_note_desc_bytes": MAX_NOTE_DESC_BYTES,
     "max_dynamic_entries": MAX_DYNAMIC_ENTRIES,
     "max_comment_strings": MAX_COMMENT_STRINGS,
+    "max_modinfo_records": MAX_MODINFO_RECORDS,
+    "max_version_needs": MAX_VERSION_NEEDS,
 }
 
 _ELF_TYPES = {0: "NONE", 1: "REL", 2: "EXEC", 3: "DYN", 4: "CORE"}
@@ -98,6 +103,9 @@ _SHT_NULL, _SHT_SYMTAB, _SHT_STRTAB, _SHT_DYNAMIC, _SHT_NOTE, _SHT_NOBITS, _SHT_
     0, 2, 3, 6, 7, 8, 11,
 )
 _PT_LOAD, _PT_DYNAMIC, _PT_INTERP, _PT_NOTE = 1, 2, 3, 4
+_SHT_GNU_VERNEED = 0x6FFFFFFE
+_SHF_ALLOC, _SHF_TLS = 0x2, 0x400
+_GNU_ABI_OS = {0: "LINUX", 1: "HURD", 2: "SOLARIS", 3: "FREEBSD"}
 _SHN_XINDEX = 0xFFFF
 _PN_XNUM = 0xFFFF
 _DT_NULL, _DT_NEEDED, _DT_STRTAB, _DT_STRSZ, _DT_SONAME, _DT_RPATH = 0, 1, 5, 10, 14, 15
@@ -204,6 +212,7 @@ class _Elf:
         segments = self._segments(e_phoff, e_phentsize, phnum)
         budget = MeasurementBudget(4 * max(self.size, 1))
         self._measure(sections, segments, budget)
+        self._layout_checks(e_shoff, e_phoff, sections, segments)
 
         result = {
             "ident": {
@@ -234,14 +243,174 @@ class _Elf:
             },
             "sections": [self._section_record(s) for s in sections],
             "segments": [self._segment_record(s) for s in segments],
+            "entry_point": self._entry_point(e_type, e_entry, sections, segments),
             "interpreter": self._interpreter(segments),
             "dynamic": self._dynamic(sections, segments),
             "symbol_tables": self._symbol_tables(sections),
+            "version_needs": self._version_needs(sections),
             "notes": self._notes(sections, segments),
             "comment": self._comment(sections),
+            "modinfo": self._modinfo(sections),
             "limits": dict(LIMITS),
         }
         return result
+
+    # -- loader view versus section view ------------------------------------
+
+    def _layout_checks(
+        self,
+        e_shoff: int,
+        e_phoff: int,
+        sections: list[dict[str, Any]],
+        segments: list[dict[str, Any]],
+    ) -> None:
+        """Compare the section table with what the loader maps.
+
+        The loader uses only program headers; section headers can be shifted
+        or rewritten while the binary still runs. Each section that should be
+        loaded records whether a PT_LOAD segment maps it at the same file
+        offset, so a disagreement between the two views is visible instead of
+        silently trusted.
+        """
+        word = 8 if self.is64 else 4
+        if e_shoff % word:
+            self.issue("section_table_misaligned", "header")
+        if e_phoff % word:
+            self.issue("program_header_table_misaligned", "header")
+        loads = [s for s in segments if s["type"] == _PT_LOAD]
+        for section in sections:
+            section["matches_load_segment"] = None
+            align = section["addralign"]
+            if section["in_file"] and align > 1 and section["offset"] % align:
+                self.issue("section_offset_misaligned", f"section:{section['index']}")
+            if not loads or not section["flags"] & _SHF_ALLOC or not section["size"]:
+                continue
+            if section["type"] == _SHT_NOBITS and section["flags"] & _SHF_TLS:
+                continue  # .tbss occupies no address range in a PT_LOAD segment
+            start, end = section["addr"], section["addr"] + section["size"]
+            matched = False
+            for segment in loads:
+                if not segment["vaddr"] <= start or end > segment["vaddr"] + segment["memsz"]:
+                    continue
+                if section["type"] == _SHT_NOBITS:
+                    matched = True
+                else:
+                    matched = section["offset"] == segment["offset"] + (start - segment["vaddr"])
+                if matched:
+                    break
+            section["matches_load_segment"] = matched
+            if not matched:
+                self.issue("section_not_mapped_as_declared", f"section:{section['index']}")
+
+    def _entry_point(
+        self,
+        e_type: int,
+        entry: int,
+        sections: list[dict[str, Any]],
+        segments: list[dict[str, Any]],
+    ) -> dict[str, Any] | None:
+        if e_type not in (2, 3) or entry == 0:
+            return None
+        segment = next(
+            (
+                s for s in segments
+                if s["type"] == _PT_LOAD and s["vaddr"] <= entry < s["vaddr"] + s["memsz"]
+            ),
+            None,
+        )
+        section = next(
+            (
+                s for s in sections
+                if s["flags"] & _SHF_ALLOC and s["size"]
+                and s["addr"] <= entry < s["addr"] + s["size"]
+            ),
+            None,
+        )
+        return {
+            "vaddr": entry,
+            "segment_index": segment["index"] if segment else None,
+            "segment_flag_names": (
+                _flag_names(segment["flags"], _SEGMENT_FLAGS)["names"] if segment else None
+            ),
+            "section_index": section["index"] if section else None,
+            "section_name": section["name"].get("name") if section else None,
+        }
+
+    # -- Linux and GNU structures --------------------------------------------
+
+    def _modinfo(self, sections: list[dict[str, Any]]) -> list[dict[str, Any]] | None:
+        """`key=value` records of a Linux kernel module's .modinfo section."""
+        for section in sections:
+            if section["name"].get("name") != ".modinfo" or not section["in_file"]:
+                continue
+            raw = self.data[section["offset"] : section["offset"] + section["size"]]
+            records: list[dict[str, Any]] = []
+            for part in raw.split(b"\x00"):
+                if not part:
+                    continue
+                if len(records) >= MAX_MODINFO_RECORDS:
+                    self.issue("modinfo_listing_capped", f"section:{section['index']}")
+                    break
+                key, separator, value = part.partition(b"=")
+                record = {
+                    "key": decode_name(key[:MAX_NAME_BYTES]).get("name"),
+                    **decode_value(value[:MAX_MODINFO_VALUE], len(value) > MAX_MODINFO_VALUE),
+                }
+                if not separator:
+                    record["malformed"] = True
+                records.append(record)
+            return records
+        return None
+
+    def _version_needs(self, sections: list[dict[str, Any]]) -> list[dict[str, Any]] | None:
+        """GNU symbol-version requirements (`SHT_GNU_verneed`), as readelf -V shows."""
+        tables = [s for s in sections if s["type"] == _SHT_GNU_VERNEED]
+        if not tables:
+            return None
+        table = tables[0]
+        where = f"section:{table['index']}"
+        if not table["in_file"]:
+            self.issue("version_needs_unreadable", where)
+            return []
+        link = table["link"]
+        strtab = None
+        if link < len(sections) and sections[link]["in_file"]:
+            strtab = (sections[link]["offset"], sections[link]["size"])
+        else:
+            self.issue("version_needs_string_table_unavailable", where)
+        base, end = table["offset"], table["offset"] + table["size"]
+        needs: list[dict[str, Any]] = []
+        position = base
+        for _ in range(min(table["info"] or MAX_VERSION_NEEDS, MAX_VERSION_NEEDS)):
+            raw = self.unpack("HHIII", position)
+            if raw is None or position + 16 > end:
+                self.issue("version_needs_malformed", where)
+                break
+            _version, count, file_offset, aux_offset, next_offset = raw
+            versions: list[dict[str, Any]] = []
+            aux = position + aux_offset
+            for _ in range(min(count, MAX_VERSION_NEEDS)):
+                aux_raw = self.unpack("IHHII", aux)
+                if aux_raw is None or aux + 16 > end:
+                    self.issue("version_needs_malformed", where)
+                    break
+                _hash, flags, other, name_offset, aux_next = aux_raw
+                name = (
+                    self.cstring(strtab[0], strtab[1], name_offset, where)
+                    if strtab else {"name": None}
+                )
+                versions.append({**name, "flags": flags, "index": other})
+                if aux_next == 0:
+                    break
+                aux += aux_next
+            file_name = (
+                self.cstring(strtab[0], strtab[1], file_offset, where) if strtab else {"name": None}
+            )
+            needs.append({"file": file_name.get("name"), "versions": versions})
+            if next_offset == 0:
+                break
+            position += next_offset
+        return needs
 
     # -- section and program header tables ----------------------------------
 
@@ -416,6 +585,7 @@ class _Elf:
             "addralign": section["addralign"],
             "entsize": section["entsize"],
             "in_file": section["in_file"],
+            "matches_load_segment": section.get("matches_load_segment"),
             "sha256": None,
             "entropy_bits_per_byte": None,
         }
@@ -714,6 +884,15 @@ class _Elf:
                     note["owner_hex"] = owner["name_hex"]
                 if owner.get("name") == "FreeBSD" and note_type == 1 and descsz == 4:
                     note["freebsd_abi_tag"] = struct.unpack(self.endian + "I", desc)[0]
+                elif owner.get("name") == "GNU" and note_type == 1 and descsz == 16:
+                    os_id, major, minor, patch = struct.unpack(self.endian + "IIII", desc)
+                    note["gnu_abi_tag"] = {
+                        "os": os_id,
+                        "os_name": _GNU_ABI_OS.get(os_id),
+                        "kernel_version": f"{major}.{minor}.{patch}",
+                    }
+                elif owner.get("name") == "GNU" and note_type == 3:
+                    note["build_id"] = desc.hex()
                 notes.append(note)
                 position = offset + _align(desc_end - offset, step)
         return notes
@@ -747,6 +926,18 @@ def decode_name(raw: bytes, truncated: bool = False) -> dict[str, Any]:
         result = {"name": None, "name_hex": raw.hex()}
     if truncated:
         result["name_truncated"] = True
+    return result
+
+
+def decode_value(raw: bytes, truncated: bool = False) -> dict[str, Any]:
+    """Strict UTF-8 value, or a hex rendering when the bytes are not UTF-8."""
+    result: dict[str, Any]
+    try:
+        result = {"value": raw.decode("utf-8")}
+    except UnicodeDecodeError:
+        result = {"value": None, "value_hex": raw.hex()}
+    if truncated:
+        result["value_truncated"] = True
     return result
 
 

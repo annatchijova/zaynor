@@ -19,6 +19,16 @@ the git log; this file curates it.
 
 ### Added
 
+- Linux and Windows targets for the binary importers (ADR 0005). The shared
+  offline package header takes a per-importer target-system allowlist,
+  FreeBSD-only by default, so the FreeBSD and rootkit-scanner importers are
+  unchanged. PE triage now reads the Rich header (with checksum validity),
+  imports and delay imports, exports with forwarders, CodeView/REPRO debug
+  entries, TLS callbacks, resources with version information, the overlay,
+  certificate entries and a recomputed header checksum; ELF triage adds the
+  entry-point section, loader-versus-section-table consistency, GNU version
+  needs, GNU ABI tag and build ID, and Linux `.modinfo`. Every binary gets
+  positional ASCII and UTF-16LE strings.
 - Binary importers on the offline evidence contract (ADR 0005).
   `tools/binary_static/` performs static, read-only triage of acquired
   binaries with stdlib-only, bounds-checked ELF and PE parsers: one

@@ -1,12 +1,12 @@
 # Static binary triage importer
 
-`tools.binary_static` measures and parses binaries that were already acquired
-from an authorized lab. It never executes, loads, relocates, disassembles or
-emulates them, and it never decides whether a binary is malicious, packed,
-benign or clean. It is the static slice that
+`tools.binary_static` measures and parses binaries already acquired from an
+authorized FreeBSD, Linux or Windows system. It never executes, loads,
+relocates, disassembles or emulates them, and it never decides whether a
+binary is malicious, packed, benign or clean. It is the static slice that
 [ADR-0003](../../docs/adr/0003-binary-and-bootkit-analysis-out-of-scope.md)
-cleared for ZAYNOR: hashing, ELF/PE header parsing and optional YARA matching.
-[ADR-0005](../../docs/adr/0005-binary-static-triage-and-analysis-reports.md)
+cleared for ZAYNOR — hashing, ELF/PE parsing, strings and optional YARA —
+and [ADR-0005](../../docs/adr/0005-binary-static-triage-and-analysis-reports.md)
 records the design.
 
 The importer stages:
@@ -21,8 +21,8 @@ The importer stages:
   record.
 
 Call `freeze_staged_evidence()` to pass them through ZAYNOR's case freezer, or
-`combine_staged_evidence()` first to freeze them together with
-`freebsd_evidence` and `rootkit_scanner_reports` stages of the same case.
+`combine_staged_evidence()` first to freeze them together with other stages of
+the same case.
 
 ## Input contract
 
@@ -42,16 +42,18 @@ python3 -m tools.binary_static \
   --cases-root cases
 ```
 
-The package uses the same schema-version `1` `case_id`, FreeBSD `target` and
-`acquisition` object as the other offline importers, and adds:
+The package uses the shared schema-version `1` header. `target.os` is exactly
+one of `FreeBSD`, `Linux` or `Windows`; the other three target fields keep
+their meaning (`release`, `arch`, and `kernel_build` — the kernel release on
+Linux, the OS build such as `22631.4317` on Windows). It adds:
 
 ```json
 {
   "binaries": [
     {
-      "logical_path": "/boot/kernel/if_example.ko",
+      "logical_path": "C:\\Windows\\System32\\drivers\\example.sys",
       "declared_kind": "kernel_module",
-      "source_path": "files/boot/kernel/if_example.ko",
+      "source_path": "files/Windows/System32/drivers/example.sys",
       "sha256": "<lowercase SHA-256>"
     }
   ],
@@ -63,14 +65,17 @@ The package uses the same schema-version `1` `case_id`, FreeBSD `target` and
 }
 ```
 
-`declared_kind` is the acquirer's declaration (`kernel_module`, `boot_file`,
-`executable`, `shared_object`, `other`); it is recorded, never inferred.
-`signatures` is optional; without it the bundle records
-`signature_matching_not_performed`. The common bounds apply: 16 MiB per file,
-64 MiB per package, 256 files, 10,000 observations; confined paths, no
-symlinks, exact digests, no binary floats.
+`declared_kind` is the acquirer's declaration, recorded and never inferred:
+`kernel_module` (FreeBSD or Linux `.ko`, Windows `.sys`), `boot_file` (kernel,
+loader, UEFI images such as `loader.efi` or `bootmgfw.efi`), `executable`,
+`shared_object` (`.so`, `.dll`) or `other`. `signatures` is optional; without
+it the bundle records `signature_matching_not_performed`. The common bounds
+apply: 16 MiB per file, 64 MiB per package, 256 files, 10,000 observations;
+confined paths, no symlinks, exact digests, no binary floats.
 
 ## What a `binary_triage` observation contains
+
+Every file, whatever its format:
 
 | Field | Meaning |
 |---|---|
@@ -78,24 +83,42 @@ symlinks, exact digests, no binary floats.
 | `format` | `elf`, `pe`, `mz` (MZ without a PE signature) or `null`. |
 | `magic_hex` | First 16 bytes, hex. |
 | `byte_histogram` | 256 exact counts. |
-| `entropy_bits_per_byte` | Decimal string derived from the histogram (`entropy_method` names the computation). |
-| `elf` / `pe` | Parsed structures, see below. |
-| `parse_issues` | Every sub-structure that could not be read, as `{code, where}`. |
+| `entropy_bits_per_byte` | Decimal string derived from the histogram (`entropy_method`). |
+| `strings` | Printable ASCII and UTF-16LE runs of at least 6 characters: totals per encoding and the first 1,024 by file offset, each with its offset. |
+| `parse_issues` | Every structure that could not be read or does not add up, as `{code, where}`. |
 | `parse_error` | Why the header itself could not be parsed (`parse_failed` only). |
 
-ELF: identification (class, byte order, OS/ABI), header, every section with
-type/flags and a per-section SHA-256 and entropy, every program header with
-SHA-256 and entropy for `PT_LOAD`, the `PT_INTERP` path, `DT_NEEDED`/`SONAME`/
-`RPATH`/`RUNPATH` resolved through the load segments, symbol tables (counts of
-every binding and type, and a listing of non-local symbols with an `undefined`
-flag), notes (FreeBSD ABI tag decoded) and `.comment` strings. Extended section
-and segment numbering is honored.
+**ELF** (`elf`): identification (class, byte order, OS/ABI), header, every
+section with type, flags, SHA-256 and entropy, every program header (SHA-256
+and entropy for `PT_LOAD`), the entry point's segment and section, the
+`PT_INTERP` path, `DT_NEEDED`/`SONAME`/`RPATH`/`RUNPATH` resolved through the
+load segments, symbol tables (counts per binding and type, non-local symbols
+listed with an `undefined` flag), GNU symbol-version requirements
+(`version_needs`), notes (FreeBSD ABI tag, GNU ABI tag and build ID decoded),
+`.comment` strings and, for Linux kernel modules, the `.modinfo` records
+(`vermagic`, `license`, `depends`, `name`, ...). Extended numbering is honored.
 
-PE: DOS pointer, COFF header, PE32/PE32+ optional header, the data-directory
-table, per-section SHA-256 and entropy, and the Authenticode certificate table
-location. Import, export, resource and debug directories are located but not
-walked; signatures are not verified. On FreeBSD this covers the UEFI boot
-chain (`loader.efi`, `boot1.efi`).
+The loader uses program headers; section headers can be shifted or rewritten
+while a binary still runs. Each section that should be loaded therefore
+carries `matches_load_segment`, and a disagreement with the load segments or a
+misaligned table or section is a parse issue
+(`section_not_mapped_as_declared`, `section_offset_misaligned`,
+`section_table_misaligned`) — the section view is shown next to the loader's
+view, not trusted instead of it.
+
+**PE** (`pe`): DOS pointer and Rich header (entries, key, recomputed checksum
+validity), COFF header, PE32/PE32+ optional header with the stored and the
+recomputed checksum, data directories, sections with SHA-256 and entropy,
+entry-point section, imports and delay imports (by name with hint, or by
+ordinal exactly as imported — ordinals are not translated to names), exports
+with forwarders, debug directory (CodeView PDB path, GUID and age; a `REPRO`
+entry means the timestamp is a build hash), TLS callback table, resources
+(type summary, per-leaf SHA-256 and entropy, version information: fixed file
+info, `StringFileInfo` strings, translations), the overlay after the last
+section, and each Authenticode `WIN_CERTIFICATE` entry's type and SHA-256.
+Signatures are never verified (`authenticode_not_verified`). Load-config,
+exception, relocation, bound-import and CLR metadata directories are located
+but not walked (`pe_partial_directory_coverage`).
 
 ## Statuses
 
@@ -116,11 +139,13 @@ says only that this ruleset reported nothing on these bytes.
 
 ## Determinism
 
-The parser is stdlib-only, so the transform is ZAYNOR code, not a third-party
-library whose version would silently change the output. No binary floats are
-produced: entropy is computed with `decimal` (correctly rounded `ln`) and
-emitted as a string next to the exact histogram. Listings are in file order.
-Two runs over the same package stage byte-identical records.
+The parsers are stdlib-only, so the transform is ZAYNOR code, not a
+third-party library whose version would silently change the output. No binary
+floats are produced: entropy is computed with `decimal` (correctly rounded
+`ln`) and emitted as a string next to the exact histogram; the PE checksum is
+recomputed with integer arithmetic. String selection is positional. Listings
+are in file order. Two runs over the same package stage byte-identical
+records, in any process and under any hash seed.
 
 YARA rulesets are compiled with includes disabled, and a ruleset that loads
 any module outside `pe`, `elf`, `math`, `hash`, `dotnet`, `dex`, `macho` and
@@ -131,22 +156,28 @@ depends on host speed, so it degrades to `unknown`, never to a result.
 
 ## Robustness bounds
 
-Every offset and size comes from the file and is treated as hostile. Reads are
-bounds-checked views of the size-bounded input; nothing is allocated from a
-declared size. Sections and segments are capped (4,096 / 512), symbol scanning
-is capped at 2,000,000 entries and listing at 4,096 symbols, notes at 64, and
-hashing at four times the file size so that overlapping ranges cannot amplify
-work. Each cap that is reached is a `parse_issue`, and `limits` records the
-caps in every observation.
+Every offset, size and RVA comes from the file and is treated as hostile.
+Reads are bounds-checked views of the size-bounded input; nothing is
+allocated from a declared size; RVAs are mapped literally through the section
+table. Sections, segments, symbols, imports, exports, resources (cycle
+protected), version strings, notes, TLS callbacks, certificates and strings
+are capped, and hashing is capped at four times the file size so overlapping
+ranges cannot amplify work. Each cap that is reached is a `parse_issue`, and
+`limits` records the caps in every observation.
 
 ## Authority and lineage
 
-All observations keep the acquisition's `lineage_id`. When this module and
-`freebsd_evidence` stage the same file from one acquisition, both copies carry
-the same digest and lineage: a second parser is not a second source.
+All observations keep the acquisition's `lineage_id`. When another importer
+stages the same file from one acquisition, both copies carry the same digest
+and lineage: a second parser is not a second source.
+
+Everything the binary says about itself — section names, version strings,
+PDB paths, Rich entries, timestamps, declared imports — was written by
+whoever built it. The importer records those claims with their location and
+leaves their credibility to the authority.
 
 The bundle stays `analysis_unsupported`. A future VIGIA adapter must follow
 ADR-0005: one artifact per `content_sha256`, `unknown`/`parse_failed` mapped
-to unanalyzed evidence, and no score computed by the adapter.
-`tests/test_binary_static_vigia_assumptions.py` fails if the vendored engine
-changes the assumptions that adapter would rely on.
+to unanalyzed evidence, no score computed by the adapter, and calibration per
+target system and build. `tests/test_binary_static_vigia_assumptions.py` fails
+if the vendored engine changes the assumptions that adapter would rely on.

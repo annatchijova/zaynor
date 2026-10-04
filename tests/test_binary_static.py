@@ -14,8 +14,9 @@ from tools.binary_static import (
     import_binary_static,
     triage_bytes,
 )
-from tools.binary_static.measure import byte_histogram, shannon_entropy
+from tools.binary_static.measure import byte_histogram, extract_strings, shannon_entropy
 from tools.freebsd_evidence import import_freebsd_evidence
+from tools.offline_evidence import validate_package_context
 from zaynor.frozen_snapshot import materialize_frozen_snapshot
 
 # --- synthetic ELF / PE builders ----------------------------------------------
@@ -223,7 +224,7 @@ def build_pe(*, plus=True, subsystem=10, machine=0x8664, with_certificate=True):
     text_offset, data_offset = 0x200, 0x400
     text = b"\xcc" * 0x200
     data = b"ZAYNOR_MARKER".ljust(0x200, b"\x00")
-    certificate = b"\x30\x82" + b"\x00" * 62
+    certificate = struct.pack("<IHH", 72, 0x0200, 2) + b"\x30\x82" + b"\x00" * 62
     certificate_offset = 0x600
     if plus:
         optional = layout.pack(0x20B, 14, 0, 0x200, 0x200, 0, 0x1000, 0x1000, 0x10000000,
@@ -249,6 +250,303 @@ def build_pe(*, plus=True, subsystem=10, machine=0x8664, with_certificate=True):
     if with_certificate:
         image = image.ljust(certificate_offset, b"\x00") + certificate
     return image
+
+
+def _rol32(value, bits):
+    bits %= 32
+    return ((value << bits) | (value >> (32 - bits))) & 0xFFFFFFFF if bits else value
+
+
+def _literal_checksum(data, offset):
+    """CheckSumMappedFile, word by word, independent of the module under test."""
+    buffer = bytearray(data)
+    buffer[offset : offset + 4] = b"\x00" * 4
+    if len(buffer) % 2:
+        buffer += b"\x00"
+    total = 0
+    for index in range(0, len(buffer), 2):
+        total += buffer[index] | (buffer[index + 1] << 8)
+        total = (total & 0xFFFF) + (total >> 16)
+    return (total + len(data)) & 0xFFFFFFFF
+
+
+def _vs_node(key, value=b"", children=(), *, value_type=0, value_length=None):
+    """One VS_VERSIONINFO node; children are padded to 4 bytes."""
+    key_bytes = (key + "\x00").encode("utf-16-le")
+    head = 6 + len(key_bytes)
+    head_pad = (-head) % 4
+    value_pad = (-(head + head_pad + len(value))) % 4 if children else 0
+    kids = b"".join(child + b"\x00" * ((-len(child)) % 4) for child in children)
+    total = head + head_pad + len(value) + value_pad + len(kids)
+    length = len(value) if value_length is None else value_length
+    return (
+        struct.pack("<HHH", total, length, value_type) + key_bytes + b"\x00" * head_pad
+        + value + b"\x00" * value_pad + kids
+    )
+
+
+VERSION_STRINGS = (
+    ("CompanyName", "Demo Corp"),
+    ("FileDescription", "Demo DLL"),
+    ("FileVersion", "1.2.3.4"),
+    ("OriginalFilename", "demo.dll"),
+)
+
+
+def _version_resource():
+    strings = [
+        _vs_node(key, (text + "\x00").encode("utf-16-le"), value_type=1,
+                 value_length=len(text) + 1)
+        for key, text in VERSION_STRINGS
+    ]
+    table = _vs_node("040904B0", children=strings, value_type=1)
+    string_info = _vs_node("StringFileInfo", children=[table], value_type=1)
+    translation = _vs_node("Translation", struct.pack("<HH", 0x0409, 0x04B0))
+    var_info = _vs_node("VarFileInfo", children=[translation], value_type=1)
+    fixed = struct.pack(
+        "<13I", 0xFEEF04BD, 0x00010000, (1 << 16) | 2, (3 << 16) | 4, (1 << 16) | 2,
+        (3 << 16) | 4, 0x3F, 0, 0x40004, 2, 0, 0, 0,
+    )
+    return _vs_node("VS_VERSION_INFO", fixed, children=[string_info, var_info])
+
+
+class _Blob:
+    """Section contents addressed by RVA while they are laid out."""
+
+    def __init__(self, rva):
+        self.rva = rva
+        self.data = bytearray()
+
+    def put(self, payload, align=8):
+        while len(self.data) % align:
+            self.data += b"\x00"
+        rva = self.rva + len(self.data)
+        self.data += payload
+        return rva
+
+    def patch(self, rva, payload):
+        start = rva - self.rva
+        self.data[start : start + len(payload)] = payload
+
+
+RICH_ENTRIES = ((0x0104, 30148, 10), (0x0105, 30148, 3), (0x00FF, 30148, 1))
+PDB_PATH = "C:\\build\\demo\\x64\\Release\\demo.pdb"
+IMAGE_BASE = 0x180000000
+
+
+def build_pe_rich():
+    """PE32+ DLL with every structure the Windows triage reads."""
+    e_lfanew, rdata_rva, rdata_raw, rsrc_rva = 0xB0, 0x2000, 0x600, 0x4000
+    rdata = _Blob(rdata_rva)
+    kernel32 = rdata.put(b"KERNEL32.dll\x00")
+    ws2 = rdata.put(b"WS2_32.dll\x00")
+    create_file = rdata.put(struct.pack("<H", 0xC4) + b"CreateFileW\x00", align=2)
+    sleep = rdata.put(struct.pack("<H", 0x5A) + b"Sleep\x00", align=2)
+    ilt1 = rdata.put(struct.pack("<QQQ", create_file, sleep, 0))
+    iat1 = rdata.put(struct.pack("<QQQ", create_file, sleep, 0))
+    ilt2 = rdata.put(struct.pack("<QQ", (1 << 63) | 23, 0))
+    iat2 = rdata.put(struct.pack("<QQ", (1 << 63) | 23, 0))
+    imports = rdata.put(
+        struct.pack("<5I", ilt1, 0, 0, kernel32, iat1)
+        + struct.pack("<5I", ilt2, 0, 0, ws2, iat2) + b"\x00" * 20,
+        align=4,
+    )
+    user32 = rdata.put(b"USER32.dll\x00")
+    message_box = rdata.put(struct.pack("<H", 0) + b"MessageBoxW\x00", align=2)
+    delay_int = rdata.put(struct.pack("<QQ", message_box, 0))
+    delay_iat = rdata.put(struct.pack("<QQ", 0, 0))
+    delay_module = rdata.put(struct.pack("<Q", 0))
+    delay = rdata.put(
+        struct.pack("<8I", 1, user32, delay_module, delay_iat, delay_int, 0, 0, 0)
+        + b"\x00" * 32,
+        align=4,
+    )
+    export_dir = rdata.put(b"\x00" * 40, align=4)
+    dll_name = rdata.put(b"demo.dll\x00", align=1)
+    name1 = rdata.put(b"DemoExport\x00", align=1)
+    name2 = rdata.put(b"DemoForward\x00", align=1)
+    forwarder = rdata.put(b"NTDLL.RtlAllocateHeap\x00", align=1)
+    functions = rdata.put(struct.pack("<III", 0x1010, forwarder, 0x1020), align=4)
+    names = rdata.put(struct.pack("<II", name1, name2), align=4)
+    ordinals = rdata.put(struct.pack("<HH", 0, 1), align=2)
+    export_end = rdata.rva + len(rdata.data)
+    rdata.patch(export_dir, struct.pack("<IIHHIIIIIII", 0, 0, 0, 0, dll_name, 1, 3, 2,
+                                        functions, names, ordinals))
+    codeview = b"RSDS" + bytes(range(16)) + struct.pack("<I", 3) + PDB_PATH.encode() + b"\x00"
+    codeview_rva = rdata.put(codeview, align=4)
+    debug = rdata.put(
+        struct.pack("<IIHHIIII", 0, 0x5F3E2A10, 0, 0, 2, len(codeview), codeview_rva,
+                    rdata_raw + (codeview_rva - rdata_rva))
+        + struct.pack("<IIHHIIII", 0, 0, 0, 0, 16, 0, 0, 0),
+        align=4,
+    )
+    callbacks = rdata.put(struct.pack("<QQQ", IMAGE_BASE + 0x1030, IMAGE_BASE + 0x1040, 0))
+    tls_index = rdata.put(struct.pack("<I", 0), align=4)
+    tls = rdata.put(struct.pack("<QQQQII", IMAGE_BASE + 0x3000, IMAGE_BASE + 0x3008,
+                                IMAGE_BASE + tls_index, IMAGE_BASE + callbacks, 0, 0))
+    assert len(rdata.data) <= 0x600
+
+    version = _version_resource()
+    rcdata = bytes(range(64))
+
+    def directory(entries):
+        return struct.pack("<IIHHHH", 0, 0, 0, 0, 0, len(entries)) + b"".join(
+            struct.pack("<II", ident, target) for ident, target in entries
+        )
+
+    subdirectory = 0x80000000
+    rsrc = (
+        directory([(10, subdirectory | 0x20), (16, subdirectory | 0x38)])  # 0x00 types
+        + directory([(101, subdirectory | 0x50)])  # 0x20 RCDATA names
+        + directory([(1, subdirectory | 0x68)])  # 0x38 VERSION names
+        + directory([(0x409, 0x80)])  # 0x50 RCDATA languages
+        + directory([(0x409, 0x90)])  # 0x68 VERSION languages
+        + struct.pack("<IIII", rsrc_rva + 0xA0, len(rcdata), 0, 0)  # 0x80
+        + struct.pack("<IIII", rsrc_rva + 0xE0, len(version), 0, 0)  # 0x90
+        + rcdata  # 0xA0
+        + version  # 0xE0
+    )
+    assert len(rsrc) <= 0x400
+    data_section = (
+        b"https://updates.example.invalid/check\x00\x00"
+        + "Software\\Demo\\Settings".encode("utf-16-le") + b"\x00\x00"
+    ).ljust(0x200, b"\x00")
+    sections = [
+        (b".text", 0x1000, 0x400, 0x200, 0x60000020, b"\xcc" * 0x200),
+        (b".rdata", rdata_rva, rdata_raw, 0x600, 0x40000040,
+         bytes(rdata.data).ljust(0x600, b"\x00")),
+        (b".data", 0x3000, 0xC00, 0x200, 0xC0000040, data_section),
+        (b".rsrc", rsrc_rva, 0xE00, 0x400, 0x40000040, rsrc.ljust(0x400, b"\x00")),
+    ]
+    overlay = b"OVERLAY!" * 32
+    certificate = struct.pack("<IHH", 72, 0x0200, 2) + b"\x30\x82" + b"\x00" * 62
+    certificate_offset = 0x1200 + len(overlay)
+    directories = [(0, 0)] * 16
+    directories[0] = (export_dir, export_end - export_dir)
+    directories[1] = (imports, 60)
+    directories[2] = (rsrc_rva, len(rsrc))
+    directories[4] = (certificate_offset, len(certificate))
+    directories[6] = (debug, 56)
+    directories[9] = (tls, 40)
+    directories[13] = (delay, 64)
+
+    dos = bytearray(b"MZ" + b"\x00" * 0x3A + struct.pack("<I", e_lfanew))
+    dos += b"\x00" * (0x80 - len(dos))
+    stub = b"This program cannot be run in DOS mode.\r\r\n$"
+    dos[0x4E : 0x4E + len(stub)] = stub
+    key = 0x80
+    for index in range(0x80):
+        if not 0x3C <= index < 0x40:
+            key = (key + _rol32(dos[index], index)) & 0xFFFFFFFF
+    for product, build, count in RICH_ENTRIES:
+        key = (key + _rol32((product << 16) | build, count)) & 0xFFFFFFFF
+    rich = struct.pack("<IIII", 0x536E6144 ^ key, key, key, key)
+    for product, build, count in RICH_ENTRIES:
+        rich += struct.pack("<II", ((product << 16) | build) ^ key, count ^ key)
+    rich += b"Rich" + struct.pack("<I", key)
+    assert 0x80 + len(rich) == e_lfanew
+
+    optional = struct.pack(
+        "<HBBIIIIIQIIHHHHHHIIIIHHQQQQII", 0x20B, 14, 30, 0x200, 0x800, 0, 0x1000, 0x1000,
+        IMAGE_BASE, 0x1000, 0x200, 6, 0, 0, 0, 6, 0, 0, 0x5000, 0x400, 0, 3, 0x0160,
+        0x100000, 0x1000, 0x100000, 0x1000, 0, 16,
+    ) + b"".join(struct.pack("<II", *pair) for pair in directories)
+    coff = struct.pack("<HHIIIHH", 0x8664, len(sections), 0x5F3E2A10, 0, 0, len(optional),
+                       0x2022)
+    table = b"".join(
+        struct.pack("<8sIIIIIIHHI", name, raw_size, rva, raw_size, raw, 0, 0, 0, 0, flags)
+        for name, rva, raw, raw_size, flags, _ in sections
+    )
+    image = bytearray((bytes(dos) + rich + b"PE\x00\x00" + coff + optional + table)
+                      .ljust(0x400, b"\x00"))
+    for _, _, raw, _, _, content in sections:
+        assert len(image) == raw
+        image += content
+    image += overlay + certificate
+    checksum_offset = e_lfanew + 24 + 64
+    struct.pack_into("<I", image, checksum_offset, _literal_checksum(bytes(image), checksum_offset))
+    return bytes(image)
+
+
+def linux_kernel_module():
+    """ELF64 ET_REL in the shape of a Linux .ko: .modinfo and a GNU build-id."""
+    modinfo = (
+        b"license=GPL\x00author=Lab\x00description=demo module\x00"
+        b"vermagic=6.8.0-45-generic SMP preempt mod_unload modversions \x00"
+        b"name=demo_mod\x00depends=\x00"
+    )
+    build_id = struct.pack("<III", 4, 20, 3) + b"GNU\x00" + bytes(range(20))
+    names, offsets = strtab("init_module", "printk")
+    symbols = symtab64(
+        [("init_module", 1, 2, 1, 0, 16), ("printk", 1, 0, 0, 0, 0)], offsets
+    )
+    return build_elf(
+        [
+            {"name": ".text", "type": SHT_PROGBITS, "flags": SHF_ALLOC | SHF_EXECINSTR,
+             "data": b"\xc3" * 16, "addralign": 16},
+            {"name": ".modinfo", "type": SHT_PROGBITS, "flags": SHF_ALLOC, "data": modinfo},
+            {"name": ".note.gnu.build-id", "type": SHT_NOTE, "flags": SHF_ALLOC,
+             "data": build_id, "addralign": 4},
+            {"name": ".symtab", "type": SHT_SYMTAB, "data": symbols, "link": ".strtab",
+             "info": 1, "addralign": 8, "entsize": 24},
+            {"name": ".strtab", "type": SHT_STRTAB, "data": names},
+        ],
+        osabi=0,
+    )[0]
+
+
+def linux_executable():
+    """ELF64 ET_DYN for Linux: interpreter, DT_NEEDED, GNU version needs, ABI tag."""
+    dynstr, offsets = strtab("libc.so.6", "GLIBC_2.34", "GLIBC_2.2.5")
+    verneed = (
+        struct.pack("<HHIII", 1, 2, offsets["libc.so.6"], 16, 0)
+        + struct.pack("<IHHII", 0x069691B4, 0, 3, offsets["GLIBC_2.34"], 16)
+        + struct.pack("<IHHII", 0x09691A75, 0, 2, offsets["GLIBC_2.2.5"], 0)
+    )
+    abi_tag = struct.pack("<III", 4, 16, 1) + b"GNU\x00" + struct.pack("<IIII", 0, 3, 2, 0)
+
+    def sections(dynamic_data):
+        return [
+            {"name": ".interp", "type": SHT_PROGBITS, "flags": SHF_ALLOC,
+             "data": b"/lib64/ld-linux-x86-64.so.2\x00"},
+            {"name": ".note.ABI-tag", "type": SHT_NOTE, "flags": SHF_ALLOC, "data": abi_tag,
+             "addralign": 4},
+            {"name": ".dynstr", "type": SHT_STRTAB, "flags": SHF_ALLOC, "data": dynstr},
+            {"name": ".gnu.version_r", "type": 0x6FFFFFFE, "flags": SHF_ALLOC, "data": verneed,
+             "link": ".dynstr", "info": 1, "addralign": 8},
+            {"name": ".text", "type": SHT_PROGBITS, "flags": SHF_ALLOC | SHF_EXECINSTR,
+             "data": b"\x90" * 32, "addralign": 16},
+            {"name": ".dynamic", "type": SHT_DYNAMIC, "flags": SHF_ALLOC | SHF_WRITE,
+             "data": dynamic_data, "link": ".dynstr", "addralign": 8, "entsize": 16},
+        ]
+
+    segments = (
+        {"type": 1, "whole_file": True, "flags": 5},
+        {"type": 3, "section": ".interp"},
+        {"type": 2, "section": ".dynamic", "flags": 6},
+    )
+    options = {"e_type": 3, "osabi": 0, "segments": segments, "load_base": 0x400000}
+    _, layout = build_elf(sections(b"\x00" * 16 * 4), **options)
+    dynamic = b"".join(
+        struct.pack("<qQ", tag, value)
+        for tag, value in (
+            (1, offsets["libc.so.6"]),
+            (5, layout[".dynstr"]["addr"]),
+            (10, layout[".dynstr"]["size"]),
+            (0, 0),
+        )
+    )
+    return build_elf(sections(dynamic), entry=layout[".text"]["addr"] + 4, **options)
+
+
+TARGETS = {
+    "FreeBSD": {"os": "FreeBSD", "release": "14.3-RELEASE", "arch": "amd64",
+                "kernel_build": "GENERIC-14.3-p1"},
+    "Linux": {"os": "Linux", "release": "Ubuntu 24.04.1 LTS", "arch": "x86_64",
+              "kernel_build": "6.8.0-45-generic"},
+    "Windows": {"os": "Windows", "release": "Windows 11 23H2", "arch": "AMD64",
+                "kernel_build": "22631.4317"},
+}
 
 
 # --- package helpers ---------------------------------------------------------
@@ -437,9 +735,15 @@ def test_pe32_plus_efi_application_reports_certificate_presence_without_verifyin
     assert pe["sections"][0]["characteristic_names"]["names"] == [
         "CNT_CODE", "MEM_EXECUTE", "MEM_READ"
     ]
-    assert pe["certificate_table"] == {"offset": 0x600, "size": 64, "in_file": True}
+    certificates = pe["certificate_table"]
+    assert (certificates["offset"], certificates["size"], certificates["in_file"]) == (
+        0x600, 72, True
+    )
+    assert certificates["verified"] is False
+    assert certificates["entries"][0]["certificate_type_name"] == "PKCS_SIGNED_DATA"
     assert pe["data_directories"][4]["name"] == "SECURITY"
-    assert {"pe_data_directories_not_walked", "authenticode_not_verified"} <= set(
+    assert pe["overlay"]["contains_certificate_table"] is True
+    assert {"pe_partial_directory_coverage", "authenticode_not_verified"} <= set(
         staged.limitations
     )
 
@@ -453,7 +757,7 @@ def test_pe32_layout_is_parsed_separately_from_pe32_plus():
     assert fields["pe"]["optional"]["image_base"] == 0x400000
     assert fields["pe"]["coff"]["machine_name"] == "I386"
     assert fields["pe"]["certificate_table"] is None
-    assert codes == ["pe_data_directories_not_walked"]
+    assert codes == ["pe_partial_directory_coverage"]
 
 
 def test_mz_without_pe_signature_and_scripts_are_unknown_not_failures():
@@ -586,7 +890,8 @@ def test_staging_is_byte_identical_across_runs(tmp_path):
 def test_mutated_binaries_never_escape_the_parser(seed):
     rng = random.Random(seed)
     corpus = [freebsd_kernel_module(), dynamic_executable(), build_pe(),
-              build_pe(plus=False, with_certificate=False)]
+              build_pe(plus=False, with_certificate=False), build_pe_rich(),
+              linux_kernel_module(), linux_executable()[0]]
     for _ in range(150):
         image = bytearray(rng.choice(corpus))
         for _ in range(rng.randint(1, 12)):
@@ -779,3 +1084,186 @@ def test_module_cli_stages_and_freezes_a_package_file(tmp_path):
     assert output["analysis_status"] == "analysis_unsupported"
     assert output["observation_count"] == 1
     assert (tmp_path / "cli-cases" / package["case_id"] / "manifest.json").is_file()
+
+
+
+# --- Linux and Windows targets -------------------------------------------------
+
+
+def test_linux_and_windows_targets_are_accepted(tmp_path):
+    source = tmp_path / "source"
+    linux = _package(
+        [_binary(source, "lin/demo.ko", linux_kernel_module(),
+                 logical_path="/lib/modules/6.8.0-45-generic/extra/demo.ko",
+                 declared_kind="kernel_module")]
+    )
+    linux["target"] = TARGETS["Linux"]
+    windows = _package(
+        [_binary(source, "win/demo.dll", build_pe_rich(),
+                 logical_path="C:\\Windows\\System32\\demo.dll", declared_kind="shared_object")]
+    )
+    windows["target"] = TARGETS["Windows"]
+
+    linux_staged = import_binary_static(linux, source, tmp_path / "linux")
+    windows_staged = import_binary_static(windows, source, tmp_path / "windows")
+
+    assert _triage(linux_staged)["target"] == TARGETS["Linux"]
+    assert _triage(windows_staged)["target"] == TARGETS["Windows"]
+    assert "kernel_module_load_state_unknown" in linux_staged.limitations
+    assert _triage(windows_staged)["fields"]["pe"]["exports"]["name"] == "demo.dll"
+
+
+def test_unsupported_target_systems_fail_closed_and_freebsd_scope_is_kept(tmp_path):
+    source = tmp_path / "source"
+    entry = _binary(source, "k/mod.ko", freebsd_kernel_module(), logical_path="/k/mod.ko",
+                    declared_kind="kernel_module")
+    package = _package([entry])
+    package["target"] = dict(TARGETS["Linux"], os="macOS")
+    with pytest.raises(OfflineEvidenceError, match="'FreeBSD' or 'Linux' or 'Windows'"):
+        import_binary_static(package, source, tmp_path / "binary")
+
+    freebsd = _package([], module="freebsd_evidence")
+    del freebsd["binaries"]
+    freebsd["target"] = TARGETS["Linux"]
+    freebsd["artifacts"] = [
+        {"logical_path": "/k/mod.ko", "kind": "kernel_module", "collection_status": "collected",
+         "source_path": entry["source_path"], "sha256": entry["sha256"]}
+    ]
+    with pytest.raises(OfflineEvidenceError, match="must be 'FreeBSD'$"):
+        import_freebsd_evidence(freebsd, source, tmp_path / "freebsd")
+
+    with pytest.raises(ValueError, match="allowed_os"):
+        validate_package_context(_package([entry]), "binary_static",
+                                 allowed_os=frozenset({"Plan9"}))
+
+
+def test_linux_kernel_module_records_modinfo_and_build_id():
+    status, fields, codes = triage_bytes(linux_kernel_module())
+
+    assert status == "observed" and codes == []
+    modinfo = {record["key"]: record["value"] for record in fields["elf"]["modinfo"]}
+    assert modinfo["vermagic"] == "6.8.0-45-generic SMP preempt mod_unload modversions "
+    assert modinfo["name"] == "demo_mod" and modinfo["depends"] == ""
+    (note,) = fields["elf"]["notes"]
+    assert note["build_id"] == bytes(range(20)).hex()
+    assert fields["elf"]["entry_point"] is None  # ET_REL has no entry point
+
+
+def test_linux_executable_records_version_needs_abi_tag_and_entry_section():
+    image, layout = linux_executable()
+
+    status, fields, codes = triage_bytes(image)
+
+    assert status == "observed" and codes == []
+    elf = fields["elf"]
+    assert elf["version_needs"] == [
+        {"file": "libc.so.6", "versions": [
+            {"name": "GLIBC_2.34", "flags": 0, "index": 3},
+            {"name": "GLIBC_2.2.5", "flags": 0, "index": 2},
+        ]}
+    ]
+    abi = next(note for note in elf["notes"] if "gnu_abi_tag" in note)["gnu_abi_tag"]
+    assert abi == {"os": 0, "os_name": "LINUX", "kernel_version": "3.2.0"}
+    assert elf["interpreter"] == {"name": "/lib64/ld-linux-x86-64.so.2"}
+    entry = elf["entry_point"]
+    assert entry["section_name"] == ".text" and entry["segment_flag_names"] == ["R", "X"]
+    loaded = [s for s in elf["sections"] if s["matches_load_segment"] is not None]
+    assert loaded and all(s["matches_load_segment"] for s in loaded)
+
+
+def test_section_table_that_disagrees_with_the_loader_is_visible():
+    image, layout = linux_executable()
+    text = layout[".text"]
+    shoff = struct.unpack_from("<Q", image, 0x28)[0]
+    patched = bytearray(image)
+    struct.pack_into("<Q", patched, shoff + text["index"] * 64 + 24, text["offset"] + 3)
+
+    status, fields, codes = triage_bytes(bytes(patched))
+
+    assert status == "observed"
+    assert fields["elf"]["sections"][text["index"]]["matches_load_segment"] is False
+    where = f"section:{text['index']}"
+    assert {"code": "section_offset_misaligned", "where": where} in fields["parse_issues"]
+    assert {"code": "section_not_mapped_as_declared", "where": where} in fields["parse_issues"]
+    assert codes == ["binary_parse_issues"]
+
+
+def test_windows_dll_triage_reads_what_windows_triage_needs():
+    status, fields, codes = triage_bytes(build_pe_rich())
+
+    assert status == "observed" and fields["parse_issues"] == []
+    assert codes == ["pe_partial_directory_coverage", "authenticode_not_verified"]
+    pe = fields["pe"]
+    rich = pe["rich_header"]
+    assert rich["checksum_valid"] and rich["padding_valid"]
+    assert [(e["product_id"], e["build"], e["count"]) for e in rich["entries"]] == list(
+        RICH_ENTRIES
+    )
+    assert pe["optional"]["computed_checksum"] == pe["optional"]["checksum"] != 0
+    assert pe["entry_point"]["section_name"] == ".text"
+    kernel32, ws2 = pe["imports"]
+    assert kernel32["name"] == "KERNEL32.dll"
+    assert [(f["name"], f["hint"]) for f in kernel32["functions"]] == [
+        ("CreateFileW", 0xC4), ("Sleep", 0x5A)
+    ]
+    assert ws2["functions"] == [{"ordinal": 23}]  # the literal import; no name lookup
+    (delay,) = pe["delay_imports"]
+    assert delay["name"] == "USER32.dll" and delay["functions"][0]["name"] == "MessageBoxW"
+    exports = pe["exports"]
+    assert exports["name"] == "demo.dll"
+    assert [(e["ordinal"], e["names"], e["forwarder"]) for e in exports["functions"]] == [
+        (1, ["DemoExport"], None), (2, ["DemoForward"], "NTDLL.RtlAllocateHeap"), (3, [], None)
+    ]
+    codeview, repro = pe["debug"]
+    assert codeview["codeview"]["pdb_path"] == {"name": PDB_PATH}
+    assert codeview["codeview"]["guid"] == "03020100-0504-0706-0809-0A0B0C0D0E0F"
+    assert repro["type_name"] == "REPRO"
+    assert [(c["rva"], c["section_name"]) for c in pe["tls"]["callbacks"]] == [
+        (0x1030, ".text"), (0x1040, ".text")
+    ]
+    resources = pe["resources"]
+    assert [(t["type_label"], t["count"]) for t in resources["types"]] == [
+        ("RCDATA", 1), ("VERSION", 1)
+    ]
+    rcdata = next(leaf for leaf in resources["leaves"] if leaf["type_label"] == "RCDATA")
+    assert rcdata["sha256"] == _sha256(bytes(range(64)))
+    version = resources["version_info"]
+    assert version["fixed"]["file_version"] == "1.2.3.4"
+    assert {item["key"]: item["value"] for item in version["strings"]} == dict(VERSION_STRINGS)
+    assert version["translations"] == [{"language": 0x0409, "codepage": 0x04B0}]
+    overlay = pe["overlay"]
+    assert overlay["offset"] == 0x1200 and overlay["contains_certificate_table"] is True
+    assert pe["certificate_table"]["entries"][0]["certificate_type_name"] == "PKCS_SIGNED_DATA"
+    listed = {(item["encoding"], item["value"]) for item in fields["strings"]["listed"]}
+    assert ("ascii", "https://updates.example.invalid/check") in listed
+    assert ("utf-16le", "Software\\Demo\\Settings") in listed
+
+
+def test_resource_directory_cycles_are_cut_not_followed():
+    image = bytearray(build_pe_rich())
+    resource_raw = 0xE00
+    # Point the RCDATA name directory back at the root directory.
+    struct.pack_into("<I", image, resource_raw + 0x20 + 16 + 4, 0x80000000)
+
+    status, fields, _ = triage_bytes(bytes(image))
+
+    assert status == "observed"
+    assert {"code": "resource_directory_cycle", "where": "resource"} in fields["parse_issues"]
+
+
+def test_strings_are_listed_by_position_in_both_encodings():
+    data = (
+        b"\x00\x01short\x00/usr/bin/env python3\x00\x00"
+        + "Global\\Demo".encode("utf-16-le") + b"\x00\x00" + b"A" * 300
+    )
+
+    strings = extract_strings(data)
+
+    assert strings["min_chars"] == 6
+    assert [(item["encoding"], item["value"]) for item in strings["listed"][:2]] == [
+        ("ascii", "/usr/bin/env python3"), ("utf-16le", "Global\\Demo")
+    ]
+    long_run = strings["listed"][2]
+    assert long_run["length"] == 300 and long_run["value_truncated"] is True
+    assert len(long_run["value"]) == 200
+    assert strings["total"] == 3 and strings["listing_truncated"] is False

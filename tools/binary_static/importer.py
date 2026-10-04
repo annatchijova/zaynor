@@ -24,12 +24,18 @@ from pathlib import Path
 from typing import Any
 
 from tools.binary_static.elf import ELF_MAGIC, ElfFormatError, parse_elf
-from tools.binary_static.measure import ENTROPY_METHOD, byte_histogram, shannon_entropy
+from tools.binary_static.measure import (
+    ENTROPY_METHOD,
+    byte_histogram,
+    extract_strings,
+    shannon_entropy,
+)
 from tools.binary_static.pe import PeFormatError, parse_pe
 from tools.offline_evidence import (
     MAX_FILES,
     MAX_OBSERVATIONS,
     MAX_TOTAL_BYTES,
+    SUPPORTED_TARGET_OS,
     OfflineEvidenceError,
     StagedEvidence,
     finish_staging,
@@ -50,7 +56,7 @@ _BINARY_KEYS = {"logical_path", "declared_kind", "source_path", "sha256"}
 _SIGNATURE_KEYS = {"engine", "ruleset_source_path", "ruleset_sha256"}
 _MAGIC_PREFIX_BYTES = 16
 # Limitation codes that describe the module's coverage rather than one file.
-_MODULE_WIDE_CODES = frozenset({"pe_data_directories_not_walked", "authenticode_not_verified"})
+_MODULE_WIDE_CODES = frozenset({"pe_partial_directory_coverage", "authenticode_not_verified"})
 
 # YARA modules whose result depends only on the scanned bytes. `time` reads
 # the wall clock, `magic` depends on the host libmagic database, `cuckoo`
@@ -100,6 +106,7 @@ def triage_bytes(data: bytes) -> tuple[str, dict[str, Any], list[str]]:
         "byte_histogram": histogram,
         "entropy_bits_per_byte": shannon_entropy(histogram),
         "entropy_method": ENTROPY_METHOD,
+        "strings": extract_strings(data),
         "format": None,
         "parse_error": None,
         "parse_issues": [],
@@ -117,7 +124,7 @@ def triage_bytes(data: bytes) -> tuple[str, dict[str, Any], list[str]]:
                 return "unknown", fields, codes
             fields["format"] = "pe"
             fields["pe"], fields["parse_issues"] = parsed
-            codes.append("pe_data_directories_not_walked")
+            codes.append("pe_partial_directory_coverage")
             if fields["pe"]["certificate_table"] is not None:
                 codes.append("authenticode_not_verified")
         else:
@@ -283,7 +290,7 @@ def import_binary_static(
     package: dict[str, Any], source_root: Path, staging_root: Path
 ) -> StagedEvidence:
     """Stage one bounded binary-triage package for the existing freezer."""
-    context = validate_package_context(package, MODULE)
+    context = validate_package_context(package, MODULE, allowed_os=SUPPORTED_TARGET_OS)
     allowed_keys = {
         "schema_version", "module", "case_id", "target", "acquisition", "binaries", "signatures"
     }

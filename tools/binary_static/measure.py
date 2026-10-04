@@ -16,9 +16,11 @@ rational tables in its scorer.
 from __future__ import annotations
 
 import hashlib
+import re
 from collections import Counter
 from decimal import ROUND_HALF_EVEN, Context, Decimal
 from functools import lru_cache
+from typing import Any
 
 ENTROPY_METHOD = "shannon-bits-per-byte/decimal-prec40-ln/quantize-1e-6-half-even"
 
@@ -89,6 +91,52 @@ class MeasurementBudget:
             return False
         self.remaining -= length
         return True
+
+
+STRING_MIN_CHARS = 6
+MAX_STRINGS_LISTED = 1024
+MAX_STRING_CHARS = 200
+_ASCII_RUN = re.compile(rb"[\x20-\x7e]{%d,}" % STRING_MIN_CHARS)
+_UTF16LE_RUN = re.compile(rb"(?:[\x20-\x7e]\x00){%d,}" % STRING_MIN_CHARS)
+
+
+def extract_strings(data: bytes) -> dict[str, Any]:
+    """Printable ASCII and UTF-16LE runs, the `strings` step of static triage.
+
+    Selection is purely positional — the first runs by file offset — so the
+    listing never encodes a judgment about which strings matter. Totals count
+    every run, and the frozen original keeps the rest.
+    """
+    found: list[tuple[int, str, int, str]] = []
+    totals = {"ascii": 0, "utf-16le": 0}
+    for match in _ASCII_RUN.finditer(data):
+        totals["ascii"] += 1
+        if totals["ascii"] <= MAX_STRINGS_LISTED:
+            text = match.group().decode("ascii")
+            found.append((match.start(), "ascii", len(text), text))
+    for match in _UTF16LE_RUN.finditer(data):
+        totals["utf-16le"] += 1
+        if totals["utf-16le"] <= MAX_STRINGS_LISTED:
+            text = match.group().decode("utf-16-le")
+            found.append((match.start(), "utf-16le", len(text), text))
+    found.sort(key=lambda item: (item[0], item[1]))
+    listed = [
+        {
+            "offset": offset,
+            "encoding": encoding,
+            "length": length,
+            "value": text[:MAX_STRING_CHARS],
+            "value_truncated": length > MAX_STRING_CHARS,
+        }
+        for offset, encoding, length, text in found[:MAX_STRINGS_LISTED]
+    ]
+    return {
+        "min_chars": STRING_MIN_CHARS,
+        "total": totals["ascii"] + totals["utf-16le"],
+        "totals_by_encoding": totals,
+        "listed": listed,
+        "listing_truncated": totals["ascii"] + totals["utf-16le"] > len(listed),
+    }
 
 
 def measure_range(data: memoryview, offset: int, size: int) -> dict[str, str | None]:

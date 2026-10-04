@@ -21,6 +21,7 @@ from tools.offline_evidence import (
     MAX_FILES,
     MAX_OBSERVATIONS,
     MAX_TOTAL_BYTES,
+    SUPPORTED_TARGET_OS,
     OfflineEvidenceError,
     StagedEvidence,
     _reject_binary_floats,
@@ -218,7 +219,7 @@ def import_analysis_reports(
     package: dict[str, Any], source_root: Path, staging_root: Path
 ) -> StagedEvidence:
     """Stage one bounded upstream-analysis package for the existing freezer."""
-    context = validate_package_context(package, MODULE)
+    context = validate_package_context(package, MODULE, allowed_os=SUPPORTED_TARGET_OS)
     allowed_keys = {
         "schema_version", "module", "case_id", "target", "acquisition", "analyzer", "reports"
     }

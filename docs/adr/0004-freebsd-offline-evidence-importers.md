@@ -73,3 +73,11 @@ separately reviewed VIGIA adapter and calibration against benign and controlled
 positive acquisitions. Memory-resident process, module, connection, hook, or
 kernel-code claims remain P3 work requiring a build-matched offline parser and
 independent validation.
+
+## Amendment (2026-10-04)
+
+The shared header in `tools/offline_evidence.py` now takes a per-importer
+target-system allowlist (`allowed_os`). Its default is FreeBSD-only, so both
+importers of this ADR behave exactly as decided here. The format-level binary
+importers of [ADR-0005](./0005-binary-static-triage-and-analysis-reports.md)
+opt in to `FreeBSD`, `Linux` and `Windows`. No decision of this ADR changes.

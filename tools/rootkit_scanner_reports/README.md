@@ -47,7 +47,9 @@ reading fail closed. The canonical package record is frozen as
 references it.
 
 The package uses the same schema-version `1` `case_id`, FreeBSD `target`, and
-`acquisition` object as the FreeBSD importer. It adds:
+`acquisition` object as the FreeBSD importer. The shared header's target-system
+allowlist is per importer, and this one stays FreeBSD-only: its versioned
+dialects were validated against FreeBSD runs, not Linux ones. It adds:
 
 ```json
 {
