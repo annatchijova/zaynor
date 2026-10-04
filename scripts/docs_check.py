@@ -161,6 +161,24 @@ DOCS_MAP: tuple[Rule, ...] = (
         require_all=True,
     ),
     Rule(
+        "binary-static-importer",
+        ("tools/binary_static/*",),
+        (
+            "tools/binary_static/README.md",
+            "docs/adr/0005-binary-static-triage-and-analysis-reports.md",
+        ),
+        require_all=True,
+    ),
+    Rule(
+        "binary-analysis-report-importer",
+        ("tools/binary_analysis_reports/*",),
+        (
+            "tools/binary_analysis_reports/README.md",
+            "docs/adr/0005-binary-static-triage-and-analysis-reports.md",
+        ),
+        require_all=True,
+    ),
+    Rule(
         "frontend-architecture",
         ("frontend/src/*",),
         ("docs/architecture-for-frontend.md",),

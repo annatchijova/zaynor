@@ -19,6 +19,18 @@ the git log; this file curates it.
 
 ### Added
 
+- Binary importers on the offline evidence contract (ADR 0005).
+  `tools/binary_static/` performs static, read-only triage of acquired
+  binaries with stdlib-only, bounds-checked ELF and PE parsers: one
+  observation per binary keyed by content digest, exact byte histograms with
+  decimal entropy, sections, segments, dynamic dependencies, symbols, notes,
+  PE headers and certificate-table location, plus optional YARA matching with
+  the ruleset frozen as method and non-deterministic YARA modules rejected.
+  `tools/binary_analysis_reports/` imports reports from an upstream
+  binary-analysis pipeline as `tool_reported` results with declared, unverified
+  execution environment. Both stay `analysis_unsupported`; a guard test pins
+  the vendored VIGÍA facts a future adapter would depend on.
+
 - Offline FreeBSD evidence and rootkit-scanner report importers
   (`tools/freebsd_evidence/`, `tools/rootkit_scanner_reports/`) with a
   shared bounded staging contract. They preserve digest-verified originals,

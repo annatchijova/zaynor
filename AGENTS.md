@@ -131,6 +131,15 @@ authoritative ZAYNOR result
   full security and epistemic constraints, and
   [the branch audit](./docs/audits/2026-10-01-freebsd-evidence-importers-audit.md)
   for the adversarial review that preceded merge.
+- **Binary importers on the same contract** (`tools/binary_static/`,
+  `tools/binary_analysis_reports/`): static, read-only triage of acquired
+  binaries (hashes, ELF/PE structures, optional YARA with the ruleset frozen
+  as method) and import of reports from an upstream binary-analysis pipeline
+  that runs outside ZAYNOR. Nothing is executed or disassembled here
+  (ADR-0003); results stay `analysis_unsupported`, upstream results stay
+  `tool_reported`, and one binary is one observation keyed by its content
+  digest. See [ADR 0005](./docs/adr/0005-binary-static-triage-and-analysis-reports.md),
+  including the invariants any future VIGÍA adapter must hold.
 
 A task that proposes telemetry replay, a detection rule, or a correlation
 step is out of scope by construction, no matter how small — that is a
