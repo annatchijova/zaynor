@@ -73,6 +73,17 @@ the git log; this file curates it.
   position counts — an illustrative line mid-body is not a waiver);
   gate semantics and trailer parsing tested in `tests/test_docs_check.py`.
 
+### Fixed
+
+- CI: the `ruff + commitlint self-test` job rejected commit `75b8c29`
+  ("results: publish process hollowing run artifacts"), which predates the
+  Conventional Commits gate; its header is now grandfathered in
+  `.commitlint-allowlist`, the mechanism the gate already documents.
+- CI: the `demo-lab smoke` job's stdlib pytest shim
+  (`scripts/run_lab_tests.py`) now supports `pytest.raises(..., match=)`
+  and raises `AssertionError` when a `raises` block exits without an
+  exception, matching pytest semantics instead of silently passing.
+
 ## [0.1.0] - 2026-09-17
 
 First tagged release: everything on `main` up to and including the

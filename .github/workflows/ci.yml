@@ -33,15 +33,7 @@ jobs:
         run: ruff check src tools tests scripts conftest.py
       - name: Commitlint self-test (full history must pass the gate)
         run: |
-          # Commits that predate the gate are exempted by SHA: they cannot be
-          # fixed without rewriting history, which is prohibited. The gate
-          # still lints every other commit, so new violations still fail.
-          # 75b8c29 = "results: publish process hollowing run artifacts"
-          exempt="75b8c29b4e47f27a850b916c699496f507139bb3"
-          git log --format='%H %s' | while IFS=' ' read -r sha subject; do
-            case " $exempt " in
-              *" $sha "*) continue ;;
-            esac
+          git log --format=%s | while IFS= read -r subject; do
             printf '%s\n' "$subject" | python3 scripts/commitlint.py
           done
 
