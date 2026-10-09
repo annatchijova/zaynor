@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import importlib
 import inspect
+import re
 import sys
 import tempfile
 import traceback
@@ -67,19 +68,26 @@ class _ShimPytest:
     MonkeyPatch = _ShimMonkeyPatch
 
     @staticmethod
-    def raises(exc_type: type) -> "_Raises":
-        return _Raises(exc_type)
+    def raises(exc_type: type, match: str | None = None) -> "_Raises":
+        return _Raises(exc_type, match)
 
 
 class _Raises:
-    def __init__(self, exc_type: type) -> None:
+    def __init__(self, exc_type: type, match: str | None = None) -> None:
         self.exc_type = exc_type
+        self.match = match
 
     def __enter__(self) -> "_Raises":
         return self
 
     def __exit__(self, exc_type: type, exc: object, tb: object) -> bool:
-        return exc is not None and isinstance(exc, self.exc_type)
+        if exc is None:
+            raise AssertionError(f"DID NOT RAISE {self.exc_type.__name__}")
+        if not isinstance(exc, self.exc_type):
+            return False
+        if self.match is not None and not re.search(self.match, str(exc)):
+            raise AssertionError(f"exception {exc!r} does not match {self.match!r}")
+        return True
 
 
 def _run_with_shim() -> tuple[int, int]:
