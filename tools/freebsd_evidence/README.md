@@ -79,6 +79,11 @@ included in the frozen manifest and referenced by every observation.
 }
 ```
 
+`target.os` must be exactly `FreeBSD`. The shared header lets each importer
+declare which target systems it accepts; this importer parses FreeBSD-specific
+files and keeps the FreeBSD-only default even though the binary importers
+of ADR-0005 also accept `Linux` and `Windows`.
+
 `source_path` is relative to the acquisition directory. `logical_path` is the
 path recorded for the target and is never opened by the importer. Supported
 kinds are `boot_file`, `kernel_module`, `loader_configuration`,

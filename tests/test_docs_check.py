@@ -105,6 +105,19 @@ def test_shared_import_contract_requires_both_module_docs():
     assert not any(outcome.violated for outcome in docs_check.evaluate(files))
 
 
+def test_binary_importers_require_their_readme_and_adr():
+    adr = "docs/adr/0005-binary-static-triage-and-analysis-reports.md"
+    static_code = ["tools/binary_static/elf.py"]
+    assert violated_ids(static_code) == ["binary-static-importer"]
+    assert violated_ids([*static_code, "tools/binary_static/README.md"]) == [
+        "binary-static-importer"
+    ]
+    assert not violated_ids([*static_code, "tools/binary_static/README.md", adr])
+    reports_code = ["tools/binary_analysis_reports/importer.py"]
+    assert violated_ids(reports_code) == ["binary-analysis-report-importer"]
+    assert not violated_ids([*reports_code, "tools/binary_analysis_reports/README.md", adr])
+
+
 # --- map integrity ----------------------------------------------------------
 
 

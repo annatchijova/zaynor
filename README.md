@@ -96,6 +96,12 @@ also be staged through bounded, digest-verified importers
 (`tools/freebsd_evidence/`, `tools/rootkit_scanner_reports/`) that cross the
 same case-freeze boundary; the result is `analysis_unsupported` until a
 calibrated VIGÍA adapter exists ([ADR 0004](./docs/adr/0004-freebsd-offline-evidence-importers.md)).
+Acquired FreeBSD, Linux and Windows binaries get static, read-only triage on
+the same contract (`tools/binary_static/`: hashes, strings, ELF/PE structures,
+optional YARA), and reports
+from an upstream binary-analysis pipeline can be imported as tool-reported
+evidence (`tools/binary_analysis_reports/`); nothing is executed or
+disassembled inside ZAYNOR ([ADR 0005](./docs/adr/0005-binary-static-triage-and-analysis-reports.md)).
 
 Evaluation uses the reusable
 [VIGÍA Intent Analysis corpus](https://github.com/annatchijova/vigia-intent-analysis).

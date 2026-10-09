@@ -19,6 +19,28 @@ the git log; this file curates it.
 
 ### Added
 
+- Linux and Windows targets for the binary importers (ADR 0005). The shared
+  offline package header takes a per-importer target-system allowlist,
+  FreeBSD-only by default, so the FreeBSD and rootkit-scanner importers are
+  unchanged. PE triage now reads the Rich header (with checksum validity),
+  imports and delay imports, exports with forwarders, CodeView/REPRO debug
+  entries, TLS callbacks, resources with version information, the overlay,
+  certificate entries and a recomputed header checksum; ELF triage adds the
+  entry-point section, loader-versus-section-table consistency, GNU version
+  needs, GNU ABI tag and build ID, and Linux `.modinfo`. Every binary gets
+  positional ASCII and UTF-16LE strings.
+- Binary importers on the offline evidence contract (ADR 0005).
+  `tools/binary_static/` performs static, read-only triage of acquired
+  binaries with stdlib-only, bounds-checked ELF and PE parsers: one
+  observation per binary keyed by content digest, exact byte histograms with
+  decimal entropy, sections, segments, dynamic dependencies, symbols, notes,
+  PE headers and certificate-table location, plus optional YARA matching with
+  the ruleset frozen as method and non-deterministic YARA modules rejected.
+  `tools/binary_analysis_reports/` imports reports from an upstream
+  binary-analysis pipeline as `tool_reported` results with declared, unverified
+  execution environment. Both stay `analysis_unsupported`; a guard test pins
+  the vendored VIGÍA facts a future adapter would depend on.
+
 - Offline FreeBSD evidence and rootkit-scanner report importers
   (`tools/freebsd_evidence/`, `tools/rootkit_scanner_reports/`) with a
   shared bounded staging contract. They preserve digest-verified originals,

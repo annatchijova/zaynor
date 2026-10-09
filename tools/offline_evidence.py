@@ -28,6 +28,10 @@ MAX_PACKAGE_BYTES = 1024 * 1024
 MAX_TEXT_LINE_CHARS = 16_384
 MAX_VALUE_DEPTH = 32
 PROFILE_NAME = "offline-evidence-import"
+# Exact `package.target.os` values an importer may opt in to. Each importer
+# declares its own subset; the default keeps the original FreeBSD scope.
+SUPPORTED_TARGET_OS = frozenset({"FreeBSD", "Linux", "Windows"})
+FREEBSD_ONLY = frozenset({"FreeBSD"})
 
 _SAFE_CASE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 _SAFE_SHA256 = re.compile(r"^[0-9a-f]{64}$")
@@ -179,8 +183,18 @@ def validate_timestamp(value: Any, field: str) -> str:
     return text
 
 
-def validate_package_context(package: Any, expected_module: str) -> PackageContext:
-    """Validate the authority-neutral header shared by both importers."""
+def validate_package_context(
+    package: Any, expected_module: str, *, allowed_os: frozenset[str] = FREEBSD_ONLY
+) -> PackageContext:
+    """Validate the authority-neutral header shared by the offline importers.
+
+    The target operating systems an importer accepts are part of that
+    importer's contract, not of the shared header: the FreeBSD importers keep
+    the FreeBSD-only default, while format-level importers (ADR-0005) opt in
+    to every system in :data:`SUPPORTED_TARGET_OS`.
+    """
+    if not allowed_os or not allowed_os <= SUPPORTED_TARGET_OS:
+        raise ValueError(f"allowed_os must be a non-empty subset of {sorted(SUPPORTED_TARGET_OS)}")
     _reject_binary_floats(package)
     root = _require_object(package, "package")
     schema_version = root.get("schema_version")
@@ -202,8 +216,9 @@ def validate_package_context(package: Any, expected_module: str) -> PackageConte
         key: _bounded_string(target[key], f"package.target.{key}", maximum=256)
         for key in ("os", "release", "arch", "kernel_build")
     }
-    if normalized_target["os"] != "FreeBSD":
-        raise OfflineEvidenceError("package.target.os must be 'FreeBSD'")
+    if normalized_target["os"] not in allowed_os:
+        expected = " or ".join(repr(name) for name in sorted(allowed_os))
+        raise OfflineEvidenceError(f"package.target.os must be {expected}")
 
     acquisition = _require_object(package.get("acquisition"), "package.acquisition")
     _require_exact_keys(
