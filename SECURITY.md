@@ -5,12 +5,12 @@
 ## Reporting a vulnerability
 
 **Do not open a public issue for a security bug.** Email
-`anna.tchijova@icloud.com`. Do not put exploit details, sensitive evidence,
+`anna.tchijova@gmail.com`. Do not put exploit details, sensitive evidence,
 credentials, or private case data in a public issue or pull request.
 
 | Severity | What it means here | Response time |
 |---|---|---|
-| Critical | A sealed result can be forged, tampered with undetected, or a verdict can be influenced by evidence content or a narrator | 48 hours |
+| Critical | A sealed result can be forged, tampered with undetected, or evidence content can act as instructions and influence a verdict outside VIGÍA's deterministic analysis path | 48 hours |
 | High | A path/symlink/allowlist guard can be bypassed, or a non-local AI backend can be reached | 7 days |
 | Medium/Low | Everything else | best effort |
 
@@ -28,14 +28,14 @@ names the module a reader can go verify directly.
 | Control | Where | What it actually does |
 |---|---|---|
 | LLM never in the decision path | `authority_seal.py`, `agents/mentor.py` | The deterministic engine seals a result before any model runs; `Mentor` narrates a copy, never the sealed object itself. Swapping the narrator (Ollama model, or removing it) changes wording, never the verdict. |
-| No float in any sealed value | `case_freezer.py`, `hash_utils.py`, throughout | Ratios and scores that reach a seal use `fractions.Fraction` or integers. Floats are cosmetic-layer only. |
-| Every claim checked against the seal | `hallucination_guard.py`, `agents/authority_guard.py` | A narration's claims are extracted and compared against the sealed result's own facts, regardless of what the model actually said. An unsupported claim is stripped before the user sees it. |
+| No binary floating-point in authoritative sealed values | `case_freezer.py`, `hash_utils.py`, throughout | Authoritative numeric paths use exact/canonical representations (`Fraction`, `Decimal`, or integers as applicable). Binary floats are excluded from sealed authority. |
+| Recognized authoritative claims checked against the seal | `hallucination_guard.py`, `agents/authority_guard.py` | The guard extracts supported claim classes and compares them with the sealed result's own facts. Unsupported recognized claims are stripped or rejected before user-facing narration. This is not a general proof of arbitrary natural-language truth. |
 | Local-only narrator, enforced structurally | `agents/ollama_client.py` | `OllamaClient` refuses any host other than `127.0.0.1`/`localhost`/`::1` at construction time — not a config default, a hard check. |
-| Semantic tripwire against prompt injection | `agents/tripwire.py` | A deterministic, per-case identifier is folded into the narrator's system prompt; if evidence content tries to reference or impersonate it, the narration is replaced with a flagged notice instead of reaching the user. |
+| Deterministic per-case prompt-injection tripwire | `agents/tripwire.py` | A deterministic, per-case identifier is folded into the narrator's system prompt; if evidence content references or impersonates it, the narration is replaced with a flagged notice instead of reaching the user. This is a case-bound control, not a general semantic injection detector. |
 | Tamper-evident, per-case audit chain | `audit_log.py` | Each case's `freeze`/`analyze` lifecycle is hash-chained (SHA-256, optional HMAC), genesis bound to `case_id` so one case's chain cannot be grafted onto another's, with a tail anchor against truncation. |
 | Path and symlink confinement | `cli.py` (`_fixture_path`, `_directory_path`), `path_guard.py` | Every file/directory argument is resolved and checked against symlink traversal at every path component, not just the final target. |
 | Read-only evidence tools, closed vocabulary | `tools.py` | `ReadOnlyToolRegistry` exposes no write/execute method at all; every call is audited with a closed, non-extensible action vocabulary. |
-| Deterministic seal, independently reproducible | `authority_seal.py`, `zaynor audit` | The same frozen case, analyzed twice, produces byte-identical seals — verified as part of the test suite, not assumed. |
+| Deterministic seal, independently reproducible | `authority_seal.py`, `zaynor audit` | The same frozen case under the same engine and configuration, analyzed twice, produces byte-identical seals — verified by the reproducibility tests. |
 
 ## Known, documented limitations
 
@@ -79,6 +79,19 @@ These are implemented boundaries, not promises about every deployment:
 - There is no cloud fallback or external provider in the supported runtime.
 - The API rejects unsupported model IDs and does not pretend that an unknown
   token usage is a measured zero.
+
+### Agent capability boundary
+
+Agent roles use explicit capability contracts: `READ`, `DERIVE`, `ACQUIRE`,
+`MUTATE`, and `AUTHORIZE`.
+
+No registered AI-agent role has `MUTATE` or `AUTHORIZE`. Agent manifests are
+verified before use; investigative capabilities may read, derive, or acquire
+evidence according to policy, but cannot modify authoritative state or
+authorize a verdict.
+
+See [`src/zaynor/agents/README.md`](./src/zaynor/agents/README.md) for the
+role registry and capability matrix.
 
 ### API and transport boundary
 

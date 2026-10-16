@@ -1,6 +1,6 @@
 # Referencias de diseño
 
-Zaynor se está componiendo a partir de tres repositorios existentes y toma
+Zaynor se está componiendo a partir de seis repositorios existentes y toma
 patrones concretos de proyectos relacionados. Las referencias no otorgan
 autoridad al LLM ni sustituyen el contrato local del proyecto:
 

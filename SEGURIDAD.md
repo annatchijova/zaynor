@@ -5,7 +5,7 @@
 ## Reportar una vulnerabilidad
 
 **No abras un issue público para una vulnerabilidad.** Escribí por mail a
-`anna.tchijova@icloud.com`. No incluyas detalles del exploit, evidencia
+`anna.tchijova@gmail.com`. No incluyas detalles del exploit, evidencia
  sensible, credenciales ni datos privados de casos en issues o pull requests
  públicas.
 
@@ -17,7 +17,7 @@ confirmación de que es seguro hacerlo.
 
 | Severidad | Qué significa | Tiempo de respuesta |
 |---|---|---|
-| Crítica | Se puede falsificar o alterar un resultado sellado sin detectarlo, o influir un veredicto | 48 horas |
+| Crítica | Se puede falsificar o alterar un resultado sellado sin detectarlo, o hacer que la evidencia actúe como instrucciones e influya el veredicto fuera del análisis determinista de VIGÍA | 48 horas |
 | Alta | Se puede eludir una protección de paths, symlinks, allowlist o alcanzar un backend no local | 7 días |
 | Media/Baja | Cualquier otro problema | mejor esfuerzo |
 
@@ -35,8 +35,10 @@ Estos son límites implementados, no promesas sobre cualquier despliegue:
   narrador. Chat nunca ejecuta el análisis de VIGÍA ni recalcula el veredicto.
 - El LLM narra un resultado verificado; no puede crear, modificar ni
   reemplazar resultados, sellos, findings o veredictos.
-- Los guards comparan los claims con hechos sellados y eliminan o rechazan
-  claims no soportados antes de mostrar la narración.
+- Los guards extraen clases de claims reconocidas, las comparan con hechos
+  sellados y eliminan o rechazan claims reconocidos no soportados antes de
+  mostrar la narración. No constituyen una prueba general de verdad para
+  cualquier lenguaje natural.
 
 ### Evidencia y filesystem
 
@@ -56,6 +58,19 @@ Estos son límites implementados, no promesas sobre cualquier despliegue:
 - La API rechaza modelos no soportados y no presenta usage desconocido como
   una medición real de cero.
 
+### Frontera de capabilities de agentes
+
+Los roles de agentes usan contratos explícitos de capability: `READ`,
+`DERIVE`, `ACQUIRE`, `MUTATE` y `AUTHORIZE`.
+
+Ningún rol de agente de IA registrado tiene `MUTATE` ni `AUTHORIZE`. Los
+manifests se verifican antes de usar el agente; las capabilities investigativas
+pueden leer, derivar o adquirir evidencia según policy, pero no modificar el
+estado autoritativo ni autorizar un veredicto.
+
+Ver el registro y la matriz de roles en
+[`src/zaynor/agents/README.md`](./src/zaynor/agents/README.md).
+
 ### API y transporte
 
 - Requests malformadas, case IDs inválidos, casos ausentes, autoridad inválida,
@@ -72,6 +87,14 @@ representación canónica tipada del resultado. Metadata y cadenas de auditoría
 no reemplazan el sello del resultado. Cuando haya hash chain o audit chain,
 verificá la cadena y sus anclas antes de tratar el registro como íntegro.
 Varios hashes representan verificaciones distintas; no permiten omitir ninguna.
+Los valores numéricos autoritativos no usan coma flotante binaria: utilizan
+representaciones exactas y canónicas (`Fraction`, `Decimal` o enteros según
+corresponda).
+
+El tripwire de prompt injection es determinista y por caso; no es un detector
+semántico general. La reproducibilidad se garantiza para el mismo caso
+congelado bajo el mismo motor y configuración, con comparación byte a byte de
+los sellos en los tests correspondientes.
 
 ## Checklist de despliegue
 

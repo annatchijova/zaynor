@@ -1,6 +1,6 @@
 # Design lineage
 
-Zaynor is being assembled from three existing repositories and takes concrete
+Zaynor is being assembled from six existing repositories and takes concrete
 patterns from related projects. These references do not grant authority to the
 LLM and do not replace the project's local contracts:
 
