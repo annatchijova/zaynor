@@ -608,3 +608,56 @@ autoridad.
 ## Licencia
 
 Apache License 2.0. Ver [`LICENSE`](./LICENSE).
+
+
+## Autoría y contribuciones
+
+### Autoría intelectual y fundamentos del proyecto
+
+**Anna Tchijova — Concepto original, investigadora principal y arquitecta del sistema**
+
+Concepción original, formulación del problema, investigación fundacional, metodología central, arquitectura forense, modelo determinista de decisión y dirección técnica general.
+
+ZAYNOR se fundamenta principalmente en **VIGÍA** y **ANNACONDA**, dos proyectos de investigación y desarrollo concebidos y desarrollados originalmente por Anna Tchijova. Sus arquitecturas preexistentes, metodologías de investigación, principios de tratamiento de evidencia y límites de autoridad y seguridad constituyen la base de ZAYNOR.
+
+**Sergei Solovev (Dahgoth) — Coautor intelectual e integración de sistemas**
+
+Participación en las discusiones conceptuales y el análisis del problema, especialmente en la ampliación de ZAYNOR hacia capacidades de respuesta a incidentes en vivo.
+
+Responsable de la integración de sistemas, incluida la incorporación de la adquisición forense mediante Velociraptor a la arquitectura de investigación existente.
+
+Se reconoce expresamente a Sergei como **coautor intelectual de ZAYNOR**, mientras que la autoría original de VIGÍA y ANNACONDA corresponde a Anna Tchijova.
+
+### Implementación y contribuciones adicionales
+
+**Ivan Sarapura — Desarrollo del frontend**
+
+Desarrollo e implementación de la interfaz gráfica de usuario, que proporciona una capa visual de interacción con los flujos de investigación forense y los resultados de ZAYNOR.
+
+El frontend constituye una capa adicional de acceso y presentación. Las capacidades centrales de análisis forense, adjudicación determinista, sellado de evidencia y verificación de ZAYNOR funcionan independientemente de esta interfaz.
+
+**Samuel Ramos (0xnotwired) — Casos de prueba, propuestas funcionales y documentación**
+
+Contribuyó con determinados casos de prueba forense, propuso capacidades adicionales relacionadas con el análisis de binarios mediante los *issues* del proyecto y realizó modificaciones puntuales en la documentación.
+
+El alcance de estas contribuciones puede consultarse en el historial de commits y en el registro de issues del repositorio. Las funcionalidades propuestas y los casos de prueba se distinguen de las capacidades efectivamente incorporadas a la arquitectura operativa del sistema.
+
+### Tecnologías de terceros y atribución
+
+ZAYNOR integra y utiliza tecnologías existentes, entre ellas **Velociraptor**, además de sus componentes fundacionales procedentes de VIGÍA y ANNACONDA.
+
+El software de terceros conserva sus respectivas atribuciones de autoría, avisos de derechos de autor y licencias aplicables.
+
+### Principios de atribución
+
+ZAYNOR distingue expresamente entre autoría intelectual original, diseño arquitectónico, integración de sistemas, implementación de interfaces, desarrollo de pruebas, propuestas funcionales y contribuciones a la documentación.
+
+Cada participante recibe reconocimiento de acuerdo con la naturaleza y el alcance documentado de su trabajo.
+
+La participación en tareas de implementación, pruebas, documentación, integración o presentación del proyecto no implica, por sí misma, coautoría de la investigación original, de la metodología fundacional ni de los sistemas preexistentes.
+
+**Autoría original de VIGÍA y ANNACONDA: Anna Tchijova.**
+
+**Coautoría intelectual de ZAYNOR: Anna Tchijova y Sergei Solovev.**
+
+Esta declaración documenta la procedencia intelectual del proyecto y su historial de contribuciones. No modifica los derechos ni las obligaciones establecidos por la licencia Apache 2.0 ni por la legislación aplicable en materia de derechos de autor.
