@@ -2,10 +2,12 @@
 
 ## Human authors
 
-- Ivan Sarapura
+
 - Anna Tchijova
-- Samuel Ramos
 - Sergei Solovev
+- Ivan Sarapura
+- Samuel Ramos
+- 
 
 ## AI assistants
 
